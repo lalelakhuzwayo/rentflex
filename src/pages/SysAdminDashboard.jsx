@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { appClient } from '@/api/appClient';
+import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
@@ -74,16 +75,19 @@ export default function SysAdminDashboard() {
     }, []);
 
     const checkHealth = async () => {
+        if (!isSupabaseConfigured) {
+            setSystemHealth({ status: 'degraded', db: 'Supabase credentials not configured in .env' });
+            return;
+        }
         try {
-            const res = await fetch('http://localhost:5000/api/health');
-            if (res.ok) {
-                const data = await res.json();
-                setSystemHealth({ status: 'healthy', db: data.database, time: data.time });
+            const { error } = await supabase.from('profiles').select('id').limit(1);
+            if (!error) {
+                setSystemHealth({ status: 'healthy', db: 'Supabase PostgreSQL', time: new Date().toISOString() });
             } else {
-                setSystemHealth({ status: 'degraded', db: 'local mock fallback' });
+                setSystemHealth({ status: 'degraded', db: 'Supabase: ' + error.message });
             }
         } catch {
-            setSystemHealth({ status: 'degraded', db: 'local storage/mock mode' });
+            setSystemHealth({ status: 'offline', db: 'Supabase Unreachable' });
         }
     };
 
@@ -108,15 +112,18 @@ export default function SysAdminDashboard() {
         queryFn: () => appClient.entities.DepositDispute.list(),
     });
 
-    // Mock/Real User Directory
-    const [usersList, setUsersList] = useState([
-        { id: 'usr_admin', email: 'admin@rentflex.co.za', full_name: 'Doc SysAdmin', user_type: 'sysAdmin', status: 'active', verified: true, joined: '2026-01-01' },
-        { id: 'usr_1', email: 'landlord@rentflex.co.za', full_name: 'John Landlord', user_type: 'landlord', status: 'active', verified: true, joined: '2026-02-15' },
-        { id: 'usr_2', email: 'tenant@rentflex.co.za', full_name: 'Sarah Tenant', user_type: 'tenant', status: 'active', verified: true, joined: '2026-03-01' },
-        { id: 'usr_3', email: 'contractor@rentflex.co.za', full_name: 'Pro Repairs Co.', user_type: 'contractor', status: 'active', verified: true, joined: '2026-04-10' },
-        { id: 'usr_4', email: 'david.owner@rentflex.co.za', full_name: 'David Owner', user_type: 'landlord', status: 'active', verified: false, joined: '2026-05-12' },
-        { id: 'usr_5', email: 'sipho.tenant@mail.com', full_name: 'Sipho Zulu', user_type: 'tenant', status: 'active', verified: true, joined: '2026-06-20' },
-    ]);
+    const { data: realProfiles = [], refetch: refetchProfiles } = useQuery({
+        queryKey: ['sysadmin-profiles'],
+        queryFn: () => appClient.entities.Profile.list(),
+    });
+
+    const [usersList, setUsersList] = useState([]);
+
+    useEffect(() => {
+        if (realProfiles) {
+            setUsersList(realProfiles);
+        }
+    }, [realProfiles]);
 
     const handleUpdateUserRole = async (userId, newRole) => {
         setUsersList(prev => prev.map(u => u.id === userId ? { ...u, user_type: newRole } : u));
@@ -289,7 +296,7 @@ export default function SysAdminDashboard() {
                     >
                         <div>
                             <p className="font-bold text-xs text-white">SysAdmin Master</p>
-                            <p className="text-[10px] text-zinc-400 font-mono">admin@rentflex.co.za</p>
+                            <p className="text-[10px] text-zinc-400 font-mono">System Administrator</p>
                         </div>
                         <Shield className="w-4 h-4 text-purple-400" />
                     </button>
@@ -304,7 +311,7 @@ export default function SysAdminDashboard() {
                     >
                         <div>
                             <p className="font-bold text-xs text-white">Landlord Portal</p>
-                            <p className="text-[10px] text-zinc-400 font-mono">landlord@rentflex.co.za</p>
+                            <p className="text-[10px] text-zinc-400 font-mono">Property Manager / Owner</p>
                         </div>
                         <Building2 className="w-4 h-4 text-zinc-300" />
                     </button>
@@ -319,7 +326,7 @@ export default function SysAdminDashboard() {
                     >
                         <div>
                             <p className="font-bold text-xs text-white">Tenant Portal</p>
-                            <p className="text-[10px] text-zinc-400 font-mono">tenant@rentflex.co.za</p>
+                            <p className="text-[10px] text-zinc-400 font-mono">Verified Tenant / Rentee</p>
                         </div>
                         <Users className="w-4 h-4 text-emerald-400" />
                     </button>
@@ -626,7 +633,7 @@ export default function SysAdminDashboard() {
                                     <p className="text-xs text-zinc-500 mb-2 truncate">{p.address}, {p.city}</p>
                                     <div className="flex items-center justify-between text-xs pt-2 border-t border-zinc-200/80">
                                         <span className="font-bold text-zinc-900">R{(p.monthly_rent || 0).toLocaleString()}/mo</span>
-                                        <span className="text-zinc-500 text-[11px]">Owner: {p.landlord_id || 'john@example.com'}</span>
+                                        <span className="text-zinc-500 text-[11px]">Owner: {p.landlord_id || 'Unassigned'}</span>
                                     </div>
                                 </div>
                             ))}

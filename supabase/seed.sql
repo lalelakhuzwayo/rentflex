@@ -1,0 +1,2 @@
+-- RentFlex Database Seed
+-- Intentionally empty: all demo/sample data removed as requested.

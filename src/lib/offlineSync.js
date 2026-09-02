@@ -1,10 +1,27 @@
 // RentFlex Offline-First Background Synchronization Engine
 import { queryClientInstance } from './query-client';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 import { toast } from 'sonner';
 
 const QUEUE_KEY = 'rentflex_offline_mutations_queue';
 const CACHE_PREFIX = 'rentflex_entity_cache_';
-const LOCAL_API_BASE = import.meta.env.VITE_LOCAL_API_URL || 'http://localhost:5000/api';
+
+const ENTITY_TABLE_MAP = {
+    Property: 'properties',
+    Lease: 'leases',
+    Payment: 'payments',
+    MaintenanceRequest: 'maintenance_requests',
+    Job: 'jobs',
+    ContractorBid: 'contractor_bids',
+    Bid: 'bids',
+    Contractor: 'contractors',
+    RentScore: 'rent_scores',
+    DepositDispute: 'deposit_disputes',
+    Inspection: 'inspections',
+    Message: 'messages',
+    Application: 'applications',
+    Profile: 'profiles',
+};
 
 // Listeners for UI notification
 const listeners = new Set();
@@ -52,7 +69,7 @@ export const enqueueOfflineMutation = (entityName, action, data, id = null) => {
     // Apply mutation optimistically to local cache mirror
     applyOptimisticUpdate(entityName, action, newEntry.targetId, data);
 
-    toast.info(`Offline Mode: Saved locally. Will sync to database automatically upon reconnection.`, {
+    toast.info(`Offline Mode: Saved locally. Will sync to Supabase automatically upon reconnection.`, {
         duration: 4000
     });
 
@@ -63,55 +80,27 @@ export const enqueueOfflineMutation = (entityName, action, data, id = null) => {
     };
 };
 
-export const cacheEntityData = (entityName, data) => {
+export const cacheEntityData = (entityName, items) => {
     try {
-        if (!data) return;
-        localStorage.setItem(`${CACHE_PREFIX}${entityName}`, JSON.stringify({
-            timestamp: Date.now(),
-            data
-        }));
+        localStorage.setItem(`${CACHE_PREFIX}${entityName}`, JSON.stringify(items));
     } catch (e) {
-        console.warn(`Could not cache entity ${entityName} data:`, e.message);
+        console.warn(`Failed to cache entity ${entityName}:`, e);
     }
 };
 
 export const getCachedEntityData = (entityName) => {
     try {
         const raw = localStorage.getItem(`${CACHE_PREFIX}${entityName}`);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        let items = parsed.data || [];
-
-        // Overlay pending optimistic mutations on top of cached data
-        const queue = getOfflineQueue().filter(m => m.entityName === entityName);
-        if (Array.isArray(items)) {
-            let mutableList = [...items];
-            queue.forEach(mutation => {
-                if (mutation.action === 'create') {
-                    if (!mutableList.some(i => i.id === mutation.targetId)) {
-                        mutableList.unshift({ ...mutation.data, id: mutation.targetId, _isOfflinePending: true });
-                    }
-                } else if (mutation.action === 'update') {
-                    const idx = mutableList.findIndex(i => i.id === mutation.targetId);
-                    if (idx !== -1) {
-                        mutableList[idx] = { ...mutableList[idx], ...mutation.data, _isOfflinePending: true };
-                    }
-                } else if (mutation.action === 'delete') {
-                    mutableList = mutableList.filter(i => i.id !== mutation.targetId);
-                }
-            });
-            return mutableList;
-        }
-        return items;
+        return raw ? JSON.parse(raw) : null;
     } catch {
         return null;
     }
 };
 
-const applyOptimisticUpdate = (entityName, action, targetId, data) => {
+export const applyOptimisticUpdate = (entityName, action, targetId, data) => {
     try {
         const cached = getCachedEntityData(entityName);
-        if (cached && Array.isArray(cached)) {
+        if (Array.isArray(cached)) {
             let updated = [...cached];
             if (action === 'create') {
                 updated.unshift({ ...data, id: targetId, _isOfflinePending: true });
@@ -131,46 +120,39 @@ const applyOptimisticUpdate = (entityName, action, targetId, data) => {
 let isSyncing = false;
 
 export const processOfflineSync = async () => {
-    if (isSyncing || !navigator.onLine) return;
+    if (isSyncing || !navigator.onLine || !isSupabaseConfigured) return;
     const queue = getOfflineQueue();
     if (queue.length === 0) return;
 
     isSyncing = true;
     notifyListeners({ isSyncing: true, queueLength: queue.length, isOnline: true });
 
-    const toastId = toast.loading(`Reconnecting: Synchronizing ${queue.length} pending update(s) to PostgreSQL...`);
+    const toastId = toast.loading(`Reconnecting: Synchronizing ${queue.length} pending update(s) to Supabase...`);
     let successfulCount = 0;
     const failedMutations = [];
 
     for (const mutation of queue) {
         try {
             const { entityName, action, data, targetId } = mutation;
-            let res;
+            const tableName = ENTITY_TABLE_MAP[entityName] || entityName.toLowerCase() + 's';
+            let error = null;
 
             if (action === 'create') {
-                // If it was a temporary id, remove it before sending to backend
                 const cleanData = { ...data };
                 if (String(cleanData.id).startsWith('temp_')) {
                     delete cleanData.id;
                 }
-                res = await fetch(`${LOCAL_API_BASE}/entities/${entityName}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(cleanData)
-                });
+                const res = await supabase.from(tableName).insert([cleanData]);
+                error = res.error;
             } else if (action === 'update') {
-                res = await fetch(`${LOCAL_API_BASE}/entities/${entityName}/${targetId}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
+                const res = await supabase.from(tableName).update(data).eq('id', targetId);
+                error = res.error;
             } else if (action === 'delete') {
-                res = await fetch(`${LOCAL_API_BASE}/entities/${entityName}/${targetId}`, {
-                    method: 'DELETE'
-                });
+                const res = await supabase.from(tableName).delete().eq('id', targetId);
+                error = res.error;
             }
 
-            if (res && (res.ok || res.status === 200 || res.status === 201 || res.status === 204)) {
+            if (!error) {
                 successfulCount++;
             } else {
                 mutation.retryCount = (mutation.retryCount || 0) + 1;
@@ -193,10 +175,9 @@ export const processOfflineSync = async () => {
     toast.dismiss(toastId);
 
     if (successfulCount > 0) {
-        toast.success(`⚡ Synced: ${successfulCount} offline update(s) uploaded to PostgreSQL!`, {
+        toast.success(`⚡ Synced: ${successfulCount} offline update(s) uploaded to Supabase!`, {
             duration: 5000
         });
-        // Invalidate all query caches to fetch fresh authoritative state from database
         queryClientInstance.invalidateQueries();
     }
 
