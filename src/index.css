@@ -1,0 +1,170 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 5% 98%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0px;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    --radius: 0px;
+  }
+}
+
+/* Hide scrollbars globally across all browsers while retaining scroll functionality */
+* {
+  -ms-overflow-style: none !important;  /* IE and Edge */
+  scrollbar-width: none !important;  /* Firefox */
+}
+
+*::-webkit-scrollbar {
+  display: none !important;  /* Chrome, Safari, Opera */
+  width: 0px !important;
+  height: 0px !important;
+}
+
+/* Modern Ambient Mesh Gradient Canvas */
+.app-bg-pattern {
+  background-color: #f8fafc;
+  background-image: 
+    radial-gradient(at 10% 12%, rgba(224, 231, 255, 0.6) 0px, transparent 45%),
+    radial-gradient(at 88% 8%, rgba(254, 243, 199, 0.5) 0px, transparent 40%),
+    radial-gradient(at 92% 85%, rgba(240, 253, 250, 0.65) 0px, transparent 50%),
+    radial-gradient(at 8% 85%, rgba(243, 232, 255, 0.5) 0px, transparent 45%),
+    radial-gradient(at 50% 45%, rgba(248, 250, 252, 0.75) 0px, transparent 60%),
+    linear-gradient(180deg, #ffffff 0%, #f4f4f6 50%, #eceef2 100%);
+  background-attachment: fixed;
+  background-size: cover;
+}
+
+/* Sharp Edge Design & Animated Border Hover */
+.sharp-container, .sharp-card {
+  position: relative;
+  background-color: #ffffff;
+  border: 1px solid transparent;
+  transition: border-color 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sharp-container:hover, .sharp-card:hover,
+.sharp-container:focus-within, .sharp-card:focus-within,
+.sharp-container[data-active="true"], .sharp-card[data-active="true"] {
+  border-color: #18181b !important;
+  box-shadow: 0 0 0 1px #18181b;
+}
+
+/* Tactile Segmented Track & Filter Pills */
+.segmented-track {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: transparent;
+  padding: 0;
+  border: none;
+}
+
+.filter-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #71717a;
+  border: none;
+  background-color: transparent;
+  transition: all 0.2s ease-out;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.filter-pill-btn:hover {
+  color: #09090b;
+  background-color: rgba(244, 244, 245, 0.7);
+}
+
+.filter-pill-btn:active {
+  transform: scale(0.98);
+}
+
+.filter-pill-btn[data-active="true"], .filter-pill-btn.active {
+  background-color: #ffffff;
+  color: #09090b;
+  font-weight: 600;
+  border: none;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+}
+
+@layer base {
+  *, *::before, *::after {
+    border-radius: 0px !important;
+  }
+
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+}
+
+/* Prevent horizontal scroll on mobile without breaking position: sticky */
+body {
+  overflow-x: clip;
+  width: 100%;
+}
+
+/* Touch optimizations */
+@media (max-width: 768px) {
+  button, a {
+    touch-action: manipulation;
+  }
+}

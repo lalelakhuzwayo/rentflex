@@ -1,0 +1,9 @@
+{
+  "short_name": "RentFlex",
+  "name": "RentFlex - Smart Property & Lease Management",
+  "icons": [],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#2563eb",
+  "background_color": "#ffffff"
+}
