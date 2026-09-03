@@ -217,3 +217,19 @@ export const subscribeOfflineStatus = (callback) => {
     });
     return () => listeners.delete(callback);
 };
+
+export const clearOldOfflineCache = () => {
+    if (typeof window === 'undefined') return;
+    try {
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && (key.startsWith(CACHE_PREFIX) || key === QUEUE_KEY)) {
+                keysToRemove.push(key);
+            }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+    } catch (e) {
+        console.warn('Failed to clear offline cache:', e);
+    }
+};

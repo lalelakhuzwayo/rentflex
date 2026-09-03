@@ -235,19 +235,6 @@ export const appClient = {
             cachedCurrentUser = { ...cachedCurrentUser, ...updated };
             return cachedCurrentUser;
         },
-        getAccounts: async () => {
-            if (isSupabaseConfigured) {
-                try {
-                    const { data, error } = await supabase
-                        .from('profiles')
-                        .select('id, email, full_name, user_type, phone');
-                    if (!error && data) return data;
-                } catch (e) {
-                    console.warn('Failed to load accounts from Supabase:', e);
-                }
-            }
-            return [];
-        },
         signUp: async ({ email, password, full_name, user_type = 'tenant', phone }) => {
             if (!isSupabaseConfigured) {
                 throw new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.');

@@ -1,11 +1,13 @@
 import { motion } from 'framer-motion';
 
 export default function RentScoreGauge({ score = 0, size = 'large' }) {
-    const percentage = ((score - 300) / (850 - 300)) * 100;
+    const hasScore = score && score >= 300;
+    const percentage = hasScore ? ((score - 300) / (850 - 300)) * 100 : 0;
     const circumference = 2 * Math.PI * 45;
-    const strokeDashoffset = circumference - (percentage / 100) * circumference * 0.75;
+    const strokeDashoffset = hasScore ? circumference - (percentage / 100) * circumference * 0.75 : circumference;
 
     const getScoreColor = (score) => {
+        if (!score || score < 300) return { stroke: '#94a3b8', text: 'Unrated', bg: 'bg-slate-50' };
         if (score >= 750) return { stroke: '#10b981', text: 'Excellent', bg: 'bg-emerald-50' };
         if (score >= 650) return { stroke: '#22c55e', text: 'Good', bg: 'bg-green-50' };
         if (score >= 550) return { stroke: '#f59e0b', text: 'Fair', bg: 'bg-amber-50' };
@@ -55,7 +57,7 @@ export default function RentScoreGauge({ score = 0, size = 'large' }) {
                         animate={{ opacity: 1 }}
                         transition={{ delay: 0.5 }}
                     >
-                        {score}
+                        {hasScore ? score : '—'}
                     </motion.span>
                     <span className={`${labelSize} font-medium mt-1`} style={{ color: scoreInfo.stroke }}>
                         {scoreInfo.text}

@@ -139,18 +139,6 @@ export default function SysAdminDashboard() {
         toast.success('User verification status updated');
     };
 
-    const handleSwitchCurrentRole = async (targetRole) => {
-        const switched = await appClient.auth.switchAccount(targetRole);
-        toast.success(`Switched active database account to ${switched.full_name} (${switched.user_type})`);
-        if (targetRole === 'sysAdmin' || targetRole === 'admin') {
-            window.location.href = '/SysAdminDashboard';
-        } else if (targetRole === 'landlord') {
-            window.location.href = '/LandlordDashboard';
-        } else {
-            window.location.href = '/Dashboard';
-        }
-    };
-
     const handleArbitrateDispute = async (disputeId, decision, amount) => {
         await appClient.entities.DepositDispute.update(disputeId, {
             status: 'resolved',

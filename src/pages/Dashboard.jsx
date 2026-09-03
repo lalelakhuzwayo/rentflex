@@ -31,8 +31,7 @@ export default function Dashboard() {
         queryKey: ['rentScore', user?.email],
         queryFn: async () => {
             if (!user?.email) return [];
-            const res = await appClient.entities.RentScore.filter({ user_id: user.email });
-            return res.length > 0 ? res : [{ score: 720, history: [] }];
+            return await appClient.entities.RentScore.filter({ user_id: user.email });
         },
         enabled: !!user?.email,
     });
@@ -82,7 +81,7 @@ export default function Dashboard() {
         enabled: !!user?.email,
     });
 
-    const currentRentScore = rentScore?.[0]?.score || 650;
+    const currentRentScore = rentScore?.[0]?.score || 0;
     const activeLeases = leases?.length || 0;
     const pendingPayments = payments?.filter(p => p.status === 'pending' || p.status === 'late') || [];
     const paidThisMonth = payments?.filter(p => p.status === 'paid')?.length || 0;

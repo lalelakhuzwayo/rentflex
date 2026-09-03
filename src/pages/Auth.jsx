@@ -24,8 +24,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 
 export default function Auth() {
     const navigate = useNavigate();
@@ -38,8 +37,7 @@ export default function Auth() {
         signUp, 
         signInWithGoogle, 
         signInWithApple, 
-        signInWithWindows, 
-        accounts = [] 
+        signInWithWindows 
     } = useAuth();
 
     // Form fields
@@ -150,48 +148,10 @@ export default function Auth() {
         }
     };
 
-    const handleQuickLogin = async (acc) => {
-        setFormData(prev => ({
-            ...prev,
-            email: acc.email,
-            password: 'Password123!'
-        }));
-        try {
-            setLoading(true);
-            const res = await signIn({ email: acc.email, password: 'Password123!' });
-            if (res.user.user_type === 'sysAdmin' || res.user.user_type === 'admin') {
-                navigate(createPageUrl('SysAdminDashboard'));
-            } else if (res.user.user_type === 'landlord') {
-                navigate(createPageUrl('LandlordDashboard'));
-            } else {
-                navigate(createPageUrl('Dashboard'));
-            }
-        } catch (e) {
-            setErrorMsg(e.message || 'Quick login failed.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const roles = [
-        {
-            id: 'tenant',
-            title: 'Tenant',
-            desc: 'Find homes, build RentScore & flexible rent payments.',
-            badge: 'Popular'
-        },
-        {
-            id: 'landlord',
-            title: 'Landlord',
-            desc: 'List properties, screen applicants & automated rent escrow.',
-            badge: 'Owner'
-        },
-        {
-            id: 'contractor',
-            title: 'Service Contractor',
-            desc: 'Bid on maintenance jobs & receive guaranteed escrow payout.',
-            badge: 'Repairs'
-        }
+        { id: 'tenant', title: 'Tenant' },
+        { id: 'landlord', title: 'Landlord' },
+        { id: 'contractor', title: 'Contractor' }
     ];
 
     return (
@@ -206,11 +166,11 @@ export default function Auth() {
                         <span className="text-2xl font-bold tracking-tight text-zinc-900">RentFlex</span>
                     </Link>
                     <h2 className="text-2xl sm:text-3xl font-extrabold text-zinc-900 tracking-tight">
-                        {mode === 'register' ? 'Create your secured account' : 'Welcome back to RentFlex'}
+                        {mode === 'register' ? 'Create your account' : 'Welcome back to RentFlex'}
                     </h2>
                     <p className="mt-2 text-sm text-zinc-600 max-w-sm mx-auto">
                         {mode === 'register' 
-                            ? 'Protected under South African POPIA & PAIA Statutory Framework.' 
+                            ? 'Sign up to start renting, listing, or managing properties.' 
                             : 'Sign in to access your properties, leases, and payments.'}
                     </p>
                 </div>
@@ -267,32 +227,25 @@ export default function Auth() {
                                     >
                                         {/* Step 1: Select Account Role */}
                                         <div>
-                                            <Label className="text-xs font-bold text-zinc-700 uppercase tracking-wider block mb-2">
-                                                Select Account Type
+                                            <Label className="text-xs font-semibold text-zinc-700 block mb-2">
+                                                I am signing up as:
                                             </Label>
-                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                            <div className="grid grid-cols-3 gap-2">
                                                 {roles.map((r) => {
                                                     const isSelected = formData.user_type === r.id;
                                                     return (
-                                                        <div
+                                                        <button
                                                             key={r.id}
+                                                            type="button"
                                                             onClick={() => setFormData(prev => ({ ...prev, user_type: r.id }))}
-                                                            className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                                                            className={`py-2.5 px-3 rounded-xl border text-xs font-semibold transition-all text-center ${
                                                                 isSelected
-                                                                    ? 'border-zinc-900 bg-zinc-950 text-white shadow-md'
-                                                                    : 'border-zinc-200 bg-white hover:border-zinc-300 text-zinc-800'
+                                                                    ? 'border-zinc-950 bg-zinc-950 text-white shadow-xs'
+                                                                    : 'border-zinc-200 bg-white hover:border-zinc-300 text-zinc-700'
                                                             }`}
                                                         >
-                                                            <div className="flex items-center justify-between mb-1.5">
-                                                                <span className="text-xs font-bold">{r.title}</span>
-                                                                <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${isSelected ? 'border-zinc-700 text-zinc-300' : 'border-zinc-200 text-zinc-600'}`}>
-                                                                    {r.badge}
-                                                                </Badge>
-                                                            </div>
-                                                            <p className={`text-[11px] leading-tight ${isSelected ? 'text-zinc-300' : 'text-zinc-500'}`}>
-                                                                {r.desc}
-                                                            </p>
-                                                        </div>
+                                                            {r.title}
+                                                        </button>
                                                     );
                                                 })}
                                             </div>
@@ -580,48 +533,7 @@ export default function Auth() {
                             </div>
                         </div>
 
-                        {/* Quick One-Click Sandbox Accounts */}
-                        <div className="mt-6 pt-5 border-t border-zinc-100">
-                            <div className="flex items-center justify-between mb-2.5">
-                                <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1">
-                                    <Sparkles className="w-3 h-3 text-amber-500" />
-                                    1-Click Test Accounts
-                                </span>
-                                <Badge variant="outline" className="text-[9px] px-1 py-0 border-zinc-300 text-zinc-600">
-                                    Demo Sandbox
-                                </Badge>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                {accounts.slice(0, 4).map((acc) => (
-                                    <button
-                                        key={acc.email}
-                                        type="button"
-                                        onClick={() => handleQuickLogin(acc)}
-                                        className="p-2 rounded-xl border border-zinc-200 hover:border-zinc-900 bg-zinc-50 hover:bg-zinc-900 hover:text-white transition-all text-left flex flex-col justify-between group"
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-xs font-bold truncate">{acc.full_name?.split(' ')[0]}</span>
-                                            <Badge className="text-[9px] px-1 py-0 capitalize bg-zinc-200 group-hover:bg-zinc-800 text-zinc-800 group-hover:text-zinc-200 border-none">
-                                                {acc.user_type}
-                                            </Badge>
-                                        </div>
-                                        <span className="text-[10px] text-zinc-400 group-hover:text-zinc-300 truncate mt-0.5">
-                                            {acc.email}
-                                        </span>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
                     </CardContent>
-
-                    {/* Card Footer Security Proof */}
-                    <CardFooter className="bg-zinc-50 border-t border-zinc-100 py-3 px-6 flex items-center justify-between text-[11px] text-zinc-500 font-mono">
-                        <span className="flex items-center gap-1">
-                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                            PostgreSQL RLS / TLS 1.3
-                        </span>
-                        <span>POPIA Act 4 of 2013</span>
-                    </CardFooter>
                 </Card>
             </div>
         </div>

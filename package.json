@@ -5,6 +5,7 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
+        "dev:prod": "vite --mode production",
         "build": "vite build",
         "lint": "eslint . --quiet",
         "lint:fix": "eslint . --fix",
@@ -12,7 +13,12 @@
         "preview": "vite preview",
         "supabase:start": "supabase start",
         "supabase:stop": "supabase stop",
-        "supabase:status": "supabase status"
+        "supabase:status": "supabase status",
+        "supabase:reset": "supabase db reset",
+        "db:new": "supabase migration new",
+        "db:diff": "supabase db diff -f",
+        "db:push:prod": "node ./scripts/push-migrations.cjs",
+        "db:push:prod:dry": "node ./scripts/push-migrations.cjs --dry-run"
     },
     "dependencies": {
         "@hello-pangea/dnd": "^17.0.0",

@@ -48,14 +48,14 @@ export default function RentScore() {
         queryFn: async () => {
             const scores = await appClient.entities.RentScore.filter({ user_id: user?.email });
             return scores[0] || {
-                score: 720,
-                payment_history_score: 85,
-                lease_completion_score: 90,
-                landlord_reviews_score: 80,
-                verification_score: 75,
-                verified_income: true,
-                verified_employment: true,
-                verified_identity: true
+                score: 0,
+                payment_history_score: 0,
+                lease_completion_score: 0,
+                landlord_reviews_score: 0,
+                verification_score: 0,
+                verified_income: false,
+                verified_employment: false,
+                verified_identity: false
             };
         },
         enabled: !!user?.email,
@@ -69,20 +69,28 @@ export default function RentScore() {
         },
     });
 
-    const handleVerify = (verificationType) => {
+    const handleVerify = async (verificationType) => {
         if (!rentScoreData) return;
+        const currentScore = rentScoreData.score || 550;
         const updates = {
             [`verified_${verificationType}`]: true,
-            verification_score: Math.min(100, (rentScoreData.verification_score || 70) + 15),
-            score: Math.min(850, (rentScoreData.score || 720) + 15),
+            verification_score: Math.min(100, (rentScoreData.verification_score || 0) + 25),
+            score: Math.min(850, currentScore + 25),
             last_updated: new Date().toISOString()
         };
         if (rentScoreData.id) {
             updateScoreMutation.mutate({ id: rentScoreData.id, data: updates });
+        } else if (user?.email) {
+            await appClient.entities.RentScore.create({
+                user_id: user.email,
+                ...updates
+            });
+            queryClient.invalidateQueries({ queryKey: ['rentScore'] });
+            toast.success('Verification submitted and RentScore initialized!');
         }
     };
 
-    const baseScore = rentScoreData?.score || 720;
+    const baseScore = rentScoreData?.score || 0;
     
     // Simulator bonus calculation
     const boostBonus = (simulatedActions.earlyPayment ? 15 : 0) +

@@ -125,8 +125,6 @@ export default function Layout({ children, currentPageName }) {
     const navigate = useNavigate();
     const { 
         user, 
-        accounts = [], 
-        switchAccount, 
         logout, 
         role: userRole, 
         securityStatus 
@@ -186,22 +184,6 @@ export default function Layout({ children, currentPageName }) {
             { name: 'Legal & POPIA Policy', href: createPageUrl('PrivacyPolicy'), icon: ShieldCheck, badge: 'POPIA' },
         ];
     }
-
-    const handleSwitchRole = async (targetEmailOrRole) => {
-        try {
-            const switched = await switchAccount(targetEmailOrRole);
-            setDrawerOpen(false);
-            if (switched.user_type === 'sysAdmin' || switched.user_type === 'admin') {
-                navigate(createPageUrl('SysAdminDashboard'));
-            } else if (switched.user_type === 'landlord') {
-                navigate(createPageUrl('LandlordDashboard'));
-            } else {
-                navigate(createPageUrl('Dashboard'));
-            }
-        } catch (e) {
-            console.error('Failed to switch account in drawer:', e);
-        }
-    };
 
     const handleLogout = () => {
         logout();
@@ -375,66 +357,6 @@ export default function Layout({ children, currentPageName }) {
                                                 </div>
                                             )}
 
-                                            {/* Section 3: Accounts & Role Sandbox (Drawer Embedded) */}
-                                            <div className="pt-2 border-t border-zinc-100">
-                                                <div className="flex items-center justify-between px-3 mb-2">
-                                                    <h3 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                                                        <Users className="w-3.5 h-3.5 text-zinc-600" />
-                                                        PostgreSQL Accounts Matrix
-                                                    </h3>
-                                                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-zinc-300 text-zinc-600">
-                                                        Live DB
-                                                    </Badge>
-                                                </div>
-                                                <div className="space-y-1">
-                                                    {accounts.map((acc) => {
-                                                        const isCurrent = user?.email === acc.email;
-                                                        const roleColor = acc.user_type === 'sysAdmin' || acc.user_type === 'admin'
-                                                            ? 'bg-purple-100 text-purple-800'
-                                                            : acc.user_type === 'landlord'
-                                                                ? 'bg-emerald-100 text-emerald-800'
-                                                                : acc.user_type === 'contractor'
-                                                                    ? 'bg-amber-100 text-amber-800'
-                                                                    : 'bg-blue-100 text-blue-800';
-
-                                                        return (
-                                                            <button
-                                                                key={acc.email}
-                                                                onClick={() => handleSwitchRole(acc.email)}
-                                                                className={`w-full flex items-center justify-between px-2.5 py-2 text-left rounded-lg transition-all ${
-                                                                    isCurrent 
-                                                                        ? 'bg-zinc-900 text-white font-semibold shadow-xs' 
-                                                                        : 'hover:bg-zinc-100 text-zinc-700'
-                                                                }`}
-                                                            >
-                                                                <div className="flex items-center gap-2.5 min-w-0">
-                                                                    <Avatar className="w-6 h-6 border border-zinc-200 shrink-0">
-                                                                        <AvatarFallback className={`text-[10px] font-bold ${isCurrent ? 'bg-zinc-800 text-white' : 'bg-zinc-200 text-zinc-800'}`}>
-                                                                            {acc.full_name?.charAt(0) || acc.email?.charAt(0)}
-                                                                        </AvatarFallback>
-                                                                    </Avatar>
-                                                                    <div className="min-w-0">
-                                                                        <p className="text-xs font-semibold truncate leading-tight">
-                                                                            {acc.full_name}
-                                                                        </p>
-                                                                        <p className={`text-[10px] truncate leading-tight ${isCurrent ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                                                                            {acc.email}
-                                                                        </p>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex items-center gap-1.5 shrink-0">
-                                                                    <Badge className={`${isCurrent ? 'bg-zinc-800 text-zinc-200' : roleColor} text-[9px] px-1.5 py-0 capitalize font-medium border-none`}>
-                                                                        {acc.user_type}
-                                                                    </Badge>
-                                                                    {isCurrent && (
-                                                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                                                                    )}
-                                                                </div>
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
 
                                             {/* Section 4: Preferences & Security */}
                                             <div className="pt-2 border-t border-zinc-100">
@@ -457,17 +379,8 @@ export default function Layout({ children, currentPageName }) {
                                         </div>
                                     </div>
 
-                                    {/* Drawer Footer with Security Metadata & Sign Out */}
+                                    {/* Drawer Footer with Sign Out */}
                                     <div className="p-4 border-t border-zinc-100 bg-zinc-50 space-y-3 shrink-0">
-                                        <div className="flex items-center justify-between text-[10px] text-zinc-500 font-mono">
-                                            <span className="flex items-center gap-1">
-                                                <Lock className="w-3 h-3 text-emerald-600" />
-                                                TLS 1.3 / AES-256
-                                            </span>
-                                            <Badge variant="outline" className="text-[9px] px-1 py-0 border-emerald-300 text-emerald-800 bg-emerald-50">
-                                                POPIA Compliant
-                                            </Badge>
-                                        </div>
                                         {user ? (
                                             <button
                                                 onClick={handleLogout}

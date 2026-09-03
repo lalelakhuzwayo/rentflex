@@ -4,7 +4,6 @@ import { toast } from 'sonner';
 
 const defaultAuthValue = {
     user: null,
-    accounts: [],
     role: 'tenant',
     isSysAdmin: false,
     isLandlord: false,
@@ -25,7 +24,6 @@ const defaultAuthValue = {
     },
     signUp: async () => {},
     signIn: async () => {},
-    switchAccount: async () => {},
     signInWithGoogle: async () => {},
     signInWithFacebook: async () => {},
     signInWithApple: async () => {},
@@ -34,7 +32,6 @@ const defaultAuthValue = {
     logout: async () => {},
     navigateToLogin: () => {},
     checkAppState: async () => {},
-    refreshAccounts: async () => {},
     updateUser: async () => {}
 };
 
@@ -42,7 +39,6 @@ const AuthContext = createContext(defaultAuthValue);
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
-    const [accounts, setAccounts] = useState([]);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [isLoadingAuth, setIsLoadingAuth] = useState(true);
     const [authError, setAuthError] = useState(null);
@@ -56,17 +52,6 @@ export const AuthProvider = ({ children }) => {
         popiaOfficer: 'RentFlex Information Security Office'
     };
 
-    const loadAccounts = useCallback(async () => {
-        try {
-            const accList = await appClient.auth.getAccounts();
-            if (Array.isArray(accList) && accList.length > 0) {
-                setAccounts(accList);
-            }
-        } catch (err) {
-            console.warn('Failed to load accounts list:', err);
-        }
-    }, []);
-
     const checkUserAuth = useCallback(async () => {
         try {
             setIsLoadingAuth(true);
@@ -79,7 +64,6 @@ export const AuthProvider = ({ children }) => {
                 setUser(null);
                 setIsAuthenticated(false);
             }
-            await loadAccounts();
         } catch (error) {
             console.error('Auth verification error:', error);
             setUser(null);
@@ -91,7 +75,7 @@ export const AuthProvider = ({ children }) => {
         } finally {
             setIsLoadingAuth(false);
         }
-    }, [loadAccounts]);
+    }, []);
 
     useEffect(() => {
         checkUserAuth();
@@ -112,24 +96,6 @@ export const AuthProvider = ({ children }) => {
     const hasRole = (allowedRoles = []) => {
         const normalized = allowedRoles.map(r => r.toLowerCase());
         return normalized.includes(role.toLowerCase()) || (isSysAdmin && normalized.includes('sysadmin'));
-    };
-
-    // 1-Click Database Account Switcher (Development & Enterprise Multi-Role Sandbox)
-    const switchAccount = async (targetEmailOrRole) => {
-        try {
-            setIsLoadingAuth(true);
-            const switchedUser = await appClient.auth.switchAccount(targetEmailOrRole);
-            setUser(switchedUser);
-            setIsAuthenticated(true);
-            await loadAccounts();
-            toast.success(`Active account switched to ${switchedUser.full_name || switchedUser.email} (${switchedUser.user_type})`);
-            return switchedUser;
-        } catch (err) {
-            toast.error(`Account switch failed: ${err.message}`);
-            throw err;
-        } finally {
-            setIsLoadingAuth(false);
-        }
     };
 
     // Scalable OAuth / SSO Provider Connectors
@@ -165,7 +131,6 @@ export const AuthProvider = ({ children }) => {
             const result = await appClient.auth.signUp({ email, password, full_name, user_type, phone });
             setUser(result.user);
             setIsAuthenticated(true);
-            await loadAccounts();
             toast.success(`Account created successfully! Welcome, ${result.user.full_name || result.user.email}`);
             return result;
         } catch (err) {
@@ -182,7 +147,6 @@ export const AuthProvider = ({ children }) => {
             const result = await appClient.auth.signIn({ email, password });
             setUser(result.user);
             setIsAuthenticated(true);
-            await loadAccounts();
             toast.success(`Welcome back, ${result.user.full_name || result.user.email}`);
             return result;
         } catch (err) {
@@ -223,7 +187,6 @@ export const AuthProvider = ({ children }) => {
     return (
         <AuthContext.Provider value={{
             user,
-            accounts,
             role,
             isSysAdmin,
             isLandlord,
@@ -238,7 +201,6 @@ export const AuthProvider = ({ children }) => {
             securityStatus,
             signUp,
             signIn,
-            switchAccount,
             signInWithGoogle,
             signInWithFacebook,
             signInWithApple,
@@ -247,7 +209,6 @@ export const AuthProvider = ({ children }) => {
             logout,
             navigateToLogin,
             checkAppState: checkUserAuth,
-            refreshAccounts: loadAccounts,
             updateUser
         }}>
             {children}

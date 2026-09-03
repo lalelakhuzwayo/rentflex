@@ -26,6 +26,7 @@ import AddProperty from './pages/AddProperty';
 import Auth from './pages/Auth';
 import OAuthConsent from './pages/OAuthConsent';
 import SysAdminDashboard from './pages/SysAdminDashboard';
+import PageNotFound from './pages/PageNotFound';
 import __Layout from './Layout.jsx';
 
 
@@ -58,6 +59,8 @@ export const PAGES = {
     "TenantOnboarding": TenantOnboarding,
     "Welcome": Welcome,
     "AddProperty": AddProperty,
+    "PageNotFound": PageNotFound,
+    "NotFound": PageNotFound,
 }
 
 export const pagesConfig = {
