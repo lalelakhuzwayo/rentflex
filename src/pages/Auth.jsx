@@ -19,7 +19,8 @@ import {
     Wrench, 
     Sparkles, 
     AlertCircle,
-    KeyRound
+    KeyRound,
+    ArrowLeft
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -157,7 +158,17 @@ export default function Auth() {
     ];
 
     return (
-        <div className="min-h-screen app-bg-pattern flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div className="min-h-screen app-bg-pattern flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8">
+            <div className="sm:mx-auto sm:w-full sm:max-w-xl mb-4">
+                <Link
+                    to={createPageUrl('Dashboard')}
+                    className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-600 hover:text-zinc-950 transition-colors py-1.5 px-3 rounded-lg hover:bg-white/80 border border-transparent hover:border-zinc-200 group"
+                >
+                    <ArrowLeft className="w-4 h-4 text-zinc-500 group-hover:text-zinc-900 group-hover:-translate-x-0.5 transition-transform" />
+                    <span>Back to Homepage</span>
+                </Link>
+            </div>
+
             <div className="sm:mx-auto sm:w-full sm:max-w-xl">
                 {/* Brand Header */}
                 <div className="text-center mb-8">
@@ -552,6 +563,17 @@ export default function Auth() {
 
                     </CardContent>
                 </Card>
+
+                {/* Return to Homepage / Guest Option */}
+                <div className="mt-5 text-center">
+                    <Link
+                        to={createPageUrl('Dashboard')}
+                        className="inline-flex items-center justify-center gap-2 text-xs font-semibold text-zinc-600 hover:text-zinc-950 bg-white/70 hover:bg-white border border-zinc-200/90 hover:border-zinc-300 py-2 px-4 rounded-xl transition-all shadow-2xs group"
+                    >
+                        <Home className="w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-900" />
+                        <span>Continue exploring as guest</span>
+                    </Link>
+                </div>
             </div>
         </div>
     );
