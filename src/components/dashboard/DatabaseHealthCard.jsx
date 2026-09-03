@@ -4,6 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Database, CheckCircle2, AlertTriangle, RefreshCw, Activity } from 'lucide-react';
 
 export default function DatabaseHealthCard({ isCompact = false }) {
+    // Only display database health and connection tester in development; remove in production
+    if (!import.meta.env.DEV) {
+        return null;
+    }
+
     const [health, setHealth] = useState({
         ok: true,
         status: 'Checking...',

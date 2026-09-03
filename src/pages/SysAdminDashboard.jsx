@@ -68,6 +68,7 @@ export default function SysAdminDashboard() {
     const [arbitrationDecision, setArbitrationDecision] = useState('');
     const [arbitrationAmount, setArbitrationAmount] = useState('');
     const [dialogOpen, setDialogOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState('users');
 
     useEffect(() => {
         appClient.auth.me().then(setCurrentUser).catch(() => { });
@@ -137,6 +138,18 @@ export default function SysAdminDashboard() {
     const handleToggleVerification = (userId) => {
         setUsersList(prev => prev.map(u => u.id === userId ? { ...u, verified: !u.verified } : u));
         toast.success('User verification status updated');
+    };
+
+    const handleSwitchCurrentRole = async (newRole) => {
+        try {
+            await appClient.auth.updateMe({ user_type: newRole });
+            toast.success(`Active portal role switched to ${newRole}`);
+            setTimeout(() => {
+                window.location.reload();
+            }, 300);
+        } catch (e) {
+            toast.error(e.message || 'Failed to switch role');
+        }
     };
 
     const handleArbitrateDispute = async (disputeId, decision, amount) => {

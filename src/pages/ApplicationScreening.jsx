@@ -44,15 +44,17 @@ export default function ApplicationScreening() {
         appClient.auth.me().then(setUser).catch(() => { });
     }, []);
 
+    const isSysAdmin = user?.user_type === 'sysAdmin' || user?.user_type === 'admin';
+
     const { data: applications, isLoading } = useQuery({
-        queryKey: ['applications', user?.email],
-        queryFn: () => appClient.entities.Application.filter({ landlord_id: user?.email }),
+        queryKey: ['applications', user?.email, isSysAdmin],
+        queryFn: () => isSysAdmin ? appClient.entities.Application.list() : appClient.entities.Application.filter({ landlord_id: user?.email }),
         enabled: !!user?.email,
     });
 
     const { data: properties } = useQuery({
-        queryKey: ['landlordProperties', user?.email],
-        queryFn: () => appClient.entities.Property.filter({ landlord_id: user?.email }),
+        queryKey: ['landlordProperties', user?.email, isSysAdmin],
+        queryFn: () => isSysAdmin ? appClient.entities.Property.list() : appClient.entities.Property.filter({ landlord_id: user?.email }),
         enabled: !!user?.email,
     });
 

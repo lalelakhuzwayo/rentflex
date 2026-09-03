@@ -61,15 +61,26 @@ export default function Disputes() {
         appClient.auth.me().then(setUser).catch(() => { });
     }, []);
 
+    const isSysAdmin = user?.user_type === 'sysAdmin' || user?.user_type === 'admin';
+    const isLandlord = user?.user_type === 'landlord';
+
     const { data: disputes, isLoading } = useQuery({
-        queryKey: ['disputes', user?.email],
-        queryFn: () => appClient.entities.DepositDispute.filter({ tenant_id: user?.email }),
+        queryKey: ['disputes', user?.email, isSysAdmin, isLandlord],
+        queryFn: async () => {
+            if (isSysAdmin) {
+                return await appClient.entities.DepositDispute.list();
+            }
+            if (isLandlord) {
+                return await appClient.entities.DepositDispute.filter({ landlord_id: user?.email });
+            }
+            return await appClient.entities.DepositDispute.filter({ tenant_id: user?.email });
+        },
         enabled: !!user?.email,
     });
 
     const { data: leases } = useQuery({
-        queryKey: ['leases', user?.email],
-        queryFn: () => appClient.entities.Lease.filter({ tenant_id: user?.email }),
+        queryKey: ['leases', user?.email, isSysAdmin],
+        queryFn: () => isSysAdmin ? appClient.entities.Lease.list() : appClient.entities.Lease.filter({ tenant_id: user?.email }),
         enabled: !!user?.email,
     });
 

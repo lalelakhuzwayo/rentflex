@@ -35,10 +35,15 @@ export default function Payments() {
         appClient.auth.me().then(setUser).catch(() => { });
     }, []);
 
+    const isSysAdmin = user?.user_type === 'sysAdmin' || user?.user_type === 'admin';
+
     const { data: payments, isLoading } = useQuery({
-        queryKey: ['payments', user?.email],
+        queryKey: ['payments', user?.email, isSysAdmin],
         queryFn: async () => {
             if (!user?.email) return [];
+            if (isSysAdmin) {
+                return await appClient.entities.Payment.list();
+            }
             const asTenant = await appClient.entities.Payment.filter({ tenant_id: user.email });
             const asLandlord = await appClient.entities.Payment.filter({ landlord_id: user.email });
             const combined = [...asTenant, ...asLandlord];
@@ -48,8 +53,8 @@ export default function Payments() {
     });
 
     const { data: leases } = useQuery({
-        queryKey: ['leases', user?.email],
-        queryFn: () => appClient.entities.Lease.filter({ tenant_id: user?.email, status: 'active' }),
+        queryKey: ['leases', user?.email, isSysAdmin],
+        queryFn: () => isSysAdmin ? appClient.entities.Lease.list() : appClient.entities.Lease.filter({ tenant_id: user?.email, status: 'active' }),
         enabled: !!user?.email,
     });
 

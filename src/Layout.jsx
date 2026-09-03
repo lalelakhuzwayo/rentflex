@@ -160,6 +160,8 @@ export default function Layout({ children, currentPageName }) {
             { name: 'Leases', href: createPageUrl('Leases'), icon: FileText, badge: null },
         ];
         secondaryNavigation = [
+            { name: 'Tenant Portal', href: createPageUrl('Dashboard'), icon: Home, badge: 'Portal' },
+            { name: 'Landlord Portal', href: createPageUrl('LandlordDashboard'), icon: Building2, badge: 'Portal' },
             { name: 'Disputes & Arbitration', href: createPageUrl('Disputes'), icon: Shield, badge: null },
             { name: 'Maintenance', href: createPageUrl('Maintenance'), icon: Wrench, badge: null },
             { name: 'Jobs Board', href: createPageUrl('Jobs'), icon: Wrench, badge: null },
@@ -393,8 +395,8 @@ export default function Layout({ children, currentPageName }) {
 
                                     {/* Drawer Footer with Database Health & Sign Out */}
                                     <div className="p-4 border-t border-zinc-100 bg-zinc-50 space-y-3 shrink-0">
-                                        {/* Real-time Database Health & Connection Test */}
-                                        <DatabaseHealthCard />
+                                        {/* Real-time Database Health & Connection Test (Development Only) */}
+                                        {import.meta.env.DEV && <DatabaseHealthCard />}
 
                                         {user ? (
                                             <button

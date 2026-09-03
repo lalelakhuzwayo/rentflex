@@ -83,15 +83,26 @@ export default function Maintenance() {
         appClient.auth.me().then(setUser).catch(() => { });
     }, []);
 
+    const isSysAdmin = user?.user_type === 'sysAdmin' || user?.user_type === 'admin';
+    const isLandlord = user?.user_type === 'landlord';
+
     const { data: requests, isLoading } = useQuery({
-        queryKey: ['maintenance', user?.email],
-        queryFn: () => appClient.entities.MaintenanceRequest.filter({ tenant_id: user?.email }),
+        queryKey: ['maintenance', user?.email, isSysAdmin, isLandlord],
+        queryFn: async () => {
+            if (isSysAdmin) {
+                return await appClient.entities.MaintenanceRequest.list();
+            }
+            if (isLandlord) {
+                return await appClient.entities.MaintenanceRequest.filter({ landlord_id: user?.email });
+            }
+            return await appClient.entities.MaintenanceRequest.filter({ tenant_id: user?.email });
+        },
         enabled: !!user?.email,
     });
 
     const { data: leases } = useQuery({
-        queryKey: ['activeLeases', user?.email],
-        queryFn: () => appClient.entities.Lease.filter({ tenant_id: user?.email, status: 'active' }),
+        queryKey: ['activeLeases', user?.email, isSysAdmin],
+        queryFn: () => isSysAdmin ? appClient.entities.Lease.list() : appClient.entities.Lease.filter({ tenant_id: user?.email, status: 'active' }),
         enabled: !!user?.email,
     });
 

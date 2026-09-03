@@ -30,7 +30,9 @@ export default function Welcome() {
                 setUser(u);
                 // Redirect based on user type if already logged in
                 if (u.onboarding_completed) {
-                    if (u.user_type === 'landlord') {
+                    if (u.user_type === 'sysAdmin' || u.user_type === 'admin') {
+                        navigate(createPageUrl('SysAdminDashboard'));
+                    } else if (u.user_type === 'landlord') {
                         navigate(createPageUrl('LandlordDashboard'));
                     } else {
                         navigate(createPageUrl('Dashboard'));

@@ -37,10 +37,15 @@ export default function Dashboard() {
         enabled: !!user?.email,
     });
 
+    const isSysAdmin = role === 'sysAdmin';
+
     const { data: leases } = useQuery({
-        queryKey: ['leases', user?.email],
+        queryKey: ['leases', user?.email, isSysAdmin],
         queryFn: async () => {
             if (!user?.email) return [];
+            if (isSysAdmin) {
+                return await appClient.entities.Lease.list();
+            }
             const asTenant = await appClient.entities.Lease.filter({ tenant_id: user.email });
             const asLandlord = await appClient.entities.Lease.filter({ landlord_id: user.email });
             const combined = [...asTenant, ...asLandlord];
@@ -50,9 +55,12 @@ export default function Dashboard() {
     });
 
     const { data: payments, isLoading: paymentsLoading } = useQuery({
-        queryKey: ['payments', user?.email],
+        queryKey: ['payments', user?.email, isSysAdmin],
         queryFn: async () => {
             if (!user?.email) return [];
+            if (isSysAdmin) {
+                return await appClient.entities.Payment.list();
+            }
             const asTenant = await appClient.entities.Payment.filter({ tenant_id: user.email });
             const asLandlord = await appClient.entities.Payment.filter({ landlord_id: user.email });
             const combined = [...asTenant, ...asLandlord];
@@ -62,9 +70,12 @@ export default function Dashboard() {
     });
 
     const { data: maintenanceRequests } = useQuery({
-        queryKey: ['maintenance', user?.email],
+        queryKey: ['maintenance', user?.email, isSysAdmin],
         queryFn: async () => {
             if (!user?.email) return [];
+            if (isSysAdmin) {
+                return await appClient.entities.MaintenanceRequest.list();
+            }
             const asTenant = await appClient.entities.MaintenanceRequest.filter({ tenant_id: user.email });
             const asLandlord = await appClient.entities.MaintenanceRequest.filter({ landlord_id: user.email });
             const combined = [...asTenant, ...asLandlord];

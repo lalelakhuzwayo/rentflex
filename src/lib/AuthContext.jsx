@@ -114,6 +114,7 @@ export const AuthProvider = ({ children }) => {
     const isContractor = role === 'contractor';
 
     const hasRole = (allowedRoles = []) => {
+        if (isSysAdmin) return true; // Super user has unrestricted access to everything
         const normalized = allowedRoles.map(r => r.toLowerCase());
         return normalized.includes(role.toLowerCase()) || (isSysAdmin && normalized.includes('sysadmin'));
     };
