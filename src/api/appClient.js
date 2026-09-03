@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
+import { authActions } from './authActions';
 import { 
     cacheEntityData, 
     getCachedEntityData, 
@@ -128,52 +129,37 @@ const createSupabaseEntityHandler = (entityName) => {
             return (cached || []).find(item => item.id === id) || null;
         },
         create: async (data) => {
-            if (!navigator.onLine || !isSupabaseConfigured) {
-                return enqueueOfflineMutation(entityName, 'create', data);
+            if (!isSupabaseConfigured) {
+                throw new Error('Supabase is not configured.');
             }
-            try {
-                const { data: created, error } = await supabase.from(tableName).insert([data]).select().single();
-                if (error) {
-                    console.error(`Supabase create error on ${tableName}:`, error);
-                    return enqueueOfflineMutation(entityName, 'create', data);
-                }
-                return normalizeItemNumbers(created);
-            } catch (e) {
-                console.warn(`Supabase create error on ${tableName}, queueing offline:`, e.message);
-                return enqueueOfflineMutation(entityName, 'create', data);
+            const { data: created, error } = await supabase.from(tableName).insert([data]).select().single();
+            if (error) {
+                console.error(`Supabase create error on ${tableName}:`, error);
+                throw new Error(error.message || `Failed to create ${entityName}`);
             }
+            return normalizeItemNumbers(created);
         },
         update: async (id, data) => {
-            if (!navigator.onLine || !isSupabaseConfigured) {
-                return enqueueOfflineMutation(entityName, 'update', data, id);
+            if (!isSupabaseConfigured) {
+                throw new Error('Supabase is not configured.');
             }
-            try {
-                const { data: updated, error } = await supabase.from(tableName).update(data).eq('id', id).select().single();
-                if (error) {
-                    console.error(`Supabase update error on ${tableName}:`, error);
-                    return enqueueOfflineMutation(entityName, 'update', data, id);
-                }
-                return normalizeItemNumbers(updated);
-            } catch (e) {
-                console.warn(`Supabase update error on ${tableName}, queueing offline:`, e.message);
-                return enqueueOfflineMutation(entityName, 'update', data, id);
+            const { data: updated, error } = await supabase.from(tableName).update(data).eq('id', id).select().single();
+            if (error) {
+                console.error(`Supabase update error on ${tableName}:`, error);
+                throw new Error(error.message || `Failed to update ${entityName}`);
             }
+            return normalizeItemNumbers(updated);
         },
         delete: async (id) => {
-            if (!navigator.onLine || !isSupabaseConfigured) {
-                return enqueueOfflineMutation(entityName, 'delete', null, id);
+            if (!isSupabaseConfigured) {
+                throw new Error('Supabase is not configured.');
             }
-            try {
-                const { error } = await supabase.from(tableName).delete().eq('id', id);
-                if (error) {
-                    console.error(`Supabase delete error on ${tableName}:`, error);
-                    return enqueueOfflineMutation(entityName, 'delete', null, id);
-                }
-                return { success: true };
-            } catch (e) {
-                console.warn(`Supabase delete error on ${tableName}, queueing offline:`, e.message);
-                return enqueueOfflineMutation(entityName, 'delete', null, id);
+            const { error } = await supabase.from(tableName).delete().eq('id', id);
+            if (error) {
+                console.error(`Supabase delete error on ${tableName}:`, error);
+                throw new Error(error.message || `Failed to delete ${entityName}`);
             }
+            return { success: true };
         }
     };
 };
@@ -183,109 +169,29 @@ let cachedCurrentUser = null;
 export const appClient = {
     auth: {
         me: async () => {
-            if (isSupabaseConfigured) {
-                try {
-                    const { data: { user }, error: authErr } = await supabase.auth.getUser();
-                    if (authErr || !user) {
-                        cachedCurrentUser = null;
-                        return null;
-                    }
-
-                    const { data: profile } = await supabase
-                        .from('profiles')
-                        .select('*')
-                        .eq('id', user.id)
-                        .maybeSingle();
-
-                    const fullUser = {
-                        id: user.id,
-                        email: user.email,
-                        full_name: profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0],
-                        user_type: (profile?.user_type === 'rentee' ? 'tenant' : profile?.user_type) || user.user_metadata?.user_type || 'tenant',
-                        ...profile
-                    };
-                    cachedCurrentUser = fullUser;
-                    return fullUser;
-                } catch (e) {
-                    console.warn('Supabase auth check error:', e);
-                    cachedCurrentUser = null;
-                    return null;
-                }
-            }
-            cachedCurrentUser = null;
-            return null;
+            const user = await authActions.getCurrentUser();
+            cachedCurrentUser = user;
+            return user;
         },
         updateMe: async (data) => {
-            if (!isSupabaseConfigured) return null;
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return null;
-
-            const { data: updated, error } = await supabase
-                .from('profiles')
-                .update(data)
-                .eq('id', user.id)
-                .select()
-                .single();
-
-            if (error) {
-                console.error('Supabase profile update error:', error);
-                throw error;
-            }
-
+            const updated = await authActions.updateUserProfile(data);
             cachedCurrentUser = { ...cachedCurrentUser, ...updated };
             return cachedCurrentUser;
         },
         signUp: async ({ email, password, full_name, user_type = 'tenant', phone }) => {
-            if (!isSupabaseConfigured) {
-                throw new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.');
-            }
-            const { data, error } = await supabase.auth.signUp({
-                email,
-                password,
-                options: { 
-                    data: { full_name, user_type, phone } 
-                }
-            });
-            if (error) throw error;
-            return data;
+            return authActions.registerUser({ email, password, full_name, user_type, phone });
         },
         login: async ({ email, password }) => {
-            if (!isSupabaseConfigured) {
-                throw new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.');
-            }
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email,
-                password
-            });
-            if (error) throw error;
-            return data;
+            return authActions.loginUser({ email, password });
         },
         signIn: async ({ email, password }) => {
-            if (!isSupabaseConfigured) {
-                throw new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.');
-            }
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email,
-                password
-            });
-            if (error) throw error;
-            return data;
+            return authActions.loginUser({ email, password });
         },
         signInWithPassword: async ({ email, password }) => {
-            if (!isSupabaseConfigured) {
-                throw new Error('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.');
-            }
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email,
-                password
-            });
-            if (error) throw error;
-            return data;
+            return authActions.loginUser({ email, password });
         },
         logout: async (redirectUrl) => {
-            if (isSupabaseConfigured) {
-                await supabase.auth.signOut();
-            }
+            await authActions.logoutUser();
             cachedCurrentUser = null;
             if (redirectUrl) window.location.href = redirectUrl;
         },

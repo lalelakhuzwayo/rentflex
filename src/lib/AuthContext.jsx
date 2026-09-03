@@ -1,4 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { authActions } from '@/api/authActions';
 import { appClient } from '@/api/appClient';
 import { toast } from 'sonner';
 
@@ -56,7 +58,7 @@ export const AuthProvider = ({ children }) => {
         try {
             setIsLoadingAuth(true);
             setAuthError(null);
-            const currentUser = await appClient.auth.me();
+            const currentUser = await authActions.getCurrentUser();
             if (currentUser && currentUser.email) {
                 setUser(currentUser);
                 setIsAuthenticated(true);
@@ -78,7 +80,25 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     useEffect(() => {
+        // Initial auth check
         checkUserAuth();
+
+        // Listen for all Supabase Auth session lifecycle events
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+                if (session?.user) {
+                    await checkUserAuth();
+                }
+            } else if (event === 'SIGNED_OUT') {
+                setUser(null);
+                setIsAuthenticated(false);
+                setIsLoadingAuth(false);
+            }
+        });
+
+        return () => {
+            subscription?.unsubscribe();
+        };
     }, [checkUserAuth]);
 
     // Role-Based Access Control (RBAC) helpers
@@ -124,16 +144,21 @@ export const AuthProvider = ({ children }) => {
         return appClient.auth.signInWithPassword ? appClient.auth.signInWithPassword({ email, password }) : checkUserAuth();
     };
 
-    // Manual Secured Account Registration & Sign-In
+    // Secured Account Registration & Sign-In Actions
     const signUp = async ({ email, password, full_name, user_type, phone }) => {
         try {
             setIsLoadingAuth(true);
-            const result = await appClient.auth.signUp({ email, password, full_name, user_type, phone });
-            setUser(result.user);
-            setIsAuthenticated(true);
-            toast.success(`Account created successfully! Welcome, ${result.user.full_name || result.user.email}`);
+            setAuthError(null);
+            const result = await authActions.registerUser({ email, password, full_name, user_type, phone });
+            if (result?.user) {
+                await checkUserAuth();
+                toast.success(`Account created successfully! Welcome, ${full_name || email}`);
+            } else {
+                toast.success('Account created! Please check your email to confirm your registration.');
+            }
             return result;
         } catch (err) {
+            console.error('Registration error:', err);
             toast.error(err.message || 'Registration failed');
             throw err;
         } finally {
@@ -144,12 +169,13 @@ export const AuthProvider = ({ children }) => {
     const signIn = async ({ email, password }) => {
         try {
             setIsLoadingAuth(true);
-            const result = await appClient.auth.signIn({ email, password });
-            setUser(result.user);
-            setIsAuthenticated(true);
-            toast.success(`Welcome back, ${result.user.full_name || result.user.email}`);
+            setAuthError(null);
+            const result = await authActions.loginUser({ email, password });
+            await checkUserAuth();
+            toast.success('Welcome back!');
             return result;
         } catch (err) {
+            console.error('Sign-in error:', err);
             toast.error(err.message || 'Sign in failed');
             throw err;
         } finally {
@@ -160,7 +186,7 @@ export const AuthProvider = ({ children }) => {
     const logout = async (shouldRedirect = true) => {
         setUser(null);
         setIsAuthenticated(false);
-        await appClient.auth.logout();
+        await authActions.logoutUser();
         toast.info('Signed out securely');
         if (shouldRedirect) {
             window.location.href = '/Auth';
@@ -173,13 +199,13 @@ export const AuthProvider = ({ children }) => {
 
     const updateUser = async (data) => {
         try {
-            const updated = await appClient.auth.updateMe(data);
-            setUser(updated);
-            toast.success('Security profile updated');
+            const updated = await authActions.updateUserProfile(data);
+            setUser(prev => ({ ...prev, ...updated }));
+            toast.success('Profile updated');
             return updated;
         } catch (error) {
             console.error('Failed to update user profile:', error);
-            toast.error('Failed to update security profile');
+            toast.error(error.message || 'Failed to update profile');
             throw error;
         }
     };

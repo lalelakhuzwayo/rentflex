@@ -233,3 +233,8 @@ export const clearOldOfflineCache = () => {
         console.warn('Failed to clear offline cache:', e);
     }
 };
+
+// Immediately flush any lingering offline queue on script load
+if (typeof window !== 'undefined') {
+    clearOldOfflineCache();
+}

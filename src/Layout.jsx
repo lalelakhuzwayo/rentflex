@@ -39,7 +39,7 @@ import {
     SheetTrigger,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
-import OfflineSyncBanner from '@/components/ui/OfflineSyncBanner';
+import DatabaseHealthCard from '@/components/dashboard/DatabaseHealthCard';
 
 // Zero-re-render high performance scroll progress indicator
 function ScrollProgressBar() {
@@ -207,9 +207,6 @@ export default function Layout({ children, currentPageName }) {
 
     return (
         <div className="min-h-screen app-bg-pattern font-sans antialiased flex flex-col relative pb-[env(safe-area-inset-bottom)]">
-            {/* Offline & Background Synchronization Notification Banner */}
-            <OfflineSyncBanner />
-
             {/* Top Sticky Navigation Bar */}
             <header className="bg-white/95 backdrop-blur-md border-b border-zinc-200/70 sticky top-0 z-40 transition-all">
                 {/* Top Smart Scroll Progress Line Indicator */}
@@ -378,8 +375,11 @@ export default function Layout({ children, currentPageName }) {
                                         </div>
                                     </div>
 
-                                    {/* Drawer Footer with Sign Out */}
+                                    {/* Drawer Footer with Database Health & Sign Out */}
                                     <div className="p-4 border-t border-zinc-100 bg-zinc-50 space-y-3 shrink-0">
+                                        {/* Real-time Database Health & Connection Test */}
+                                        <DatabaseHealthCard />
+
                                         {user ? (
                                             <button
                                                 onClick={handleLogout}
