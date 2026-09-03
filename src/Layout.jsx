@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { createPageUrl } from './utils';
 import { appClient } from '@/api/appClient';
 import { useAuth } from '@/lib/AuthContext';
@@ -123,6 +123,7 @@ function ScrollToTopButton() {
 
 export default function Layout({ children, currentPageName }) {
     const navigate = useNavigate();
+    const location = useLocation();
     const { 
         user, 
         logout, 
@@ -130,6 +131,11 @@ export default function Layout({ children, currentPageName }) {
         securityStatus 
     } = useAuth();
     const [drawerOpen, setDrawerOpen] = useState(false);
+
+    // Hide navigation chrome when user is on the Auth login/register page
+    const isAuthPage = 
+        currentPageName?.toLowerCase() === 'auth' || 
+        location.pathname.toLowerCase().includes('/auth');
 
     // Scroll to top on every page mount / route change
     useEffect(() => {
@@ -226,8 +232,9 @@ export default function Layout({ children, currentPageName }) {
 
     return (
         <div className="min-h-screen app-bg-pattern font-sans antialiased flex flex-col relative pb-[env(safe-area-inset-bottom)]">
-            {/* Top Sticky Navigation Bar */}
-            <header className="bg-white/95 backdrop-blur-md border-b border-zinc-200/70 sticky top-0 z-40 transition-all">
+            {/* Top Sticky Navigation Bar (Hidden when Auth form is active) */}
+            {!isAuthPage && (
+                <header className="bg-white/95 backdrop-blur-md border-b border-zinc-200/70 sticky top-0 z-40 transition-all">
                 {/* Top Smart Scroll Progress Line Indicator */}
                 <ScrollProgressBar />
 
@@ -504,51 +511,54 @@ export default function Layout({ children, currentPageName }) {
                     </div>
                 </div>
             </header>
+            )}
 
             {/* Main Page Content */}
-            <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 md:pb-8">
+            <main className={`flex-1 w-full mx-auto ${isAuthPage ? 'max-w-full p-0' : 'max-w-7xl px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 md:pb-8'}`}>
                 {children}
             </main>
 
-            {/* Mobile Bottom Navigation Bar */}
-            <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-zinc-200/90 md:hidden mobile-bottom-nav">
-                <div className="grid grid-cols-5 h-14 items-center justify-around px-1 max-w-md mx-auto">
-                    {mobileNavItems.map((item) => {
-                        const isActive = currentPageName === item.page || (item.page === 'Dashboard' && currentPageName === 'Home');
-                        return (
-                            <Link
-                                key={item.name}
-                                to={item.href}
-                                className={`flex flex-col items-center justify-center h-full py-1 transition-all ${
-                                    isActive ? 'text-zinc-950 font-bold' : 'text-zinc-400 hover:text-zinc-700'
-                                }`}
-                            >
-                                <div className={`p-1 rounded-md transition-colors ${isActive ? 'bg-zinc-100 text-zinc-950' : ''}`}>
-                                    <item.icon className="w-4 h-4" />
-                                </div>
-                                <span className="text-[10px] tracking-tight leading-tight mt-0.5">{item.name}</span>
-                            </Link>
-                        );
-                    })}
+            {/* Mobile Bottom Navigation Bar (Hidden when Auth form is active) */}
+            {!isAuthPage && (
+                <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-zinc-200/90 md:hidden mobile-bottom-nav">
+                    <div className="grid grid-cols-5 h-14 items-center justify-around px-1 max-w-md mx-auto">
+                        {mobileNavItems.map((item) => {
+                            const isActive = currentPageName === item.page || (item.page === 'Dashboard' && currentPageName === 'Home');
+                            return (
+                                <Link
+                                    key={item.name}
+                                    to={item.href}
+                                    className={`flex flex-col items-center justify-center h-full py-1 transition-all ${
+                                        isActive ? 'text-zinc-950 font-bold' : 'text-zinc-400 hover:text-zinc-700'
+                                    }`}
+                                >
+                                    <div className={`p-1 rounded-md transition-colors ${isActive ? 'bg-zinc-100 text-zinc-950' : ''}`}>
+                                        <item.icon className="w-4 h-4" />
+                                    </div>
+                                    <span className="text-[10px] tracking-tight leading-tight mt-0.5">{item.name}</span>
+                                </Link>
+                            );
+                        })}
 
-                    {/* Quick Menu Button to Open Full Drawer */}
-                    <button
-                        onClick={() => setDrawerOpen(true)}
-                        className="flex flex-col items-center justify-center h-full py-1 text-zinc-400 hover:text-zinc-700 transition-all"
-                    >
-                        <div className="p-1 rounded-md">
-                            <Menu className="w-4 h-4" />
-                        </div>
-                        <span className="text-[10px] tracking-tight leading-tight mt-0.5">More</span>
-                    </button>
-                </div>
-            </nav>
+                        {/* Quick Menu Button to Open Full Drawer */}
+                        <button
+                            onClick={() => setDrawerOpen(true)}
+                            className="flex flex-col items-center justify-center h-full py-1 text-zinc-400 hover:text-zinc-700 transition-all"
+                        >
+                            <div className="p-1 rounded-md">
+                                <Menu className="w-4 h-4" />
+                            </div>
+                            <span className="text-[10px] tracking-tight leading-tight mt-0.5">More</span>
+                        </button>
+                    </div>
+                </nav>
+            )}
 
             {/* Smart Floating Scroll-to-Top Button */}
             <ScrollToTopButton />
 
             {/* Mobile PWA Download & Installation Banner */}
-            <MobileInstallBanner />
+            {!isAuthPage && <MobileInstallBanner />}
         </div>
     );
 }
