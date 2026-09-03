@@ -23,9 +23,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import StatsCard from '@/components/dashboard/StatsCard';
 import RentScoreGauge from '@/components/dashboard/RentScoreGauge';
 import PaymentCard from '@/components/payments/PaymentCard';
+import GuestDashboard from '@/components/dashboard/GuestDashboard';
 
 export default function Dashboard() {
-    const { user } = useAuth();
+    const { user, role, isAuthenticated, isLoadingAuth } = useAuth();
 
     const { data: rentScore } = useQuery({
         queryKey: ['rentScore', user?.email],
@@ -90,11 +91,35 @@ export default function Dashboard() {
 
     const upcomingPayments = pendingPayments.slice(0, 3);
 
+    // Guest State: If the user is not authenticated, render the dedicated Guest experience
+    if (!isAuthenticated || !user) {
+        if (isLoadingAuth) {
+            return (
+                <div className="space-y-6 animate-pulse">
+                    <div className="h-48 bg-zinc-100 rounded-2xl" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {[1, 2, 3, 4].map(i => (
+                            <div key={i} className="h-28 bg-zinc-100 rounded-xl" />
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+        return <GuestDashboard />;
+    }
+
     return (
         <div className="space-y-6 sm:space-y-8">
-            {/* Welcome Section */}
+            {/* Welcome Section for Authenticated Users */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-1.5">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 capitalize">
+                            {role === 'sysAdmin' ? 'System Admin' : role === 'landlord' ? 'Landlord' : role === 'contractor' ? 'Contractor' : 'Verified Tenant'}
+                        </span>
+                        <span className="text-xs text-zinc-400">•</span>
+                        <span className="text-xs text-zinc-500 truncate max-w-[200px]">{user.email}</span>
+                    </div>
                     <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
                         Welcome back{user?.full_name ? `, ${user.full_name.split(' ')[0]}` : ''}
                     </h1>

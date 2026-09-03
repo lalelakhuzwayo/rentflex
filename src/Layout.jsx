@@ -140,7 +140,18 @@ export default function Layout({ children, currentPageName }) {
     let mainNavigation = [];
     let secondaryNavigation = [];
 
-    if (userRole === 'sysAdmin') {
+    if (!user) {
+        // Guest Mode Navigation
+        mainNavigation = [
+            { name: 'Home', href: createPageUrl('Dashboard'), icon: Home, badge: null },
+            { name: 'Explore Properties', href: createPageUrl('Properties'), icon: Building2, badge: 'Explore' },
+            { name: 'RentScore System', href: createPageUrl('RentScore'), icon: TrendingUp, badge: null },
+            { name: 'Security & Escrow', href: createPageUrl('Disputes'), icon: Shield, badge: null },
+        ];
+        secondaryNavigation = [
+            { name: 'Legal & POPIA Policy', href: createPageUrl('PrivacyPolicy'), icon: ShieldCheck, badge: 'POPIA' },
+        ];
+    } else if (userRole === 'sysAdmin') {
         mainNavigation = [
             { name: 'System Admin', href: createPageUrl('SysAdminDashboard'), icon: Shield, badge: 'Control' },
             { name: 'All Properties', href: createPageUrl('Properties'), icon: Building2, badge: null },
@@ -188,7 +199,12 @@ export default function Layout({ children, currentPageName }) {
         logout();
     };
 
-    const mobileNavItems = userRole === 'sysAdmin' ? [
+    const mobileNavItems = !user ? [
+        { name: 'Home', href: createPageUrl('Dashboard'), icon: Home, page: 'Dashboard' },
+        { name: 'Explore', href: createPageUrl('Properties'), icon: Building2, page: 'Properties' },
+        { name: 'Sign In', href: createPageUrl('Auth'), icon: User, page: 'Auth' },
+        { name: 'Register', href: createPageUrl('Auth') + '?mode=register', icon: Lock, page: 'Auth' },
+    ] : userRole === 'sysAdmin' ? [
         { name: 'Admin', href: createPageUrl('SysAdminDashboard'), icon: Shield, page: 'SysAdminDashboard' },
         { name: 'Listings', href: createPageUrl('Properties'), icon: Building2, page: 'Properties' },
         { name: 'Screening', href: createPageUrl('ApplicationScreening'), icon: Users, page: 'ApplicationScreening' },
