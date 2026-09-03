@@ -40,10 +40,6 @@ export default function GuestDashboard() {
                 <div className="absolute bottom-0 left-1/4 -mb-8 w-60 h-60 bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
 
                 <div className="relative z-10 max-w-3xl">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-800/80 border border-zinc-700 text-xs text-zinc-300 mb-5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                        <span>The Modern Rental Platform for South Africa</span>
-                    </div>
 
                     <h1 className="text-2xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-white leading-tight">
                         Rent on your terms, protect your deposit & build credit.
