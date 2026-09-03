@@ -238,27 +238,27 @@ export default function Settings() {
             </div>
 
             {/* Mobile App & PWA Download Card */}
-            <div className="sharp-card bg-zinc-950 text-white p-6 border border-zinc-800 transition-all duration-200">
+            <div className="sharp-card bg-white p-6 border border-zinc-200/90 hover:border-zinc-900 transition-all duration-200">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-start gap-3.5">
-                        <div className="w-12 h-12 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0 shadow-xs">
-                            <Smartphone className="w-6 h-6 text-white" />
+                        <div className="w-12 h-12 rounded-2xl bg-zinc-100 border border-zinc-200 flex items-center justify-center shrink-0 shadow-xs">
+                            <Smartphone className="w-6 h-6 text-zinc-900" />
                         </div>
                         <div>
                             <div className="flex items-center gap-2">
-                                <h2 className="text-base font-bold text-white">RentFlex Mobile App</h2>
+                                <h2 className="text-base font-bold text-zinc-900">RentFlex Mobile App</h2>
                                 {isInstalled ? (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded">
-                                        <CheckCircle2 className="w-3 h-3" />
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                                         Installed
                                     </span>
                                 ) : (
-                                    <span className="text-[10px] font-bold uppercase tracking-wider bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider bg-zinc-100 text-zinc-700 border border-zinc-200 px-2 py-0.5 rounded-full">
                                         PWA Ready
                                     </span>
                                 )}
                             </div>
-                            <p className="text-xs text-zinc-400 mt-1">
+                            <p className="text-xs text-zinc-500 mt-1">
                                 {isInstalled
                                     ? 'You are running the official RentFlex mobile app in standalone mode.'
                                     : 'Download RentFlex to your home screen for high-speed offline access, fullscreen mode, and native gestures.'}
@@ -269,9 +269,9 @@ export default function Settings() {
                     {!isInstalled && (
                         <Button
                             onClick={handleInstallClick}
-                            className="bg-white text-zinc-950 hover:bg-zinc-200 shrink-0 text-xs font-bold h-9 px-4 rounded-xl shadow-xs flex items-center gap-2"
+                            className="bg-zinc-900 text-white hover:bg-zinc-800 shrink-0 text-xs font-bold h-9 px-4 rounded-xl shadow-xs flex items-center gap-2"
                         >
-                            <Download className="w-4 h-4 text-zinc-950" />
+                            <Download className="w-4 h-4 text-white" />
                             <span>Download App</span>
                         </Button>
                     )}
