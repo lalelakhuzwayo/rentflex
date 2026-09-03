@@ -18,7 +18,6 @@ import {
     Wrench,
     FileText,
     TrendingUp,
-    Sparkles,
     ArrowUp,
     CheckCircle2,
     Lock
@@ -428,13 +427,6 @@ export default function Layout({ children, currentPageName }) {
 
                         {/* Right: Quick Action Shortcuts & User Menu */}
                         <div className="flex items-center gap-1.5 sm:gap-3">
-                            <Link to={createPageUrl('Properties')}>
-                                <Button variant="ghost" size="sm" className="hidden sm:flex items-center gap-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-100 rounded-lg">
-                                    <Sparkles className="w-3.5 h-3.5 text-zinc-500" />
-                                    <span>Browse Homes</span>
-                                </Button>
-                            </Link>
-
                             {user ? (
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
