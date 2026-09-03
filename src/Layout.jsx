@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import DatabaseHealthCard from '@/components/dashboard/DatabaseHealthCard';
+import MobileInstallBanner from '@/components/pwa/MobileInstallBanner';
 
 // Zero-re-render high performance scroll progress indicator
 function ScrollProgressBar() {
@@ -545,6 +546,9 @@ export default function Layout({ children, currentPageName }) {
 
             {/* Smart Floating Scroll-to-Top Button */}
             <ScrollToTopButton />
+
+            {/* Mobile PWA Download & Installation Banner */}
+            <MobileInstallBanner />
         </div>
     );
 }

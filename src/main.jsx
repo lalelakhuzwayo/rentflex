@@ -7,10 +7,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <App />
 )
 
-// Register Service Worker for offline shell and background sync capabilities
-if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+// Register Service Worker for PWA, offline shell, and Push Notifications
+if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch((err) => {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch((err) => {
             console.warn('Service Worker registration skipped:', err);
         });
     });

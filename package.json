@@ -19,7 +19,8 @@
         "db:diff": "supabase db diff -f",
         "db:push:prod": "node ./scripts/push-migrations.cjs",
         "db:push:prod:dry": "node ./scripts/push-migrations.cjs --dry-run",
-        "seed:admin": "node ./scripts/create-admin-user.cjs"
+        "seed:admin": "node ./scripts/create-admin-user.cjs",
+        "pwa:generate": "python ./scripts/generate_pwa_assets.py"
     },
     "dependencies": {
         "@hello-pangea/dnd": "^17.0.0",
