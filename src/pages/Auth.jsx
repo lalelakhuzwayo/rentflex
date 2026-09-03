@@ -113,10 +113,10 @@ export default function Auth() {
                     user_type: formData.user_type
                 });
 
-                // Redirect according to role
-                if (res.user.user_type === 'sysAdmin' || res.user.user_type === 'admin') {
+                const userRole = (res?.user?.user_type || res?.user?.user_metadata?.user_type || '').toLowerCase();
+                if (userRole === 'sysadmin' || userRole === 'admin') {
                     navigate(createPageUrl('SysAdminDashboard'));
-                } else if (res.user.user_type === 'landlord') {
+                } else if (userRole === 'landlord') {
                     navigate(createPageUrl('LandlordDashboard'));
                 } else {
                     navigate(createPageUrl('Dashboard'));
@@ -132,9 +132,10 @@ export default function Auth() {
                     password: formData.password
                 });
 
-                if (res.user.user_type === 'sysAdmin' || res.user.user_type === 'admin') {
+                const userRole = (res?.user?.user_type || res?.user?.user_metadata?.user_type || '').toLowerCase();
+                if (userRole === 'sysadmin' || userRole === 'admin') {
                     navigate(createPageUrl('SysAdminDashboard'));
-                } else if (res.user.user_type === 'landlord') {
+                } else if (userRole === 'landlord') {
                     navigate(createPageUrl('LandlordDashboard'));
                 } else {
                     navigate(createPageUrl('Dashboard'));
