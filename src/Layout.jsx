@@ -42,17 +42,27 @@ import { Badge } from "@/components/ui/badge";
 import DatabaseHealthCard from '@/components/dashboard/DatabaseHealthCard';
 import MobileInstallBanner from '@/components/pwa/MobileInstallBanner';
 
-// Zero-re-render high performance scroll progress indicator
+// Zero-re-render high performance scroll progress indicator with compositor offloading
 function ScrollProgressBar() {
     const barRef = React.useRef(null);
 
     useEffect(() => {
+        // If native CSS scroll-timeline is supported, browser animates purely on GPU compositor thread
+        if (typeof CSS !== 'undefined' && CSS.supports && CSS.supports('animation-timeline', 'scroll()')) {
+            return;
+        }
+
         let ticking = false;
+        let maxScroll = 1;
+
+        const updateMaxScroll = () => {
+            maxScroll = Math.max(1, (document.documentElement.scrollHeight || document.body.scrollHeight) - window.innerHeight);
+        };
+
         const updateProgress = () => {
             if (!barRef.current) return;
-            const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
-            const progress = totalHeight > 0 ? (window.scrollY / totalHeight) * 100 : 0;
-            barRef.current.style.transform = `scaleX(${progress / 100})`;
+            const progress = Math.min(1, Math.max(0, window.scrollY / maxScroll));
+            barRef.current.style.transform = `scaleX(${progress})`;
             ticking = false;
         };
 
@@ -63,16 +73,23 @@ function ScrollProgressBar() {
             }
         };
 
-        window.addEventListener('scroll', onScroll, { passive: true });
+        updateMaxScroll();
         updateProgress();
-        return () => window.removeEventListener('scroll', onScroll);
+
+        window.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', updateMaxScroll, { passive: true });
+
+        return () => {
+            window.removeEventListener('scroll', onScroll);
+            window.removeEventListener('resize', updateMaxScroll);
+        };
     }, []);
 
     return (
-        <div className="w-full h-0.5 bg-zinc-200/60 overflow-hidden">
+        <div className="w-full h-0.5 bg-zinc-200/60 overflow-hidden pointer-events-none">
             <div
                 ref={barRef}
-                className="h-full w-full bg-zinc-900 origin-left transition-transform duration-75 ease-out"
+                className="h-full w-full bg-zinc-900 origin-left scroll-progress-fill transform-gpu will-change-transform"
                 style={{ transform: 'scaleX(0)' }}
             />
         </div>
@@ -234,7 +251,7 @@ export default function Layout({ children, currentPageName }) {
         <div className="min-h-screen app-bg-pattern font-sans antialiased flex flex-col relative pb-[env(safe-area-inset-bottom)]">
             {/* Top Sticky Navigation Bar (Hidden when Auth form is active) */}
             {!isAuthPage && (
-                <header className="bg-white/95 backdrop-blur-md border-b border-zinc-200/70 sticky top-0 z-40 transition-all">
+                <header className="bg-white/95 backdrop-blur-md border-b border-zinc-200/70 sticky top-0 z-40 transform-gpu will-change-transform">
                 {/* Top Smart Scroll Progress Line Indicator */}
                 <ScrollProgressBar />
 
@@ -520,7 +537,7 @@ export default function Layout({ children, currentPageName }) {
 
             {/* Mobile Bottom Navigation Bar (Hidden when Auth form is active) */}
             {!isAuthPage && (
-                <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-zinc-200/90 md:hidden mobile-bottom-nav">
+                <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-zinc-200/90 md:hidden mobile-bottom-nav transform-gpu will-change-transform">
                     <div className="grid grid-cols-5 h-14 items-center justify-around px-1 max-w-md mx-auto">
                         {mobileNavItems.map((item) => {
                             const isActive = currentPageName === item.page || (item.page === 'Dashboard' && currentPageName === 'Home');

@@ -249,10 +249,10 @@ export default function GuestDashboard() {
                 {properties.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         {properties.map((prop) => (
-                            <div key={prop.id} className="bg-white rounded-xl border border-zinc-200/80 overflow-hidden hover:shadow-sm transition-all flex flex-col">
+                            <div key={prop.id} className="bg-white rounded-xl border border-zinc-200/80 overflow-hidden hover:shadow-sm transition-[box-shadow,border-color] duration-150 flex flex-col">
                                 <div className="h-40 bg-zinc-100 relative">
                                     {prop.images?.[0] ? (
-                                        <img src={prop.images[0]} alt={prop.title} className="w-full h-full object-cover" />
+                                        <img src={prop.images[0]} alt={prop.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-zinc-400">
                                             <Building2 className="w-8 h-8 opacity-40" />

@@ -19,7 +19,7 @@ export default function PropertyCard({ property, index = 0 }) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05, duration: 0.25 }}
-            className="group bg-white rounded-xl overflow-hidden border border-zinc-200/80 hover:border-zinc-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+            className="group bg-white rounded-xl overflow-hidden border border-zinc-200/80 hover:border-zinc-300 hover:shadow-md hover:-translate-y-0.5 transition-[border-color,box-shadow,transform] duration-200 transform-gpu"
         >
             <Link to={createPageUrl(`PropertyDetails?id=${property.id}`)}>
                 {/* Image */}
@@ -27,7 +27,9 @@ export default function PropertyCard({ property, index = 0 }) {
                     <img
                         src={property.images?.[0] || defaultImage}
                         alt={property.title}
-                        className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
                     />
                     <div className="absolute top-3 left-3 flex gap-1.5">
                         <Badge className={`${statusColors[property.status]} text-[11px] font-medium px-2 py-0.5 rounded-md`}>
