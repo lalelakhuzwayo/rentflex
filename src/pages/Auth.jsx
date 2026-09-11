@@ -14,18 +14,25 @@ import {
     ArrowRight,
     Home,
     AlertCircle,
-    KeyRound
+    KeyRound,
+    CheckCircle2,
+    ShieldCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
+import { toast } from 'sonner';
 
 export default function Auth() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const initialMode = searchParams.get('mode') === 'register' ? 'register' : 'login';
     const [mode, setMode] = useState(initialMode); // 'login' | 'register'
+    const [emailConfirmationSent, setEmailConfirmationSent] = useState(false);
+    const [pendingEmail, setPendingEmail] = useState('');
+    const [resending, setResending] = useState(false);
+    const confirmedFromUrl = searchParams.get('confirmed') === 'true';
 
     const {
         signIn,
@@ -110,13 +117,18 @@ export default function Auth() {
                 });
 
                 const activeUser = await authActions.getCurrentUser();
-                const userRole = (activeUser?.user_type || res?.user?.user_type || res?.user?.user_metadata?.user_type || formData.user_type || '').toLowerCase();
-                if (userRole === 'sysadmin') {
-                    navigate(createPageUrl('SysAdminDashboard'));
-                } else if (userRole === 'landlord') {
-                    navigate(createPageUrl('LandlordDashboard'));
+                if (activeUser) {
+                    const userRole = (activeUser?.user_type || formData.user_type || '').toLowerCase();
+                    if (userRole === 'sysadmin') {
+                        navigate(createPageUrl('SysAdminDashboard'));
+                    } else if (userRole === 'landlord') {
+                        navigate(createPageUrl('LandlordDashboard'));
+                    } else {
+                        navigate(createPageUrl('Dashboard'));
+                    }
                 } else {
-                    navigate(createPageUrl('Dashboard'));
+                    setPendingEmail(formData.email.trim());
+                    setEmailConfirmationSent(true);
                 }
             } else {
                 // Sign In
