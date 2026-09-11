@@ -159,6 +159,19 @@ export default function Auth() {
         }
     };
 
+    const handleResendConfirmation = async () => {
+        if (!pendingEmail) return;
+        setResending(true);
+        try {
+            await authActions.resendConfirmationEmail(pendingEmail);
+            toast.success(`Verification link resent to ${pendingEmail}`);
+        } catch (err) {
+            toast.error(err.message || 'Failed to resend confirmation email');
+        } finally {
+            setResending(false);
+        }
+    };
+
     const roles = [
         { id: 'tenant', title: 'Tenant' },
         { id: 'landlord', title: 'Landlord' },
@@ -177,52 +190,115 @@ export default function Auth() {
                         <span className="text-2xl font-bold tracking-tight text-zinc-900">RentFlex</span>
                     </Link>
                     <h2 className="text-2xl sm:text-3xl font-extrabold text-zinc-900 tracking-tight">
-                        {mode === 'register' ? 'Create your account' : 'Welcome back to RentFlex'}
+                        {emailConfirmationSent
+                            ? 'Confirm Email Required'
+                            : mode === 'register'
+                                ? 'Create your account'
+                                : 'Welcome back to RentFlex'}
                     </h2>
                     <p className="mt-2 text-sm text-zinc-600 max-w-sm mx-auto">
-                        {mode === 'register'
-                            ? 'Sign up to start renting, listing, or managing properties.'
-                            : 'Sign in to access your properties, leases, and payments.'}
+                        {emailConfirmationSent
+                            ? 'Please verify your email address to activate your account.'
+                            : mode === 'register'
+                                ? 'Sign up to start renting, listing, or managing properties.'
+                                : 'Sign in to access your properties, leases, and payments.'}
                     </p>
                 </div>
 
                 {/* Authentication Card */}
                 <Card className="border border-zinc-200/80 shadow-xl bg-white/95 backdrop-blur-md rounded-2xl overflow-hidden">
-                    {/* Mode Toggle Switcher */}
-                    <div className="grid grid-cols-2 p-1.5 bg-zinc-100/80 border-b border-zinc-200 text-sm font-semibold">
-                        <button
-                            type="button"
-                            onClick={() => { setMode('login'); setErrorMsg(''); }}
-                            className={`py-2.5 rounded-xl transition-all ${mode === 'login'
-                                    ? 'bg-white text-zinc-950 shadow-xs font-bold'
-                                    : 'text-zinc-500 hover:text-zinc-900'
-                                }`}
-                        >
-                            Sign In
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => { setMode('register'); setErrorMsg(''); }}
-                            className={`py-2.5 rounded-xl transition-all ${mode === 'register'
-                                    ? 'bg-white text-zinc-950 shadow-xs font-bold'
-                                    : 'text-zinc-500 hover:text-zinc-900'
-                                }`}
-                        >
-                            Create Account
-                        </button>
-                    </div>
+                    {emailConfirmationSent ? (
+                        <div className="p-6 sm:p-8 text-center space-y-6">
+                            <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto border border-emerald-200 text-emerald-600 shadow-xs">
+                                <Mail className="w-8 h-8" />
+                            </div>
 
-                    <CardContent className="p-6 sm:p-8">
-                        {errorMsg && (
-                            <motion.div
-                                initial={{ opacity: 0, y: -8 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="mb-6 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-medium text-rose-800 flex items-start gap-2.5"
-                            >
-                                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                                <span>{errorMsg}</span>
-                            </motion.div>
-                        )}
+                            <div>
+                                <h3 className="text-xl font-bold text-zinc-900">Check Your Email Inbox</h3>
+                                <p className="text-xs sm:text-sm text-zinc-600 mt-2 leading-relaxed max-w-md mx-auto">
+                                    We've sent an activation link to <span className="font-bold text-zinc-900">{pendingEmail}</span>.
+                                    Please click the link in your email to confirm your registration.
+                                </p>
+                            </div>
+
+                            <div className="bg-zinc-50 p-4 rounded-xl border border-zinc-200 text-xs text-zinc-600 text-left flex items-start gap-2.5">
+                                <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                                <span>
+                                    Once confirmed, you will be able to log in to your portal and access all RentFlex features immediately.
+                                </span>
+                            </div>
+
+                            <div className="space-y-3 pt-2">
+                                <Button
+                                    type="button"
+                                    onClick={handleResendConfirmation}
+                                    disabled={resending}
+                                    variant="outline"
+                                    className="w-full h-11 border-zinc-300 font-semibold text-zinc-900 hover:bg-zinc-50 rounded-xl"
+                                >
+                                    {resending ? 'Resending Link...' : 'Resend Confirmation Email'}
+                                </Button>
+
+                                <Button
+                                    type="button"
+                                    onClick={() => {
+                                        setEmailConfirmationSent(false);
+                                        setMode('login');
+                                    }}
+                                    className="w-full h-11 bg-zinc-900 hover:bg-zinc-800 text-white font-semibold rounded-xl"
+                                >
+                                    Continue to Sign In <ArrowRight className="w-4 h-4 ml-2" />
+                                </Button>
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Mode Toggle Switcher */}
+                            <div className="grid grid-cols-2 p-1.5 bg-zinc-100/80 border-b border-zinc-200 text-sm font-semibold">
+                                <button
+                                    type="button"
+                                    onClick={() => { setMode('login'); setErrorMsg(''); }}
+                                    className={`py-2.5 rounded-xl transition-all ${mode === 'login'
+                                            ? 'bg-white text-zinc-950 shadow-xs font-bold'
+                                            : 'text-zinc-500 hover:text-zinc-900'
+                                        }`}
+                                >
+                                    Sign In
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setMode('register'); setErrorMsg(''); }}
+                                    className={`py-2.5 rounded-xl transition-all ${mode === 'register'
+                                            ? 'bg-white text-zinc-950 shadow-xs font-bold'
+                                            : 'text-zinc-500 hover:text-zinc-900'
+                                        }`}
+                                >
+                                    Create Account
+                                </button>
+                            </div>
+
+                            <CardContent className="p-6 sm:p-8">
+                                {confirmedFromUrl && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -8 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="mb-6 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-medium text-emerald-900 flex items-start gap-2.5"
+                                    >
+                                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                                        <span>Your email address has been confirmed successfully! Please sign in to access your portal.</span>
+                                    </motion.div>
+                                )}
+
+                                {errorMsg && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -8 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="mb-6 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-medium text-rose-800 flex items-start gap-2.5"
+                                    >
+                                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                                        <span>{errorMsg}</span>
+                                    </motion.div>
+                                )}
 
                         <form onSubmit={handleSubmit} className="space-y-5">
                             <AnimatePresence mode="wait">
@@ -556,6 +632,8 @@ export default function Auth() {
                         </div>
 
                     </CardContent>
+                        </>
+                    )}
                 </Card>
 
                 {/* Return to Homepage / Guest Option */}
