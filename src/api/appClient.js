@@ -195,10 +195,16 @@ export const appClient = {
             if (redirectUrl) window.location.href = redirectUrl;
         },
         redirectToLogin: (redirectUrl, provider = 'google') => {
+            const targetUrl = (typeof redirectUrl === 'string' && redirectUrl.startsWith('http')) 
+                ? redirectUrl 
+                : `${window.location.origin}/Auth`;
+
             if (isSupabaseConfigured) {
                 supabase.auth.signInWithOAuth({ 
                     provider, 
-                    options: { redirectTo: redirectUrl } 
+                    options: { 
+                        redirectTo: targetUrl 
+                    } 
                 });
             } else {
                 window.location.href = '/Auth';

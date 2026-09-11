@@ -273,14 +273,21 @@ CREATE INDEX IF NOT EXISTS idx_messages_conversation ON public.messages(conversa
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-    INSERT INTO public.profiles (id, email, full_name, user_type)
+    INSERT INTO public.profiles (id, email, full_name, user_type, verified, id_verified, status)
     VALUES (
         NEW.id,
         NEW.email,
         COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
-        COALESCE(NEW.raw_user_meta_data->>'user_type', 'tenant')
+        COALESCE(NEW.raw_user_meta_data->>'user_type', 'tenant'),
+        TRUE,
+        TRUE,
+        'verified'
     )
-    ON CONFLICT (id) DO NOTHING;
+    ON CONFLICT (id) DO UPDATE SET
+        user_type = EXCLUDED.user_type,
+        full_name = EXCLUDED.full_name,
+        verified = TRUE,
+        status = 'verified';
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

@@ -38,6 +38,28 @@ export const authActions = {
             throw new Error('An account with this email address already exists. Please sign in instead.');
         }
 
+        // Direct Profile Upsert Guarantee:
+        // Guarantee user_type (tenant, landlord, contractor) and verified status (true) are immediately saved to public.profiles
+        if (data?.user?.id) {
+            try {
+                await supabase
+                    .from('profiles')
+                    .upsert({
+                        id: data.user.id,
+                        email: normalizedEmail,
+                        full_name: full_name?.trim(),
+                        user_type: resolvedRole,
+                        phone: phone?.trim() || null,
+                        verified: true,
+                        id_verified: true,
+                        status: 'verified',
+                        updated_at: new Date().toISOString()
+                    }, { onConflict: 'id' });
+            } catch (profileErr) {
+                console.warn('Direct profile upsert notice:', profileErr.message);
+            }
+        }
+
         return data;
     },
 

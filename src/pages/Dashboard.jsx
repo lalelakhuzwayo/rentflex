@@ -1,5 +1,5 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { appClient } from '@/api/appClient';
 import { useAuth } from '@/lib/AuthContext';
@@ -23,7 +23,19 @@ import GuestDashboard from '@/components/dashboard/GuestDashboard';
 import ProfileCompletionTracker from '@/components/dashboard/ProfileCompletionTracker';
 
 export default function Dashboard() {
+    const navigate = useNavigate();
     const { user, role, isAuthenticated, isLoadingAuth } = useAuth();
+
+    useEffect(() => {
+        if (!isAuthenticated || !user) return;
+        if (role === 'sysAdmin') {
+            navigate(createPageUrl('SysAdminDashboard'), { replace: true });
+        } else if (role === 'landlord') {
+            navigate(createPageUrl('LandlordDashboard'), { replace: true });
+        } else if (role === 'contractor') {
+            navigate(createPageUrl('ContractorDashboard'), { replace: true });
+        }
+    }, [user, role, isAuthenticated, navigate]);
 
     const { data: rentScore } = useQuery({
         queryKey: ['rentScore', user?.email],

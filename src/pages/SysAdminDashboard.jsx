@@ -143,6 +143,7 @@ export default function SysAdminDashboard() {
 
     const activeLandlords = usersList.filter(u => u.user_type === 'landlord').length;
     const activeTenants = usersList.filter(u => u.user_type === 'tenant' || u.user_type === 'rentee').length;
+    const activeContractors = usersList.filter(u => u.user_type === 'contractor').length;
     const activeAdmins = usersList.filter(u => u.user_type === 'sysAdmin').length;
 
     const filteredUsers = usersList.filter(u => {
@@ -168,7 +169,7 @@ export default function SysAdminDashboard() {
                 <div>
                     <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 tracking-tight">System Administration</h1>
                     <p className="text-xs sm:text-sm text-zinc-500 mt-1">
-                        Platform governance, triple-tier account matrix, lease oversight, and infrastructure metrics.
+                        Platform governance, multi-role account matrix, lease oversight, and infrastructure metrics.
                     </p>
                 </div>
             </div>
@@ -191,6 +192,8 @@ export default function SysAdminDashboard() {
                         <span className="text-emerald-700 font-bold">{activeLandlords} Owners</span>
                         <span>•</span>
                         <span className="text-blue-700 font-bold">{activeTenants} Tenants</span>
+                        <span>•</span>
+                        <span className="text-amber-700 font-bold">{activeContractors} Contractors</span>
                     </div>
                 </motion.div>
 
@@ -333,13 +336,14 @@ export default function SysAdminDashboard() {
                                     />
                                 </div>
                                 <Select value={roleFilter} onValueChange={setRoleFilter}>
-                                    <SelectTrigger className="h-8 sm:h-9 text-xs w-full sm:w-36 border-zinc-200">
-                                        <SelectValue placeholder="Filter Role" />
-                                    </SelectTrigger>
-                                    <SelectContent>
+                                     <SelectTrigger className="h-8 sm:h-9 text-xs w-full sm:w-36 border-zinc-200">
+                                         <SelectValue placeholder="Filter Role" />
+                                     </SelectTrigger>
+                                     <SelectContent>
                                         <SelectItem value="all">All Roles</SelectItem>
                                         <SelectItem value="sysAdmin">SysAdmin</SelectItem>
                                         <SelectItem value="landlord">Landlord</SelectItem>
+                                        <SelectItem value="contractor">Contractor</SelectItem>
                                         <SelectItem value="tenant">Tenant</SelectItem>
                                     </SelectContent>
                                 </Select>
@@ -361,7 +365,9 @@ export default function SysAdminDashboard() {
                                                     ? 'bg-purple-900 text-white'
                                                     : user.user_type === 'landlord'
                                                         ? 'bg-zinc-900 text-white'
-                                                        : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+                                                        : user.user_type === 'contractor'
+                                                            ? 'bg-amber-900 text-white'
+                                                            : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
                                             }`}
                                         >
                                             {user.user_type === 'rentee' ? 'tenant' : user.user_type}
@@ -395,6 +401,7 @@ export default function SysAdminDashboard() {
                                             <SelectContent>
                                                 <SelectItem value="sysAdmin">SysAdmin</SelectItem>
                                                 <SelectItem value="landlord">Landlord</SelectItem>
+                                                <SelectItem value="contractor">Contractor</SelectItem>
                                                 <SelectItem value="tenant">Tenant</SelectItem>
                                             </SelectContent>
                                         </Select>
@@ -438,7 +445,9 @@ export default function SysAdminDashboard() {
                                                             ? 'bg-purple-900 text-white'
                                                             : user.user_type === 'landlord'
                                                                 ? 'bg-zinc-900 text-white'
-                                                                : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+                                                                : user.user_type === 'contractor'
+                                                                    ? 'bg-amber-900 text-white'
+                                                                    : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
                                                         }`}
                                                 >
                                                     {user.user_type === 'rentee' ? 'tenant' : user.user_type}
@@ -472,6 +481,7 @@ export default function SysAdminDashboard() {
                                                         <SelectContent>
                                                             <SelectItem value="sysAdmin">SysAdmin</SelectItem>
                                                             <SelectItem value="landlord">Landlord</SelectItem>
+                                                            <SelectItem value="contractor">Contractor</SelectItem>
                                                             <SelectItem value="tenant">Tenant</SelectItem>
                                                         </SelectContent>
                                                     </Select>

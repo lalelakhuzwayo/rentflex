@@ -197,6 +197,17 @@ export default function Layout({ children, currentPageName }) {
             { name: 'Contractor Jobs', href: createPageUrl('Jobs'), icon: Wrench, badge: null },
             { name: 'Legal & POPIA Policy', href: createPageUrl('PrivacyPolicy'), icon: ShieldCheck, badge: 'POPIA' },
         ];
+    } else if (userRole === 'contractor') {
+        mainNavigation = [
+            { name: 'Contractor Hub', href: createPageUrl('ContractorDashboard'), icon: Wrench, badge: 'Contractor' },
+            { name: 'Jobs Board', href: createPageUrl('Jobs'), icon: Building2, badge: 'Jobs' },
+            { name: 'Maintenance Tasks', href: createPageUrl('Maintenance'), icon: Wrench, badge: null },
+            { name: 'Pro Subscription', href: createPageUrl('ContractorSubscription'), icon: CreditCard, badge: 'Pro' },
+        ];
+        secondaryNavigation = [
+            { name: 'Contractor Verification', href: createPageUrl('ContractorOnboarding'), icon: ShieldCheck, badge: null },
+            { name: 'Legal & POPIA Policy', href: createPageUrl('PrivacyPolicy'), icon: ShieldCheck, badge: 'POPIA' },
+        ];
     } else {
         // Tenant
         mainNavigation = [
@@ -231,6 +242,11 @@ export default function Layout({ children, currentPageName }) {
         { name: 'Units', href: createPageUrl('Properties'), icon: Building2, page: 'Properties' },
         { name: 'Screening', href: createPageUrl('ApplicationScreening'), icon: Users, page: 'ApplicationScreening' },
         { name: 'Payments', href: createPageUrl('Payments'), icon: CreditCard, page: 'Payments' },
+    ] : userRole === 'contractor' ? [
+        { name: 'Hub', href: createPageUrl('ContractorDashboard'), icon: Wrench, page: 'ContractorDashboard' },
+        { name: 'Jobs', href: createPageUrl('Jobs'), icon: Building2, page: 'Jobs' },
+        { name: 'Maintenance', href: createPageUrl('Maintenance'), icon: Wrench, page: 'Maintenance' },
+        { name: 'Plan', href: createPageUrl('ContractorSubscription'), icon: CreditCard, page: 'ContractorSubscription' },
     ] : [
         { name: 'Home', href: createPageUrl('Dashboard'), icon: Home, page: 'Dashboard' },
         { name: 'Explore', href: createPageUrl('Properties'), icon: Building2, page: 'Properties' },

@@ -31,6 +31,8 @@ export default function Welcome() {
                         navigate(createPageUrl('SysAdminDashboard'));
                     } else if (u.user_type === 'landlord') {
                         navigate(createPageUrl('LandlordDashboard'));
+                    } else if (u.user_type === 'contractor') {
+                        navigate(createPageUrl('ContractorDashboard'));
                     } else {
                         navigate(createPageUrl('Dashboard'));
                     }

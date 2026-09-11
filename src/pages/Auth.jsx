@@ -123,6 +123,8 @@ export default function Auth() {
                         navigate(createPageUrl('SysAdminDashboard'));
                     } else if (userRole === 'landlord') {
                         navigate(createPageUrl('LandlordDashboard'));
+                    } else if (userRole === 'contractor') {
+                        navigate(createPageUrl('ContractorDashboard'));
                     } else {
                         navigate(createPageUrl('Dashboard'));
                     }
@@ -147,6 +149,8 @@ export default function Auth() {
                     navigate(createPageUrl('SysAdminDashboard'));
                 } else if (userRole === 'landlord') {
                     navigate(createPageUrl('LandlordDashboard'));
+                } else if (userRole === 'contractor') {
+                    navigate(createPageUrl('ContractorDashboard'));
                 } else {
                     navigate(createPageUrl('Dashboard'));
                 }
