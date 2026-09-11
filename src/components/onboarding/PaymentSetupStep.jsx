@@ -1,7 +1,6 @@
 import { motion } from 'framer-motion';
-import { Landmark, CreditCard, CheckCircle2, Shield, Zap } from 'lucide-react';
+import { Landmark, CheckCircle2, Shield, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 
 export default function PaymentSetupStep({ data, onChange, onNext, onBack }) {
     const handleConnectStripe = () => {

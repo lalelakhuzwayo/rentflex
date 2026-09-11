@@ -17,7 +17,7 @@ export default function WelcomeStep({ onNext }) {
         {
             icon: Shield,
             title: 'Automated Management',
-            description: 'Handle maintenance, leases, and disputes all in one platform'
+            description: 'Handle maintenance, lease agreements, and inspections all in one platform'
         },
         {
             icon: Zap,

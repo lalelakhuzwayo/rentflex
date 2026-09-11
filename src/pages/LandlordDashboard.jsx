@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { appClient } from '@/api/appClient';
@@ -11,10 +11,8 @@ import {
     DollarSign,
     TrendingUp,
     Plus,
-    Calendar,
     AlertCircle,
     CheckCircle2,
-    Clock,
     Home,
     ArrowRight,
     FileText
@@ -23,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import StatsCard from '@/components/dashboard/StatsCard';
+import ProfileCompletionTracker from '@/components/dashboard/ProfileCompletionTracker';
 
 export default function LandlordDashboard() {
     const { user } = useAuth();
@@ -93,10 +92,13 @@ export default function LandlordDashboard() {
     const activeLeases = leases?.filter(l => l.status === 'active').length || 0;
     const totalRevenue = payments?.filter(p => p.status === 'paid').reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
     const pendingMaintenance = maintenance?.filter(m => m.status !== 'completed').length || 0;
+    const recentMaintenance = maintenance?.slice(0, 5) || [];
     const pendingBids = bids?.length || 0;
     const pendingLeaseCountersignatures = leases?.filter(l => l.status === 'pending_landlord_signature' || (l.tenant_signature && !l.landlord_signature)) || [];
 
-    const recentMaintenance = maintenance?.slice(0, 3) || [];
+    const operatingExpenses = totalRevenue > 0 ? 2500 : 0;
+    const netOperatingIncome = Math.max(0, totalRevenue - operatingExpenses);
+    const netYieldText = totalRevenue > 0 ? "9.4%" : "0.0%";
 
     return (
         <div className="space-y-6">
@@ -115,6 +117,9 @@ export default function LandlordDashboard() {
                     </Link>
                 </Button>
             </div>
+
+            {/* Profile Completion Tracker */}
+            <ProfileCompletionTracker user={user} />
 
             {/* Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -174,7 +179,7 @@ export default function LandlordDashboard() {
                     </div>
                     <div className="flex items-center gap-2">
                         <Badge variant="outline" className="text-zinc-300 border-zinc-700 px-3 py-1">
-                            Net NOI Yield: 9.4%
+                            Net NOI Yield: {netYieldText}
                         </Badge>
                     </div>
                 </div>
@@ -182,18 +187,18 @@ export default function LandlordDashboard() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="bg-zinc-900 border border-zinc-800 p-4">
                         <span className="text-xs font-medium text-zinc-400">Monthly Gross Revenue</span>
-                        <p className="text-2xl font-bold text-white mt-1">R{(totalRevenue || 18500).toLocaleString()}</p>
-                        <p className="text-[11px] text-emerald-400 mt-1">↑ 100% On-time collected</p>
+                        <p className="text-2xl font-bold text-white mt-1">R{totalRevenue.toLocaleString()}</p>
+                        <p className="text-[11px] text-emerald-400 mt-1">{totalRevenue > 0 ? '↑ 100% On-time collected' : 'No revenue recorded'}</p>
                     </div>
                     <div className="bg-zinc-900 border border-zinc-800 p-4">
                         <span className="text-xs font-medium text-zinc-400">Est. Operating Expenses</span>
-                        <p className="text-2xl font-bold text-zinc-300 mt-1">R2,500</p>
+                        <p className="text-2xl font-bold text-zinc-300 mt-1">R{operatingExpenses.toLocaleString()}</p>
                         <p className="text-[11px] text-zinc-500 mt-1">Maintenance & rates deduction</p>
                     </div>
                     <div className="bg-zinc-900 border border-zinc-800 p-4">
                         <span className="text-xs font-medium text-zinc-400">Net Operating Income (NOI)</span>
-                        <p className="text-2xl font-bold text-white mt-1">R{((totalRevenue || 18500) - 2500).toLocaleString()}</p>
-                        <p className="text-[11px] text-zinc-400 mt-1">Projected Annual: R{(((totalRevenue || 18500) - 2500) * 12).toLocaleString()}</p>
+                        <p className="text-2xl font-bold text-white mt-1">R{netOperatingIncome.toLocaleString()}</p>
+                        <p className="text-[11px] text-zinc-400 mt-1">Projected Annual: R{(netOperatingIncome * 12).toLocaleString()}</p>
                     </div>
                 </div>
             </motion.div>

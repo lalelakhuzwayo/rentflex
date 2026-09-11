@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { createPageUrl } from './utils';
-import { appClient } from '@/api/appClient';
 import { useAuth } from '@/lib/AuthContext';
 import {
     Home,
@@ -11,7 +10,6 @@ import {
     ShieldCheck,
     Settings,
     Menu,
-    ChevronRight,
     LogOut,
     User,
     Users,
@@ -19,7 +17,6 @@ import {
     FileText,
     TrendingUp,
     ArrowUp,
-    CheckCircle2,
     Lock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -34,8 +31,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
     Sheet,
     SheetContent,
-    SheetHeader,
-    SheetTitle,
     SheetTrigger,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -170,7 +165,6 @@ export default function Layout({ children, currentPageName }) {
             { name: 'Home', href: createPageUrl('Dashboard'), icon: Home, badge: null },
             { name: 'Explore Properties', href: createPageUrl('Properties'), icon: Building2, badge: 'Explore' },
             { name: 'RentScore System', href: createPageUrl('RentScore'), icon: TrendingUp, badge: null },
-            { name: 'Security & Escrow', href: createPageUrl('Disputes'), icon: Shield, badge: null },
         ];
         secondaryNavigation = [
             { name: 'Legal & POPIA Policy', href: createPageUrl('PrivacyPolicy'), icon: ShieldCheck, badge: 'POPIA' },
@@ -186,7 +180,6 @@ export default function Layout({ children, currentPageName }) {
         secondaryNavigation = [
             { name: 'Tenant Portal', href: createPageUrl('Dashboard'), icon: Home, badge: 'Portal' },
             { name: 'Landlord Portal', href: createPageUrl('LandlordDashboard'), icon: Building2, badge: 'Portal' },
-            { name: 'Disputes & Arbitration', href: createPageUrl('Disputes'), icon: Shield, badge: null },
             { name: 'Maintenance', href: createPageUrl('Maintenance'), icon: Wrench, badge: null },
             { name: 'Jobs Board', href: createPageUrl('Jobs'), icon: Wrench, badge: null },
             { name: 'Legal & POPIA Policy', href: createPageUrl('PrivacyPolicy'), icon: ShieldCheck, badge: 'POPIA' },
@@ -202,7 +195,6 @@ export default function Layout({ children, currentPageName }) {
         secondaryNavigation = [
             { name: 'Maintenance', href: createPageUrl('Maintenance'), icon: Wrench, badge: null },
             { name: 'Contractor Jobs', href: createPageUrl('Jobs'), icon: Wrench, badge: null },
-            { name: 'Deposit Disputes', href: createPageUrl('Disputes'), icon: Shield, badge: null },
             { name: 'Legal & POPIA Policy', href: createPageUrl('PrivacyPolicy'), icon: ShieldCheck, badge: 'POPIA' },
         ];
     } else {
@@ -216,7 +208,6 @@ export default function Layout({ children, currentPageName }) {
         ];
         secondaryNavigation = [
             { name: 'Maintenance Request', href: createPageUrl('Maintenance'), icon: Wrench, badge: null },
-            { name: 'Deposit Protection', href: createPageUrl('Disputes'), icon: Shield, badge: null },
             { name: 'Legal & POPIA Policy', href: createPageUrl('PrivacyPolicy'), icon: ShieldCheck, badge: 'POPIA' },
         ];
     }
@@ -234,7 +225,7 @@ export default function Layout({ children, currentPageName }) {
         { name: 'Admin', href: createPageUrl('SysAdminDashboard'), icon: Shield, page: 'SysAdminDashboard' },
         { name: 'Listings', href: createPageUrl('Properties'), icon: Building2, page: 'Properties' },
         { name: 'Screening', href: createPageUrl('ApplicationScreening'), icon: Users, page: 'ApplicationScreening' },
-        { name: 'Disputes', href: createPageUrl('Disputes'), icon: FileText, page: 'Disputes' },
+        { name: 'Payments', href: createPageUrl('Payments'), icon: CreditCard, page: 'Payments' },
     ] : userRole === 'landlord' ? [
         { name: 'Home', href: createPageUrl('LandlordDashboard'), icon: Home, page: 'LandlordDashboard' },
         { name: 'Units', href: createPageUrl('Properties'), icon: Building2, page: 'Properties' },

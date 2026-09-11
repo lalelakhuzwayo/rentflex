@@ -5,18 +5,14 @@ import { motion } from 'framer-motion';
 import { formatDate } from '@/utils';
 import {
     Send,
-    Paperclip,
     Image as ImageIcon,
     Video,
-    Wrench,
     Home,
-    Clock,
     AlertTriangle,
     ChevronLeft
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
     Dialog,
@@ -28,7 +24,6 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
 
 export default function Messages() {
     const queryClient = useQueryClient();

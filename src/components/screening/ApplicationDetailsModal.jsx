@@ -1,18 +1,12 @@
 import { formatDate } from '@/utils';
 import {
     User,
-    TrendingUp,
     DollarSign,
-    Briefcase,
     Home,
-    Calendar,
-    Phone,
-    Mail,
     AlertCircle,
     CheckCircle2,
     Users,
     PawPrint,
-    FileText,
     Shield,
     Clock
 } from 'lucide-react';

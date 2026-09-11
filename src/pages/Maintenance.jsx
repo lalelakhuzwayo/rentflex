@@ -6,11 +6,9 @@ import { formatDate } from '@/utils';
 import {
     Wrench,
     Plus,
-    AlertTriangle,
     Clock,
     CheckCircle2,
     Calendar,
-    Upload,
     X,
     Droplets,
     Zap,
@@ -83,7 +81,7 @@ export default function Maintenance() {
         appClient.auth.me().then(setUser).catch(() => { });
     }, []);
 
-    const isSysAdmin = user?.user_type === 'sysAdmin' || user?.user_type === 'admin';
+    const isSysAdmin = user?.user_type === 'sysAdmin';
     const isLandlord = user?.user_type === 'landlord';
 
     const { data: requests, isLoading } = useQuery({

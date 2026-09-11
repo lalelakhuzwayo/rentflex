@@ -3,20 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { appClient } from '@/api/appClient';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
 import {
     Camera,
     Video,
-    FileText,
     CheckCircle2,
-    Upload,
     ArrowRight,
     ArrowLeft,
     Home,
     ChefHat,
     Bath,
-    BedDouble,
-    AlertCircle
+    BedDouble
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';

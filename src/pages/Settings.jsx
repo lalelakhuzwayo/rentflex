@@ -1,13 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { appClient } from '@/api/appClient';
 import { useMutation } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
 import {
-    User,
-    Mail,
-    Phone,
     CreditCard,
-    Bell,
     BellRing,
     Shield,
     Key,
@@ -21,10 +16,8 @@ import {
     AlertTriangle,
     Volume2,
     Send,
-    RefreshCw,
     Share2,
-    PlusSquare,
-    ExternalLink
+    PlusSquare
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -56,7 +49,6 @@ export default function Settings() {
         payment_reminders: true,
         lease_updates: true,
         maintenance_updates: true,
-        dispute_alerts: true,
         marketing: false,
         sound_enabled: true
     });
@@ -72,7 +64,7 @@ export default function Settings() {
         // 1. Load user profile
         appClient.auth.me().then(u => {
             setUser(u);
-            const role = u.user_type === 'admin' ? 'sysAdmin' : (u.user_type === 'rentee' ? 'tenant' : (u.user_type || 'tenant'));
+            const role = u.user_type === 'rentee' ? 'tenant' : (u.user_type || 'tenant');
             setForm({
                 full_name: u.full_name || '',
                 phone: u.phone || '',
@@ -90,7 +82,7 @@ export default function Settings() {
     }, []);
 
     const updateMutation = useMutation({
-        mutationFn: async (data) => {
+        mutationFn: async (/** @type {any} */ data) => {
             // Save profile details and notification preferences
             await appClient.auth.updateMe({
                 full_name: data.full_name,
@@ -425,18 +417,7 @@ export default function Settings() {
                         />
                     </div>
 
-                    <Separator />
 
-                    <div className="flex items-center justify-between py-1">
-                        <div>
-                            <p className="font-medium text-xs text-zinc-900">Deposit Disputes & Arbitration</p>
-                            <p className="text-[11px] text-zinc-500">High-priority alerts on deposit releases, claims, and binding arbitration rulings</p>
-                        </div>
-                        <Switch
-                            checked={notifications.dispute_alerts}
-                            onCheckedChange={(checked) => setNotifications({ ...notifications, dispute_alerts: checked })}
-                        />
-                    </div>
 
                     <Separator />
 

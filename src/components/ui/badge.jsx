@@ -23,6 +23,9 @@ const badgeVariants = cva(
     }
 )
 
+/**
+ * @type {React.FC<React.HTMLAttributes<HTMLDivElement> & { variant?: any }>}
+ */
 function Badge({
     className,
     variant,

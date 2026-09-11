@@ -1,14 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { authActions } from '@/api/authActions';
 import { Button } from '@/components/ui/button';
-import { Database, CheckCircle2, AlertTriangle, RefreshCw, Activity } from 'lucide-react';
+import { Database, RefreshCw, Activity } from 'lucide-react';
 
 export default function DatabaseHealthCard({ isCompact = false }) {
-    // Only display database health and connection tester in development; remove in production
-    if (!import.meta.env.DEV) {
-        return null;
-    }
-
     const [health, setHealth] = useState({
         ok: true,
         status: 'Checking...',
@@ -38,8 +33,15 @@ export default function DatabaseHealthCard({ isCompact = false }) {
     };
 
     useEffect(() => {
-        runHealthCheck();
+        if (import.meta.env.DEV) {
+            runHealthCheck();
+        }
     }, []);
+
+    // Only display database health and connection tester in development; remove in production
+    if (!import.meta.env.DEV) {
+        return null;
+    }
 
     return (
         <div className="rounded-xl border border-zinc-200/80 bg-zinc-50/70 p-3.5 space-y-2.5 text-xs">

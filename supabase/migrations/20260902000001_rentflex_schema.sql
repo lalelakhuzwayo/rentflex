@@ -193,21 +193,6 @@ CREATE TABLE IF NOT EXISTS public.rent_scores (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- ====================================================================
--- 11. DEPOSIT DISPUTES TABLE
--- ====================================================================
-CREATE TABLE IF NOT EXISTS public.deposit_disputes (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    lease_id UUID REFERENCES public.leases(id) ON DELETE CASCADE,
-    tenant_id TEXT NOT NULL,
-    landlord_id TEXT NOT NULL,
-    disputed_amount NUMERIC(12, 2) NOT NULL,
-    resolved_amount NUMERIC(12, 2) DEFAULT 0.00,
-    reason TEXT NOT NULL,
-    status TEXT CHECK (status IN ('open', 'under_review', 'resolved')) DEFAULT 'open',
-    evidence_urls JSONB DEFAULT '[]'::jsonb,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
 
 -- ====================================================================
 -- 12. INSPECTIONS TABLE
@@ -298,7 +283,6 @@ ALTER TABLE public.contractor_bids ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bids ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contractors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.rent_scores ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.deposit_disputes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.inspections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.applications ENABLE ROW LEVEL SECURITY;
@@ -316,7 +300,6 @@ DROP POLICY IF EXISTS "Authenticated full access contractor_bids" ON public.cont
 DROP POLICY IF EXISTS "Authenticated full access bids" ON public.bids;
 DROP POLICY IF EXISTS "Authenticated full access contractors" ON public.contractors;
 DROP POLICY IF EXISTS "Authenticated full access rent_scores" ON public.rent_scores;
-DROP POLICY IF EXISTS "Authenticated full access deposit_disputes" ON public.deposit_disputes;
 DROP POLICY IF EXISTS "Authenticated full access inspections" ON public.inspections;
 DROP POLICY IF EXISTS "Authenticated full access messages" ON public.messages;
 DROP POLICY IF EXISTS "Authenticated full access applications" ON public.applications;
@@ -334,7 +317,6 @@ CREATE POLICY "Authenticated full access contractor_bids" ON public.contractor_b
 CREATE POLICY "Authenticated full access bids" ON public.bids FOR ALL USING (true);
 CREATE POLICY "Authenticated full access contractors" ON public.contractors FOR ALL USING (true);
 CREATE POLICY "Authenticated full access rent_scores" ON public.rent_scores FOR ALL USING (true);
-CREATE POLICY "Authenticated full access deposit_disputes" ON public.deposit_disputes FOR ALL USING (true);
 CREATE POLICY "Authenticated full access inspections" ON public.inspections FOR ALL USING (true);
 CREATE POLICY "Authenticated full access messages" ON public.messages FOR ALL USING (true);
 CREATE POLICY "Authenticated full access applications" ON public.applications FOR ALL USING (true);

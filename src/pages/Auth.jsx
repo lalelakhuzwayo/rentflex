@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
+import { authActions } from '@/api/authActions';
 import { createPageUrl } from '@/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -108,8 +109,9 @@ export default function Auth() {
                     user_type: formData.user_type
                 });
 
-                const userRole = (res?.user?.user_type || res?.user?.user_metadata?.user_type || '').toLowerCase();
-                if (userRole === 'sysadmin' || userRole === 'admin') {
+                const activeUser = await authActions.getCurrentUser();
+                const userRole = (activeUser?.user_type || res?.user?.user_type || res?.user?.user_metadata?.user_type || formData.user_type || '').toLowerCase();
+                if (userRole === 'sysadmin') {
                     navigate(createPageUrl('SysAdminDashboard'));
                 } else if (userRole === 'landlord') {
                     navigate(createPageUrl('LandlordDashboard'));
@@ -127,8 +129,9 @@ export default function Auth() {
                     password: formData.password
                 });
 
-                const userRole = (res?.user?.user_type || res?.user?.user_metadata?.user_type || '').toLowerCase();
-                if (userRole === 'sysadmin' || userRole === 'admin') {
+                const activeUser = await authActions.getCurrentUser();
+                const userRole = (activeUser?.user_type || res?.user?.user_type || res?.user?.user_metadata?.user_type || '').toLowerCase();
+                if (userRole === 'sysadmin') {
                     navigate(createPageUrl('SysAdminDashboard'));
                 } else if (userRole === 'landlord') {
                     navigate(createPageUrl('LandlordDashboard'));

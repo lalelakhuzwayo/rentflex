@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { appClient } from '@/api/appClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
 import {
     Users,
-    Filter,
     Search,
     TrendingUp,
     CheckCircle2,
@@ -44,7 +42,7 @@ export default function ApplicationScreening() {
         appClient.auth.me().then(setUser).catch(() => { });
     }, []);
 
-    const isSysAdmin = user?.user_type === 'sysAdmin' || user?.user_type === 'admin';
+    const isSysAdmin = user?.user_type === 'sysAdmin';
 
     const { data: applications, isLoading } = useQuery({
         queryKey: ['applications', user?.email, isSysAdmin],
@@ -59,7 +57,7 @@ export default function ApplicationScreening() {
     });
 
     const updateApplicationMutation = useMutation({
-        mutationFn: ({ id, data }) => appClient.entities.Application.update(id, data),
+        mutationFn: (/** @type {{ id: string, data: any }} */ { id, data }) => appClient.entities.Application.update(id, data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['applications'] });
             toast.success('Application updated successfully');
@@ -99,8 +97,8 @@ export default function ApplicationScreening() {
                 property_title: selectedApplication.property_title || 'Leased Property',
                 landlord_id: selectedApplication.landlord_id || user?.email,
                 tenant_id: selectedApplication.tenant_id,
-                monthly_rent: Number(selectedApplication.monthly_rent || 18500),
-                deposit_amount: Number(selectedApplication.deposit_amount || 37000),
+                monthly_rent: Number(selectedApplication.monthly_rent || 0),
+                deposit_amount: Number(selectedApplication.deposit_amount || 0),
                 start_date: new Date().toISOString().split('T')[0],
                 end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 status: 'active'
@@ -110,7 +108,7 @@ export default function ApplicationScreening() {
             await appClient.entities.Payment.create({
                 tenant_id: selectedApplication.tenant_id,
                 landlord_id: selectedApplication.landlord_id || user?.email,
-                amount: Number(selectedApplication.monthly_rent || 18500),
+                amount: Number(selectedApplication.monthly_rent || 0),
                 due_date: new Date().toISOString().split('T')[0],
                 status: 'pending',
                 type: 'rent'

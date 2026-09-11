@@ -3,29 +3,16 @@ import { appClient } from '@/api/appClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
-    TrendingUp,
     CheckCircle2,
     Clock,
-    FileText,
-    Briefcase,
-    User,
     Shield,
-    ArrowUp,
-    Star,
-    Info,
-    Sparkles,
-    Calculator
+    Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@/components/ui/tooltip";
+
+
 import { toast } from 'sonner';
 import RentScoreGauge from '@/components/dashboard/RentScoreGauge';
 
@@ -62,7 +49,7 @@ export default function RentScore() {
     });
 
     const updateScoreMutation = useMutation({
-        mutationFn: ({ id, data }) => appClient.entities.RentScore.update(id, data),
+        mutationFn: (/** @type {{ id: string, data: any }} */ { id, data }) => appClient.entities.RentScore.update(id, data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['rentScore'] });
             toast.success('RentScore updated!');
@@ -117,12 +104,12 @@ export default function RentScore() {
             description: 'Verified monthly earnings exceed 3x monthly rent requirement.'
         },
         {
-            name: 'Security Deposit & Disputes',
+            name: 'Property Care & Condition',
             weight: '20%',
             pts: Math.round((baseScore / 850) * 170),
             maxPts: 170,
             color: 'bg-zinc-600',
-            description: 'Zero deposit disputes logged during past move-out inspections.'
+            description: 'Impeccable move-in and move-out inspection records with full deposit return.'
         },
         {
             name: 'Lease Completion Length',
@@ -302,7 +289,7 @@ export default function RentScore() {
                             <Badge className="bg-white text-zinc-950 font-bold">+25 Pts</Badge>
                         </div>
                         <h4 className="font-semibold text-xs text-white">Complete 12-Month Lease</h4>
-                        <p className="text-[11px] text-zinc-400 mt-1">Completes full term without early deposit dispute.</p>
+                        <p className="text-[11px] text-zinc-400 mt-1">Completes full term with clean move-out inspection.</p>
                         <div className="mt-3 text-[11px] font-medium text-zinc-300">
                             {simulatedActions.leaseComplete ? '✓ Action Applied' : '+ Click to Simulate'}
                         </div>

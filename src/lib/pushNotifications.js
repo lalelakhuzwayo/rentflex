@@ -205,7 +205,6 @@ export const pushNotifications = {
             payment_reminders: true,
             lease_updates: true,
             maintenance_updates: true,
-            dispute_alerts: true,
             marketing: false,
             sound_enabled: true
         };

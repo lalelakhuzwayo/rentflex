@@ -1,32 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { appClient } from '@/api/appClient';
+import { authActions } from '@/api/authActions';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
     Shield,
     Users,
     Building2,
-    CreditCard,
-    TrendingUp,
-    AlertTriangle,
     CheckCircle2,
-    XCircle,
-    Activity,
-    Database,
     Search,
-    Filter,
-    ArrowUpRight,
-    Lock,
-    Check,
-    RefreshCw,
-    Server,
-    DollarSign,
-    FileText,
-    Wrench,
-    Clock,
-    UserCheck,
-    UserPlus
+    Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -46,13 +30,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from "@/components/ui/dialog";
+
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import BlockLoader from '@/components/ui/BlockLoader';
 import { toast } from 'sonner';
@@ -64,10 +43,6 @@ export default function SysAdminDashboard() {
     const [roleFilter, setRoleFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
     const [systemHealth, setSystemHealth] = useState({ status: 'checking', db: 'connecting...' });
-    const [selectedDispute, setSelectedDispute] = useState(null);
-    const [arbitrationDecision, setArbitrationDecision] = useState('');
-    const [arbitrationAmount, setArbitrationAmount] = useState('');
-    const [dialogOpen, setDialogOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('users');
 
     useEffect(() => {
@@ -108,36 +83,45 @@ export default function SysAdminDashboard() {
         queryFn: () => appClient.entities.Payment.list(),
     });
 
-    const { data: disputes = [] } = useQuery({
-        queryKey: ['sysadmin-disputes'],
-        queryFn: () => appClient.entities.DepositDispute.list(),
-    });
-
     const { data: realProfiles = [], refetch: refetchProfiles } = useQuery({
         queryKey: ['sysadmin-profiles'],
         queryFn: () => appClient.entities.Profile.list(),
     });
 
-    const [usersList, setUsersList] = useState([]);
-
-    useEffect(() => {
-        if (realProfiles) {
-            setUsersList(realProfiles);
-        }
-    }, [realProfiles]);
+    const usersList = realProfiles || [];
 
     const handleUpdateUserRole = async (userId, newRole) => {
-        setUsersList(prev => prev.map(u => u.id === userId ? { ...u, user_type: newRole } : u));
-        if (currentUser?.id === userId || currentUser?.email === usersList.find(u => u.id === userId)?.email) {
-            await appClient.auth.updateMe({ user_type: newRole });
-            window.location.reload();
+        try {
+            await authActions.updateUserRole(userId, newRole);
+
+            if (currentUser?.id === userId || currentUser?.email === usersList.find(u => u.id === userId)?.email) {
+                await appClient.auth.updateMe({ user_type: newRole });
+                window.location.reload();
+            } else {
+                queryClient.invalidateQueries({ queryKey: ['sysadmin-profiles'] });
+            }
+            toast.success(`User role updated to ${newRole}`);
+        } catch (err) {
+            console.error('Error updating user role:', err);
+            toast.error(err.message || 'Failed to update user role');
+            refetchProfiles();
         }
-        toast.success(`User role updated to ${newRole}`);
     };
 
-    const handleToggleVerification = (userId) => {
-        setUsersList(prev => prev.map(u => u.id === userId ? { ...u, verified: !u.verified } : u));
-        toast.success('User verification status updated');
+    const handleToggleVerification = async (userId) => {
+        try {
+            const targetUser = usersList.find(u => u.id === userId);
+            const nextVerified = !(targetUser?.verified || targetUser?.id_verified);
+
+            await authActions.verifyUserAccount(userId, nextVerified);
+
+            queryClient.invalidateQueries({ queryKey: ['sysadmin-profiles'] });
+            toast.success(`Account verification updated to ${nextVerified ? 'Verified' : 'Pending'}`);
+        } catch (err) {
+            console.error('Error toggling verification:', err);
+            toast.error(err.message || 'Failed to update verification status');
+            refetchProfiles();
+        }
     };
 
     const handleSwitchCurrentRole = async (newRole) => {
@@ -152,18 +136,6 @@ export default function SysAdminDashboard() {
         }
     };
 
-    const handleArbitrateDispute = async (disputeId, decision, amount) => {
-        await appClient.entities.DepositDispute.update(disputeId, {
-            status: 'resolved',
-            resolution: decision,
-            resolved_amount: parseFloat(amount) || 0,
-            arbitrated_by: 'SysAdmin',
-            resolved_date: new Date().toISOString()
-        });
-        queryClient.invalidateQueries(['sysadmin-disputes']);
-        setDialogOpen(false);
-        toast.success('Dispute arbitration judgment recorded successfully');
-    };
 
     const totalRentProcessed = payments
         .filter(p => p.status === 'paid' || p.status === 'completed')
@@ -171,7 +143,7 @@ export default function SysAdminDashboard() {
 
     const activeLandlords = usersList.filter(u => u.user_type === 'landlord').length;
     const activeTenants = usersList.filter(u => u.user_type === 'tenant' || u.user_type === 'rentee').length;
-    const activeAdmins = usersList.filter(u => u.user_type === 'sysAdmin' || u.user_type === 'admin').length;
+    const activeAdmins = usersList.filter(u => u.user_type === 'sysAdmin').length;
 
     const filteredUsers = usersList.filter(u => {
         const matchesSearch = u.full_name?.toLowerCase().includes(searchUser.toLowerCase()) ||
@@ -196,7 +168,7 @@ export default function SysAdminDashboard() {
                 <div>
                     <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 tracking-tight">System Administration</h1>
                     <p className="text-xs sm:text-sm text-zinc-500 mt-1">
-                        Platform governance, triple-tier account matrix, dispute arbitration, and infrastructure metrics.
+                        Platform governance, triple-tier account matrix, lease oversight, and infrastructure metrics.
                     </p>
                 </div>
             </div>
@@ -246,13 +218,13 @@ export default function SysAdminDashboard() {
                     className="sharp-card bg-white p-3.5 sm:p-5 border border-transparent hover:border-zinc-900 transition-all duration-200"
                 >
                     <div className="mb-1 sm:mb-2">
-                        <span className="text-[10px] sm:text-xs font-semibold text-zinc-500 uppercase tracking-wider">Disputes & Escrow</span>
+                        <span className="text-[10px] sm:text-xs font-semibold text-zinc-500 uppercase tracking-wider">Active Tenancies</span>
                     </div>
-                    <div className="text-lg sm:text-2xl font-bold text-zinc-900 tracking-tight">{disputes.length} Open Cases</div>
+                    <div className="text-lg sm:text-2xl font-bold text-zinc-900 tracking-tight">{leases.length} Leases</div>
                     <div className="flex items-center gap-1.5 mt-1 sm:mt-2 text-[10px] sm:text-[11px] text-zinc-500 font-medium leading-tight">
-                        <span className="text-amber-700 font-bold">{disputes.filter(d => d.status === 'pending').length} In Review</span>
+                        <span className="text-emerald-700 font-bold">{leases.filter(l => l.status === 'active').length} Active</span>
                         <span>•</span>
-                        <span className="text-emerald-700 font-bold">{disputes.filter(d => d.status === 'resolved').length} Resolved</span>
+                        <span className="text-zinc-600">{leases.filter(l => l.status === 'pending').length} Pending</span>
                     </div>
                 </motion.div>
 
@@ -290,7 +262,7 @@ export default function SysAdminDashboard() {
                     <button
                         onClick={() => handleSwitchCurrentRole('sysAdmin')}
                         className={`flex items-center justify-between p-3 border transition-all text-left ${
-                            currentUser?.user_type === 'sysAdmin' || currentUser?.user_type === 'admin'
+                            currentUser?.user_type === 'sysAdmin'
                                 ? 'bg-purple-950/80 border-purple-400 text-white'
                                 : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700 text-zinc-300'
                         }`}
@@ -338,10 +310,6 @@ export default function SysAdminDashboard() {
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
                 <TabsList className="bg-zinc-100 p-1 border border-zinc-200">
                     <TabsTrigger value="users" className="data-[state=active]:bg-white text-xs font-semibold">User Matrix</TabsTrigger>
-                    <TabsTrigger value="disputes" className="data-[state=active]:bg-white text-xs font-semibold">
-                        Dispute Arbitration
-                        {disputes.length > 0 && <span className="ml-1.5 px-1.5 py-0.2 bg-zinc-900 text-white text-[10px] rounded-full">{disputes.length}</span>}
-                    </TabsTrigger>
                     <TabsTrigger value="activity" className="data-[state=active]:bg-white text-xs font-semibold">Platform Audit Log</TabsTrigger>
                 </TabsList>
 
@@ -525,92 +493,6 @@ export default function SysAdminDashboard() {
                     </div>
                 </TabsContent>
 
-                {/* Tab 2: Dispute & Deposit Arbitration */}
-                <TabsContent value="disputes" className="space-y-4">
-                    <div className="sharp-card bg-white p-3.5 sm:p-6 border border-transparent hover:border-zinc-900">
-                        <div className="mb-4 sm:mb-6">
-                            <h3 className="font-bold text-sm sm:text-base text-zinc-900">Dispute & Deposit Arbitration Hub</h3>
-                            <p className="text-[11px] sm:text-xs text-zinc-500">Administer binding decisions and authorize deposit escrow disbursements</p>
-                        </div>
-
-                        {disputes.length === 0 ? (
-                            <div className="text-center py-12 text-zinc-400">
-                                <Shield className="w-8 h-8 mx-auto mb-2 text-zinc-300" />
-                                <p className="text-xs">No unresolved deposit disputes on record.</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                {disputes.map((d) => (
-                                    <div key={d.id} className="p-4 border border-zinc-200 rounded-xl bg-zinc-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                        <div className="space-y-1">
-                                            <div className="flex items-center gap-2">
-                                                <h4 className="font-bold text-sm text-zinc-900">{d.lease_id || 'Lease Agreement Dispute'}</h4>
-                                                <Badge className={d.status === 'resolved' ? 'bg-emerald-100 text-emerald-900' : 'bg-amber-100 text-amber-900'}>
-                                                    {d.status}
-                                                </Badge>
-                                            </div>
-                                            <p className="text-xs text-zinc-600">{d.dispute_reason || d.description || 'Dispute regarding security deposit refund'}</p>
-                                            <p className="text-[11px] text-zinc-400 font-mono">Tenant: {d.tenant_id} • Landlord: {d.landlord_id}</p>
-                                        </div>
-
-                                        {d.status !== 'resolved' && (
-                                            <div className="shrink-0">
-                                                <Dialog open={dialogOpen && selectedDispute?.id === d.id} onOpenChange={(open) => {
-                                                    setDialogOpen(open);
-                                                    if (open) setSelectedDispute(d);
-                                                }}>
-                                                    <DialogTrigger asChild>
-                                                        <Button size="sm" className="bg-zinc-900 hover:bg-zinc-800 text-white text-xs">
-                                                            Arbitrate Claim
-                                                        </Button>
-                                                    </DialogTrigger>
-                                                    <DialogContent className="max-w-md">
-                                                        <DialogHeader>
-                                                            <DialogTitle className="text-base font-bold text-zinc-900">
-                                                                Arbitrate Deposit Dispute
-                                                            </DialogTitle>
-                                                        </DialogHeader>
-                                                        <div className="space-y-4 pt-2">
-                                                            <div>
-                                                                <label className="text-xs font-semibold text-zinc-700 block mb-1">
-                                                                    Arbitration Ruling / Decision
-                                                                </label>
-                                                                <Input
-                                                                    placeholder="e.g. 50% refund to tenant, 50% retained for repair"
-                                                                    value={arbitrationDecision}
-                                                                    onChange={(e) => setArbitrationDecision(e.target.value)}
-                                                                    className="text-xs"
-                                                                />
-                                                            </div>
-                                                            <div>
-                                                                <label className="text-xs font-semibold text-zinc-700 block mb-1">
-                                                                    Resolved Amount to Release (R)
-                                                                </label>
-                                                                <Input
-                                                                    type="number"
-                                                                    placeholder="Amount in ZAR"
-                                                                    value={arbitrationAmount}
-                                                                    onChange={(e) => setArbitrationAmount(e.target.value)}
-                                                                    className="text-xs"
-                                                                />
-                                                            </div>
-                                                            <Button
-                                                                className="w-full bg-zinc-900 text-white"
-                                                                onClick={() => handleArbitrateDispute(d.id, arbitrationDecision, arbitrationAmount)}
-                                                            >
-                                                                Submit Binding Judgment
-                                                            </Button>
-                                                        </div>
-                                                    </DialogContent>
-                                                </Dialog>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </TabsContent>
 
                 {/* Tab 3: Global Properties */}
                 <TabsContent value="properties" className="space-y-4">

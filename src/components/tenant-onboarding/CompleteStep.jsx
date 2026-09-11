@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { CheckCircle2, ArrowRight, Home, TrendingUp, DollarSign, Calendar } from 'lucide-react';
+import { CheckCircle2, ArrowRight, Home, TrendingUp, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import RentScoreGauge from '@/components/dashboard/RentScoreGauge';
 

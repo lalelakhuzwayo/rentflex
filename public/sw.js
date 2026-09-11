@@ -44,6 +44,11 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
+    // Only process GET requests with standard HTTP or HTTPS schemes (ignore chrome-extension, file, blob, etc.)
+    if (event.request.method !== 'GET' || (url.protocol !== 'http:' && url.protocol !== 'https:')) {
+        return;
+    }
+
     // Let API and cross-origin auth requests bypass SW caching
     if (url.pathname.startsWith('/api/') || url.hostname.includes('supabase.co')) {
         return;
@@ -55,8 +60,8 @@ self.addEventListener('fetch', (event) => {
                 if (response && response.status === 200 && response.type === 'basic') {
                     const responseToCache = response.clone();
                     caches.open(CACHE_NAME).then((cache) => {
-                        cache.put(event.request, responseToCache);
-                    });
+                        cache.put(event.request, responseToCache).catch(() => { });
+                    }).catch(() => { });
                 }
                 return response;
             })

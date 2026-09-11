@@ -11,10 +11,7 @@ import {
     DollarSign,
     CheckCircle2,
     ArrowRight,
-    Zap,
-    Users,
-    Calendar,
-    Wrench
+    Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import BlockLoader from '@/components/ui/BlockLoader';
@@ -30,7 +27,7 @@ export default function Welcome() {
                 setUser(u);
                 // Redirect based on user type if already logged in
                 if (u.onboarding_completed) {
-                    if (u.user_type === 'sysAdmin' || u.user_type === 'admin') {
+                    if (u.user_type === 'sysAdmin') {
                         navigate(createPageUrl('SysAdminDashboard'));
                     } else if (u.user_type === 'landlord') {
                         navigate(createPageUrl('LandlordDashboard'));
@@ -198,7 +195,7 @@ export default function Welcome() {
                                 </div>
                                 <div className="flex items-center gap-2.5">
                                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                                    <span className="text-xs text-zinc-700">Maintenance & dispute hub</span>
+                                    <span className="text-xs text-zinc-700">Maintenance & repairs hub</span>
                                 </div>
                             </div>
                         </div>
@@ -221,7 +218,7 @@ export default function Welcome() {
 
                             <h2 className="text-xl font-bold text-zinc-900 mb-2">I'm a SysAdmin</h2>
                             <p className="text-zinc-500 mb-6 text-sm leading-relaxed">
-                                System management, dispute arbitration, user role governance, and infrastructure telemetry.
+                                System management, platform governance, user role access, and infrastructure telemetry.
                             </p>
 
                             <div className="space-y-2.5 mb-8">
@@ -231,7 +228,7 @@ export default function Welcome() {
                                 </div>
                                 <div className="flex items-center gap-2.5">
                                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                                    <span className="text-xs text-zinc-700">Third-party dispute arbitration</span>
+                                    <span className="text-xs text-zinc-700">Property and lease portfolio governance</span>
                                 </div>
                                 <div className="flex items-center gap-2.5">
                                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />

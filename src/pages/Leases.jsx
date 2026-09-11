@@ -1,23 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
-import { createPageUrl, formatDate, formatDateRange, parseSafeDate } from '@/utils';
+import { formatDate, formatDateRange, parseSafeDate } from '@/utils';
 import { appClient } from '@/api/appClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
     FileText,
     Calendar,
-    MapPin,
-    DollarSign,
     Clock,
     CheckCircle2,
-    AlertTriangle,
-    CreditCard,
-    Repeat,
-    ExternalLink,
     PenTool,
     Printer,
-    Download,
     Check,
     Shield,
     XCircle,
@@ -64,7 +56,7 @@ export default function Leases() {
             
             // If sysAdmin, list all leases
             let allLeases = [];
-            if (user.user_type === 'sysAdmin' || user.user_type === 'admin') {
+            if (user.user_type === 'sysAdmin') {
                 allLeases = await appClient.entities.Lease.list();
             }
 
@@ -75,7 +67,7 @@ export default function Leases() {
     });
 
     const updateLeaseMutation = useMutation({
-        mutationFn: ({ id, data }) => appClient.entities.Lease.update(id, data),
+        mutationFn: (/** @type {{ id: string, data: any }} */ { id, data }) => appClient.entities.Lease.update(id, data),
         onSuccess: (updated) => {
             queryClient.invalidateQueries({ queryKey: ['leases'] });
             queryClient.invalidateQueries({ queryKey: ['allLeases'] });

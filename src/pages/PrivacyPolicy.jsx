@@ -1,20 +1,14 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { 
-    ShieldCheck, 
     Lock, 
     FileText, 
     Scale, 
-    Clock, 
-    Server, 
     AlertTriangle, 
-    CheckCircle2, 
-    Building2, 
     UserCheck, 
     Database, 
     Download,
-    Eye,
-    Shield
+    Eye
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -90,7 +84,7 @@ export default function PrivacyPolicy() {
             category: 'Lease Agreements & Inspections',
             retention: '3 Years post-termination',
             statute: 'Prescription Act (Act 68 of 1969) s11 & Rental Housing Act',
-            basis: 'Defense and resolution of contractual claims, damages, or deposit disputes.'
+            basis: 'Defense and resolution of contractual claims, lease covenants, or inspection damages.'
         },
         {
             category: 'Tenant Screening & Vetting Data',

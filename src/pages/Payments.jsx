@@ -35,7 +35,7 @@ export default function Payments() {
         appClient.auth.me().then(setUser).catch(() => { });
     }, []);
 
-    const isSysAdmin = user?.user_type === 'sysAdmin' || user?.user_type === 'admin';
+    const isSysAdmin = user?.user_type === 'sysAdmin';
 
     const { data: payments, isLoading } = useQuery({
         queryKey: ['payments', user?.email, isSysAdmin],
@@ -59,7 +59,7 @@ export default function Payments() {
     });
 
     const updatePaymentMutation = useMutation({
-        mutationFn: ({ id, data }) => appClient.entities.Payment.update(id, data),
+        mutationFn: (/** @type {{ id: string, data: any }} */ { id, data }) => appClient.entities.Payment.update(id, data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['payments'] });
             setPaymentDialog({ open: false, payment: null });
@@ -182,7 +182,7 @@ export default function Payments() {
                             return;
                         }
                         const first = pendingPayments[0];
-                        const halfAmount = Math.round(Number(first.amount || 18500) / 2);
+                        const halfAmount = Math.round(Number(first.amount || 0) / 2);
                         
                         // Create 2 split payment installment records
                         appClient.entities.Payment.create({

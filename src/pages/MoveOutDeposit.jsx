@@ -1,15 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createPageUrl } from '@/utils';
 import { appClient } from '@/api/appClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
 import {
-    ArrowLeftRight,
     CheckCircle2,
-    AlertTriangle,
     DollarSign,
-    FileText,
     Home,
     ChefHat,
     Bath,
@@ -18,7 +13,6 @@ import {
     XCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -29,7 +23,6 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 
 const ROOMS = [
@@ -78,17 +71,8 @@ export default function MoveOutDeposit() {
     const moveInInspection = inspections.find(i => i.inspection_type === 'move_in');
     const moveOutInspection = inspections.find(i => i.inspection_type === 'move_out');
 
-    const createDisputeMutation = useMutation({
-        mutationFn: (data) => appClient.entities.DepositDispute.create(data),
-        onSuccess: () => {
-            queryClient.invalidateQueries(['disputes']);
-            toast.success('Dispute submitted successfully');
-            navigate(createPageUrl('Disputes'));
-        },
-    });
-
     const updateLeaseMutation = useMutation({
-        mutationFn: ({ id, data }) => appClient.entities.Lease.update(id, data),
+        mutationFn: (/** @type {{ id: string, data: any }} */ { id, data }) => appClient.entities.Lease.update(id, data),
         onSuccess: () => {
             queryClient.invalidateQueries(['completed-leases']);
             toast.success('Deposit approved');
@@ -129,20 +113,6 @@ export default function MoveOutDeposit() {
             data: {
                 deposit_status: 'returned',
             }
-        });
-    };
-
-    const handleDispute = () => {
-        createDisputeMutation.mutate({
-            lease_id: selectedLease.id,
-            tenant_id: user?.email,
-            landlord_id: selectedLease.landlord_id,
-            property_title: selectedLease.property_title,
-            deposit_amount: depositAmount,
-            disputed_amount: totalDeductions,
-            reason: 'Tenant disputes the damage assessment and deductions',
-            tenant_evidence: [],
-            status: 'open',
         });
     };
 
@@ -398,20 +368,11 @@ export default function MoveOutDeposit() {
                 <div className="flex gap-3">
                     <Button
                         onClick={handleApprove}
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                        className="w-full bg-emerald-600 hover:bg-emerald-700"
                         disabled={updateLeaseMutation.isPending}
                     >
                         <CheckCircle2 className="w-4 h-4 mr-2" />
                         Approve Deposit Return (R{refundAmount.toLocaleString()})
-                    </Button>
-                    <Button
-                        onClick={handleDispute}
-                        variant="outline"
-                        className="flex-1 border-red-200 text-red-600 hover:bg-red-50"
-                        disabled={createDisputeMutation.isPending}
-                    >
-                        <AlertTriangle className="w-4 h-4 mr-2" />
-                        Dispute Deductions
                     </Button>
                 </div>
                 <p className="text-xs text-slate-500 mt-3 text-center">

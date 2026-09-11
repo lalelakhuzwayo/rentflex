@@ -8,7 +8,7 @@ import {
     DialogTitle,
     DialogDescription
 } from '@/components/ui/dialog';
-import { Download, Share2, PlusSquare, X, Smartphone, CheckCircle2 } from 'lucide-react';
+import { Download, Share2, PlusSquare, X, Smartphone } from 'lucide-react';
 
 export default function MobileInstallBanner() {
     const { isInstallable, isInstalled, isIOS, isMobile, promptInstall } = usePWAInstall();

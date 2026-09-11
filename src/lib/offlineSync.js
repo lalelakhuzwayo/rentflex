@@ -16,7 +16,6 @@ const ENTITY_TABLE_MAP = {
     Bid: 'bids',
     Contractor: 'contractors',
     RentScore: 'rent_scores',
-    DepositDispute: 'deposit_disputes',
     Inspection: 'inspections',
     Message: 'messages',
     Application: 'applications',

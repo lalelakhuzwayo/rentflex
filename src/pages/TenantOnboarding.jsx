@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { appClient } from '@/api/appClient';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import PersonalDetailsStep from '@/components/tenant-onboarding/PersonalDetailsStep';
@@ -37,26 +37,34 @@ export default function TenantOnboarding() {
     useEffect(() => {
         appClient.auth.me().then(u => {
             setUser(u);
-            if (u.onboarding_completed) {
-                navigate(createPageUrl('Dashboard'));
-            } else if (u.onboarding_step) {
+            if (u.onboarding_step && !u.onboarding_completed) {
                 setCurrentStep(u.onboarding_step);
             }
-            // Pre-fill data
+            // Pre-fill existing user profile data
             setFormData(prev => ({
                 ...prev,
-                full_name: u.full_name || '',
-                phone: u.phone || '',
+                full_name: u.full_name || prev.full_name,
+                phone: u.phone || prev.phone,
+                date_of_birth: u.date_of_birth || prev.date_of_birth,
+                id_number: u.id_number || prev.id_number,
+                id_verified: u.id_verified || prev.id_verified,
+                employment_status: u.employment_status || prev.employment_status,
+                employer_name: u.employer_name || prev.employer_name,
+                monthly_income: u.monthly_income || prev.monthly_income,
+                income_verified: u.income_verified || prev.income_verified,
+                bank_name: u.bank_name || prev.bank_name,
+                account_number: u.account_number || prev.account_number,
+                debit_order_enabled: u.debit_order_enabled || prev.debit_order_enabled,
             }));
         }).catch(() => { });
     }, []);
 
     const updateUserMutation = useMutation({
-        mutationFn: (data) => appClient.auth.updateMe(data),
+        mutationFn: (/** @type {any} */ data) => appClient.auth.updateMe(data),
     });
 
     const createRentScoreMutation = useMutation({
-        mutationFn: (data) => appClient.entities.RentScore.create(data),
+        mutationFn: (/** @type {any} */ data) => appClient.entities.RentScore.create(data),
     });
 
     const handleNext = async () => {

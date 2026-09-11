@@ -3,7 +3,6 @@ import ContractorDashboard from './pages/ContractorDashboard';
 import ContractorOnboarding from './pages/ContractorOnboarding';
 import ContractorSubscription from './pages/ContractorSubscription';
 import Dashboard from './pages/Dashboard';
-import Disputes from './pages/Disputes';
 import Inspection from './pages/Inspection';
 import JobDetails from './pages/JobDetails';
 import Jobs from './pages/Jobs';
@@ -37,7 +36,6 @@ export const PAGES = {
     "ContractorOnboarding": ContractorOnboarding,
     "ContractorSubscription": ContractorSubscription,
     "Dashboard": Dashboard,
-    "Disputes": Disputes,
     "Inspection": Inspection,
     "JobDetails": JobDetails,
     "Jobs": Jobs,

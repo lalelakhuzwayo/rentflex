@@ -8,7 +8,6 @@ ADD COLUMN IF NOT EXISTS notification_preferences JSONB DEFAULT '{
     "payment_reminders": true,
     "lease_updates": true,
     "maintenance_updates": true,
-    "dispute_alerts": true,
     "marketing": false,
     "sound_enabled": true
 }'::jsonb;

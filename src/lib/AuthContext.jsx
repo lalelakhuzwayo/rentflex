@@ -24,17 +24,17 @@ const defaultAuthValue = {
         compliance: 'POPIA Act No. 4 of 2013 & PAIA Act No. 2 of 2000',
         popiaOfficer: 'RentFlex Information Security Office'
     },
-    signUp: async () => {},
-    signIn: async () => {},
-    signInWithGoogle: async () => {},
-    signInWithFacebook: async () => {},
-    signInWithApple: async () => {},
-    signInWithWindows: async () => {},
-    signInWithSupabase: async () => {},
-    logout: async () => {},
+    signUp: async (_data) => ({ user: null, session: null }),
+    signIn: async (_credentials) => ({ user: null, session: null }),
+    signInWithGoogle: async (_redirectUrl) => ({}),
+    signInWithFacebook: async (_redirectUrl) => ({}),
+    signInWithApple: async (_redirectUrl) => ({}),
+    signInWithWindows: async (_redirectUrl) => ({}),
+    signInWithSupabase: async (_email, _password) => ({ user: null, session: null }),
+    logout: async (_shouldRedirect) => {},
     navigateToLogin: () => {},
     checkAppState: async () => {},
-    updateUser: async () => {}
+    updateUser: async (_data) => ({})
 };
 
 const AuthContext = createContext(defaultAuthValue);
@@ -105,7 +105,7 @@ export const AuthProvider = ({ children }) => {
     const rawRole = (user?.user_type || 'tenant').toLowerCase();
     const role = (rawRole === 'tenant' || rawRole === 'rentee') 
         ? 'tenant' 
-        : ((rawRole === 'admin' || rawRole === 'sysadmin') ? 'sysAdmin' : rawRole);
+        : (rawRole === 'sysadmin' ? 'sysAdmin' : rawRole);
 
     const isSysAdmin = role === 'sysAdmin';
     const isLandlord = role === 'landlord';
@@ -150,13 +150,9 @@ export const AuthProvider = ({ children }) => {
         try {
             setIsLoadingAuth(true);
             setAuthError(null);
-            const result = await authActions.registerUser({ email, password, full_name, user_type, phone });
-            if (result?.user) {
-                await checkUserAuth();
-                toast.success(`Account created successfully! Welcome, ${full_name || email}`);
-            } else {
-                toast.success('Account created! Please check your email to confirm your registration.');
-            }
+            const result = await authActions.registerAndAuthenticateUser({ email, password, full_name, user_type, phone });
+            await checkUserAuth();
+            toast.success(`Account created successfully! Welcome, ${full_name || email}`);
             return result;
         } catch (err) {
             console.error('Registration error:', err);

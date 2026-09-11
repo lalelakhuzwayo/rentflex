@@ -2,7 +2,7 @@
 
 > **Smart Property & Flexible Lease Management Platform**
 
-RentFlex is a modern, full-featured web application designed for tenants, landlords, and service contractors. It supports rental property browsing, flexible payment scheduling, digital lease agreements, maintenance tracking, landlord job postings, contractor bidding, deposit dispute resolution, and RentScore credit rating checks.
+RentFlex is a modern, full-featured web application designed for tenants, landlords, and service contractors. It supports rental property browsing, flexible payment scheduling, digital lease agreements, maintenance tracking, landlord job postings, contractor bidding, and RentScore credit rating checks.
 
 ---
 

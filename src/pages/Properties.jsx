@@ -4,8 +4,6 @@ import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
     Search,
-    Filter,
-    MapPin,
     SlidersHorizontal,
     Building2,
     Home,

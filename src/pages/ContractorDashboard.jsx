@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import StatsCard from '@/components/dashboard/StatsCard';
-import { Briefcase, DollarSign, Star, TrendingUp, Clock, MapPin, Calendar, AlertCircle, CheckCircle2, XCircle, Shield } from 'lucide-react';
+import { Briefcase, DollarSign, Star, Clock, MapPin, AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
 import BlockLoader from '@/components/ui/BlockLoader';
 
 export default function ContractorDashboard() {

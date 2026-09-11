@@ -1,22 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { appClient } from '@/api/appClient';
 import { useAuth } from '@/lib/AuthContext';
 import { useQuery } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
 import {
     Building2,
     CreditCard,
     TrendingUp,
-    Calendar,
     ArrowRight,
-    Clock,
     CheckCircle2,
-    AlertCircle,
     Wrench,
     Gavel,
-    Shield
+    FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -24,6 +20,7 @@ import StatsCard from '@/components/dashboard/StatsCard';
 import RentScoreGauge from '@/components/dashboard/RentScoreGauge';
 import PaymentCard from '@/components/payments/PaymentCard';
 import GuestDashboard from '@/components/dashboard/GuestDashboard';
+import ProfileCompletionTracker from '@/components/dashboard/ProfileCompletionTracker';
 
 export default function Dashboard() {
     const { user, role, isAuthenticated, isLoadingAuth } = useAuth();
@@ -143,6 +140,9 @@ export default function Dashboard() {
                     </Link>
                 </Button>
             </div>
+
+            {/* Profile Completion Tracker */}
+            <ProfileCompletionTracker user={user} />
 
             {/* Stats Grid (1 column on mobile, 2 on tablet, 4 on desktop) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -285,13 +285,13 @@ export default function Dashboard() {
                         </Link>
 
                         <Link
-                            to={createPageUrl('Disputes')}
+                            to={createPageUrl('Leases')}
                             className="flex flex-col items-center gap-2 p-3 rounded-lg bg-zinc-50/70 hover:bg-zinc-100/90 border border-zinc-200/70 transition-colors group"
                         >
                             <div className="w-8 h-8 rounded-md bg-white border border-zinc-200 flex items-center justify-center">
-                                <Shield className="w-4 h-4 text-zinc-900" />
+                                <FileText className="w-4 h-4 text-zinc-900" />
                             </div>
-                            <span className="text-xs font-medium text-zinc-700 text-center">Disputes</span>
+                            <span className="text-xs font-medium text-zinc-700 text-center">My Leases</span>
                         </Link>
                     </div>
                 </div>

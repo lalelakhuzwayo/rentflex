@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { createPageUrl, formatDate, formatDateTime } from '@/utils';
 import { appClient } from '@/api/appClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
 import {
     ArrowLeft,
     MapPin,
@@ -11,7 +10,6 @@ import {
     Bath,
     Square,
     Calendar,
-    TrendingUp,
     Gavel,
     Clock,
     Heart,
@@ -22,7 +20,6 @@ import {
     Dumbbell,
     Waves,
     Shield,
-    DollarSign,
     CreditCard,
     Sparkles
 } from 'lucide-react';
@@ -47,7 +44,6 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { toast } from 'sonner';
-import RentScoreGauge from '@/components/dashboard/RentScoreGauge';
 
 const amenityIcons = {
     'WiFi': Wifi,
