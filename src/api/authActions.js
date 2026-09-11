@@ -187,8 +187,18 @@ export const authActions = {
         if (!isSupabaseConfigured) return null;
 
         try {
+            // Check local session first to prevent 403 network calls for unauthenticated guests
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return null;
+
             const { data: { user }, error: authError } = await supabase.auth.getUser();
-            if (authError || !user) return null;
+            if (authError || !user) {
+                // If token is invalid or expired (403/401), purge stale session cleanly
+                if (authError?.status === 403 || authError?.status === 401 || authError?.name === 'AuthApiError') {
+                    await supabase.auth.signOut().catch(() => {});
+                }
+                return null;
+            }
 
             // Fetch enriched profile from public.profiles
             const { data: profile, error: profileError } = await supabase
