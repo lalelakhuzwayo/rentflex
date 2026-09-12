@@ -35,49 +35,87 @@ export default function PostJob() {
         title: '',
         description: '',
         property_id: '',
+        parent_job_id: '',
+        agreed_compensation: 1500,
         category: 'general',
         budget_min: 1000,
         budget_max: 10000,
         urgency: 'medium',
         preferred_start_date: '',
-        images: []
+        images: [],
+        job_type: 'landlord_job' // 'landlord_job' | 'contractor_share'
     });
 
     useEffect(() => {
-        appClient.auth.me().then(setUser);
+        appClient.auth.me().then(u => {
+            setUser(u);
+            if (u?.user_type === 'contractor') {
+                setFormData(prev => ({ ...prev, job_type: 'contractor_share' }));
+            }
+        });
     }, []);
 
+    const isContractor = user?.user_type === 'contractor';
+    const isLandlord = user?.user_type === 'landlord' || user?.user_type === 'sysAdmin';
+
+    // Fetch landlord properties
     const { data: properties = [] } = useQuery({
-        queryKey: ['user-properties'],
+        queryKey: ['user-properties', user?.id],
         queryFn: async () => {
-            const user = await appClient.auth.me();
-            if (user.user_type === 'landlord') {
-                return await appClient.entities.Property.filter({ landlord_id: user.id });
-            } else {
-                const leases = await appClient.entities.Lease.filter({ tenant_id: user.id, status: 'active' });
-                return await Promise.all(leases.map(lease =>
-                    appClient.entities.Property.filter({ id: lease.property_id })
-                )).then(results => results.flat());
+            if (!user) return [];
+            if (user.user_type === 'landlord' || user.user_type === 'sysAdmin') {
+                return await appClient.entities.Property.filter({ landlord_id: user.id || user.email });
             }
+            return [];
         },
-        enabled: !!user
+        enabled: !!user && isLandlord
+    });
+
+    // Fetch contractor active/accepted jobs for job sharing
+    const { data: activeJobs = [] } = useQuery({
+        queryKey: ['contractor-active-jobs-for-share', user?.id || user?.email],
+        queryFn: async () => {
+            if (!user) return [];
+            const myBids = await appClient.entities.ContractorBid.filter({ contractor_id: user.id || user.email });
+            const acceptedBids = myBids.filter(b => b.status === 'accepted');
+            const jobs = await Promise.all(
+                acceptedBids.map(bid => appClient.entities.Job.filter({ id: bid.job_id }))
+            );
+            return jobs.flat();
+        },
+        enabled: !!user && isContractor
     });
 
     const createJobMutation = useMutation({
         mutationFn: async (jobData) => {
-            const property = properties.find(p => p.id === jobData.property_id);
+            let propertyTitle = '';
+            let propertyAddress = '';
+
+            if (isContractor) {
+                const parentJob = activeJobs.find(j => j.id === jobData.parent_job_id);
+                propertyTitle = parentJob?.property_title || parentJob?.title || 'Shared Job Location';
+                propertyAddress = parentJob?.property_address || 'Contractor Site';
+            } else {
+                const property = properties.find(p => p.id === jobData.property_id);
+                propertyTitle = property?.title || '';
+                propertyAddress = property?.address || '';
+            }
+
             return appClient.entities.Job.create({
                 ...jobData,
-                posted_by_id: user.id,
-                posted_by_name: user.full_name,
-                posted_by_type: user.user_type,
-                property_title: property?.title,
-                property_address: property?.address
+                budget_max: isContractor ? Number(jobData.agreed_compensation) : Number(jobData.budget_max),
+                budget_min: isContractor ? Number(jobData.agreed_compensation) : Number(jobData.budget_min),
+                posted_by_id: user.id || user.email,
+                posted_by_name: user.full_name || user.email,
+                posted_by_type: user.user_type || 'landlord',
+                property_title: propertyTitle,
+                property_address: propertyAddress,
+                status: 'open'
             });
         },
         onSuccess: () => {
             queryClient.invalidateQueries(['jobs']);
-            toast.success('Job posted successfully!');
+            toast.success(isContractor ? '🤝 Job shared for joint forces collaboration!' : '🎉 Job posted successfully for contractor bidding!');
             navigate(createPageUrl('Jobs'));
         }
     });
@@ -120,32 +158,62 @@ export default function PostJob() {
     return (
         <div className="max-w-3xl mx-auto">
             <div className="mb-8">
-                <h1 className="text-3xl font-bold text-slate-900 mb-2">Post a Service Job</h1>
-                <p className="text-slate-600">Get competitive bids from verified contractors</p>
+                <h1 className="text-3xl font-bold text-slate-900 mb-2">
+                    {isContractor ? '🤝 Share Job / Joint Forces Collaboration' : 'Post a Service Job'}
+                </h1>
+                <p className="text-slate-600">
+                    {isContractor 
+                        ? 'Subcontract part of an active job to collaborate with co-contractors and agree on split compensation'
+                        : 'Get competitive bids from verified contractors for your property maintenance'
+                    }
+                </p>
             </div>
 
             <Card className="p-6">
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    <div>
-                        <Label>Property</Label>
-                        <Select value={formData.property_id} onValueChange={(value) => setFormData({ ...formData, property_id: value })}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select property" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {properties.map(property => (
-                                    <SelectItem key={property.id} value={property.id}>
-                                        {property.title} - {property.address}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+                    {isContractor ? (
+                        <div>
+                            <Label className="text-xs font-bold text-zinc-900">Select Active Job to Subcontract / Share</Label>
+                            <Select value={formData.parent_job_id} onValueChange={(value) => setFormData({ ...formData, parent_job_id: value })}>
+                                <SelectTrigger className="mt-1 border-zinc-900">
+                                    <SelectValue placeholder="Choose one of your active jobs" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {activeJobs.map(job => (
+                                        <SelectItem key={job.id} value={job.id}>
+                                            {job.title} ({job.property_address})
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            {activeJobs.length === 0 && (
+                                <p className="text-xs text-amber-700 mt-1 font-medium bg-amber-50 p-2 rounded border border-amber-200">
+                                    ⚠️ You currently have no active accepted jobs to share. Win or accept a job first to subcontract.
+                                </p>
+                            )}
+                        </div>
+                    ) : (
+                        <div>
+                            <Label className="text-xs font-bold text-zinc-900">Property</Label>
+                            <Select value={formData.property_id} onValueChange={(value) => setFormData({ ...formData, property_id: value })}>
+                                <SelectTrigger className="mt-1">
+                                    <SelectValue placeholder="Select property" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {properties.map(property => (
+                                        <SelectItem key={property.id} value={property.id}>
+                                            {property.title} - {property.address}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
 
                     <div>
-                        <Label>Job Title</Label>
+                        <Label>{isContractor ? 'Shared Subtask Title' : 'Job Title'}</Label>
                         <Input
-                            placeholder="e.g., Fix leaking kitchen faucet"
+                            placeholder={isContractor ? "e.g., Seeking Plumbing Specialist for Pipe Replacement on Site" : "e.g., Fix leaking kitchen faucet"}
                             value={formData.title}
                             onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                             required
@@ -153,9 +221,9 @@ export default function PostJob() {
                     </div>
 
                     <div>
-                        <Label>Description</Label>
+                        <Label>{isContractor ? 'Scope of Shared Work & Responsibilities' : 'Description'}</Label>
                         <Textarea
-                            placeholder="Provide detailed information about the job..."
+                            placeholder={isContractor ? "Describe the specific tasks you need assistance with and expectations for your co-contractor..." : "Provide detailed information about the job..."}
                             value={formData.description}
                             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                             rows={5}
@@ -164,7 +232,7 @@ export default function PostJob() {
                     </div>
 
                     <div>
-                        <Label className="mb-3 block">Service Category</Label>
+                        <Label className="mb-3 block">Required Skill Category</Label>
                         <div className="grid grid-cols-3 gap-3">
                             {Object.entries(categoryIcons).map(([cat, Icon]) => (
                                 <button
@@ -198,19 +266,39 @@ export default function PostJob() {
                         </Select>
                     </div>
 
-                    <div>
-                        <Label className="mb-2 block text-xs font-semibold text-zinc-700">Budget Range: R{formData.budget_min.toLocaleString()} - R{formData.budget_max.toLocaleString()}</Label>
-                        <div className="px-2">
-                            <Slider
-                                min={500}
-                                max={50000}
-                                step={500}
-                                value={[formData.budget_min, formData.budget_max]}
-                                onValueChange={(values) => setFormData({ ...formData, budget_min: values[0], budget_max: values[1] })}
-                                className="mb-2"
+                    {isContractor ? (
+                        <div className="bg-zinc-50 p-4 border border-zinc-200 rounded-xl space-y-3">
+                            <Label className="block text-xs font-bold text-zinc-900">
+                                Agreed Peer Compensation Split: R{Number(formData.agreed_compensation || 0).toLocaleString()}
+                            </Label>
+                            <Input
+                                type="number"
+                                min={100}
+                                step={100}
+                                value={formData.agreed_compensation}
+                                onChange={(e) => setFormData({ ...formData, agreed_compensation: Number(e.target.value) })}
+                                className="bg-white"
+                                placeholder="Compensation to pay assisting contractor"
                             />
+                            <p className="text-[11px] text-zinc-500">
+                                Set the exact payout amount you agree to pay the joining contractor upon job completion.
+                            </p>
                         </div>
-                    </div>
+                    ) : (
+                        <div>
+                            <Label className="mb-2 block text-xs font-semibold text-zinc-700">Budget Range: R{formData.budget_min.toLocaleString()} - R{formData.budget_max.toLocaleString()}</Label>
+                            <div className="px-2">
+                                <Slider
+                                    min={500}
+                                    max={50000}
+                                    step={500}
+                                    value={[formData.budget_min, formData.budget_max]}
+                                    onValueChange={(values) => setFormData({ ...formData, budget_min: values[0], budget_max: values[1] })}
+                                    className="mb-2"
+                                />
+                            </div>
+                        </div>
+                    )}
 
                     <div>
                         <Label className="text-xs font-semibold text-zinc-700">Preferred Start Date</Label>

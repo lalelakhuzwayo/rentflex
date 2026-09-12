@@ -103,11 +103,18 @@ export default function ContractorDashboard() {
                     <p className="text-xs text-zinc-500 mt-0.5">Manage your bids and find new opportunities</p>
                 </div>
 
-                <Button asChild variant="outline" size="sm" className="w-fit">
-                    <Link to={createPageUrl('ContractorOnboarding')}>
-                        Edit Profile & Verification
-                    </Link>
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button asChild className="bg-purple-900 hover:bg-purple-800 text-white" size="sm">
+                        <Link to={createPageUrl('PostJob')}>
+                            🤝 Share Job (Joint Forces)
+                        </Link>
+                    </Button>
+                    <Button asChild variant="outline" size="sm" className="w-fit">
+                        <Link to={createPageUrl('ContractorOnboarding')}>
+                            Edit Profile & Verification
+                        </Link>
+                    </Button>
+                </div>
             </div>
 
             {/* Stats */}

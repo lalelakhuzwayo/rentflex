@@ -18,9 +18,15 @@ export default function Jobs() {
         appClient.auth.me().then(setUser);
     }, []);
 
+    const isContractor = user?.user_type === 'contractor';
+    const isLandlord = user?.user_type === 'landlord' || user?.user_type === 'sysAdmin';
+
     const { data: myJobs = [] } = useQuery({
-        queryKey: ['my-jobs'],
-        queryFn: () => appClient.entities.Job.filter({ posted_by_id: user?.id }),
+        queryKey: ['my-jobs', user?.id || user?.email],
+        queryFn: async () => {
+            if (!user) return [];
+            return await appClient.entities.Job.filter({ posted_by_id: user.id || user.email });
+        },
         enabled: !!user
     });
 
@@ -62,6 +68,8 @@ export default function Jobs() {
             return `${daysLeft}d left`;
         };
 
+        const isShare = job.job_type === 'contractor_share';
+
         return (
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -71,7 +79,14 @@ export default function Jobs() {
                 <Card className="p-6 hover:shadow-lg transition-shadow">
                     <div className="flex justify-between items-start mb-3">
                         <div className="flex-1">
-                            <h3 className="text-lg font-semibold text-slate-900 mb-1">{job.title}</h3>
+                            <div className="flex items-center gap-2 mb-1">
+                                <h3 className="text-lg font-semibold text-slate-900">{job.title}</h3>
+                                {isShare && (
+                                    <Badge className="bg-purple-100 text-purple-800 border-purple-200">
+                                        🤝 Joint Forces (Subcontract Share)
+                                    </Badge>
+                                )}
+                            </div>
                             <div className="flex items-center gap-2 text-sm text-slate-600 mb-2">
                                 <MapPin className="w-4 h-4" />
                                 <span>{job.property_address}</span>
@@ -94,11 +109,18 @@ export default function Jobs() {
                             <Briefcase className="w-4 h-4" />
                             <span className="capitalize">{job.category}</span>
                         </div>
-                        {job.budget_min > 0 && (
-                            <div className="flex items-center gap-1">
-                                <DollarSign className="w-4 h-4" />
-                                <span>R{(job.budget_min ?? 0).toLocaleString()} - R{(job.budget_max ?? 0).toLocaleString()}</span>
+                        {isShare ? (
+                            <div className="flex items-center gap-1 font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                                <DollarSign className="w-4 h-4 text-purple-600" />
+                                <span>Agreed Split: R{(job.agreed_compensation || job.budget_max || 0).toLocaleString()} offered</span>
                             </div>
+                        ) : (
+                            job.budget_min > 0 && (
+                                <div className="flex items-center gap-1">
+                                    <DollarSign className="w-4 h-4" />
+                                    <span>R{(job.budget_min ?? 0).toLocaleString()} - R{(job.budget_max ?? 0).toLocaleString()}</span>
+                                </div>
+                            )
                         )}
                         {job.preferred_start_date && (
                             <div className="flex items-center gap-1">
@@ -128,7 +150,7 @@ export default function Jobs() {
                     <div className="flex gap-2">
                         <Button variant="outline" size="sm" asChild className="flex-1 border-zinc-200">
                             <Link to={createPageUrl(`JobDetails?id=${job.id}`)}>
-                                {showBids ? 'Compare Bids' : 'Place Bid'}
+                                {showBids ? 'Compare Bids' : isShare ? 'Join Forces / Partner Up' : 'Place Bid'}
                             </Link>
                         </Button>
                     </div>
@@ -142,12 +164,16 @@ export default function Jobs() {
             <div className="flex justify-between items-center mb-8">
                 <div>
                     <h1 className="text-2xl font-bold text-zinc-900 mb-1">Service Jobs</h1>
-                    <p className="text-xs text-zinc-500">Post jobs and receive bids from contractors</p>
+                    <p className="text-xs text-zinc-500">
+                        {isContractor 
+                            ? 'Browse available landlord jobs and partner up on shared subcontract tasks' 
+                            : 'Post maintenance jobs for your properties and receive competitive contractor bids'}
+                    </p>
                 </div>
                 <Button asChild className="bg-zinc-900 hover:bg-zinc-800 text-white">
                     <Link to={createPageUrl('PostJob')}>
                         <Plus className="w-4 h-4 mr-2" />
-                        Post Job
+                        {isContractor ? 'Share Job / Joint Forces' : 'Post Job'}
                     </Link>
                 </Button>
             </div>
