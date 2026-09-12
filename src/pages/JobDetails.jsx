@@ -101,7 +101,7 @@ export default function JobDetails() {
 
     const isJobOwner = user?.id === job.posted_by_id;
     const hasMyBid = bids.some(b => b.contractor_id === user?.id);
-    const canBid = user && contractor && contractor.subscription_status === 'active' && !isJobOwner && !hasMyBid;
+    const canBid = user && contractor && !isJobOwner && !hasMyBid;
 
     return (
         <div className="max-w-5xl mx-auto">

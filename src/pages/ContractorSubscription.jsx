@@ -1,154 +1,84 @@
-import React, { useState, useEffect } from 'react';
-import { appClient } from '@/api/appClient';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Check, Zap, Star, Crown } from 'lucide-react';
-import { toast } from 'sonner';
+import { Check } from 'lucide-react';
 
 export default function ContractorSubscription() {
-    const [user, setUser] = useState(null);
-    const queryClient = useQueryClient();
-
-    useEffect(() => {
-        appClient.auth.me().then(setUser);
-    }, []);
-
-    const { data: contractor } = useQuery({
-        queryKey: ['my-contractor-profile'],
-        queryFn: () => appClient.entities.Contractor.filter({ user_id: user?.id }).then(r => r[0]),
-        enabled: !!user
-    });
-
-    const subscribeMutation = useMutation({
-        mutationFn: async (plan) => {
-            const endDate = new Date();
-            endDate.setMonth(endDate.getMonth() + 1);
-
-            return appClient.entities.Contractor.update(contractor.id, {
-                subscription_plan: plan,
-                subscription_status: 'active',
-                subscription_end_date: endDate.toISOString().split('T')[0]
-            });
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries(['my-contractor-profile']);
-            toast.success('Subscription activated!');
-        }
-    });
-
-    const plans = [
-        {
-            name: 'Basic',
-            price: 99,
-            plan_id: 'basic',
-            icon: Zap,
-            features: [
-                'Bid on unlimited jobs',
-                'Basic profile listing',
-                'Email notifications',
-                'Standard support'
-            ]
-        },
-        {
-            name: 'Pro',
-            price: 199,
-            plan_id: 'pro',
-            icon: Star,
-            popular: true,
-            features: [
-                'Everything in Basic',
-                'Featured profile listing',
-                'Priority job alerts',
-                'Analytics dashboard',
-                'Priority support'
-            ]
-        },
-        {
-            name: 'Enterprise',
-            price: 399,
-            plan_id: 'enterprise',
-            icon: Crown,
-            features: [
-                'Everything in Pro',
-                'Top-tier profile placement',
-                'Dedicated account manager',
-                'Advanced analytics',
-                'API access',
-                '24/7 premium support'
-            ]
-        }
-    ];
-
     return (
-        <div className="max-w-6xl mx-auto">
-            <div className="text-center mb-12">
-                <h1 className="text-4xl font-bold text-slate-900 mb-4">Contractor Subscription Plans</h1>
-                <p className="text-xl text-slate-600">Choose the plan that works best for your business</p>
+        <div className="max-w-4xl mx-auto py-8 space-y-8">
+            {/* Header */}
+            <div className="text-center space-y-3">
+                <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 font-bold px-3 py-1 text-xs">
+                    100% Free Platform
+                </Badge>
+                <h1 className="text-3xl sm:text-4xl font-extrabold text-zinc-900 tracking-tight">
+                    RentFlex is 100% Free for Contractors
+                </h1>
+                <p className="text-sm sm:text-base text-zinc-500 max-w-2xl mx-auto leading-relaxed">
+                    We believe service professionals shouldn't have to pay monthly subscriptions or commissions just to bid on work. Access maintenance jobs, submit quotes, and receive direct paygate settlements for free.
+                </p>
             </div>
 
-            {contractor?.subscription_status === 'active' && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-8 text-center">
-                    <p className="text-emerald-800 font-medium">
-                        Your <span className="capitalize">{contractor.subscription_plan}</span> subscription is active until{' '}
-                        {new Date(contractor.subscription_end_date).toLocaleDateString()}
-                    </p>
+            {/* Main Free Tier Card */}
+            <Card className="sharp-card bg-zinc-950 text-white p-8 border border-transparent hover:border-zinc-800 space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-6">
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h2 className="text-xl font-bold text-white">Free Unlimited Membership</h2>
+                            <Badge className="bg-emerald-500 text-zinc-950 font-extrabold text-[10px]">ACTIVE</Badge>
+                        </div>
+                        <p className="text-xs text-zinc-400 mt-1">Full access enabled for all registered contractors</p>
+                    </div>
+                    <div className="text-left sm:text-right">
+                        <span className="text-3xl font-extrabold text-white">R0</span>
+                        <span className="text-xs text-zinc-400 block">Forever Free</span>
+                    </div>
                 </div>
-            )}
 
-            <div className="grid md:grid-cols-3 gap-8">
-                {plans.map((plan) => {
-                    const Icon = plan.icon;
-                    const isCurrentPlan = contractor?.subscription_plan === plan.plan_id;
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    <div className="flex items-start gap-3 bg-zinc-900/60 p-4 border border-zinc-800">
+                        <Check className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                        <div>
+                            <h4 className="font-bold text-xs text-white">Unlimited Bidding</h4>
+                            <p className="text-[11px] text-zinc-400 mt-0.5">Bid on unlimited plumbing, electrical, HVAC, and repair jobs without restriction.</p>
+                        </div>
+                    </div>
 
-                    return (
-                        <Card
-                            key={plan.plan_id}
-                            className={`p-6 relative sharp-card ${plan.popular ? 'border-zinc-900 shadow-md' : 'border-transparent'
-                                }`}
-                        >
-                            {plan.popular && (
-                                <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-zinc-900 text-white font-bold">
-                                    Most Popular
-                                </Badge>
-                            )}
+                    <div className="flex items-start gap-3 bg-zinc-900/60 p-4 border border-zinc-800">
+                        <Check className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                        <div>
+                            <h4 className="font-bold text-xs text-white">Direct Paygate Settlements</h4>
+                            <p className="text-[11px] text-zinc-400 mt-0.5">Receive direct payments to your bank account upon landlord inspection & approval.</p>
+                        </div>
+                    </div>
 
-                            <div className="text-center mb-6">
-                                <div className="w-12 h-12 bg-zinc-100 flex items-center justify-center mx-auto mb-4">
-                                    <Icon className="w-6 h-6 text-zinc-900" />
-                                </div>
-                                <h3 className="text-xl font-bold text-zinc-900 mb-2">{plan.name}</h3>
-                                <div className="flex items-baseline justify-center gap-1">
-                                    <span className="text-3xl font-bold text-zinc-900">R{plan.price}</span>
-                                    <span className="text-zinc-500 text-xs">/month</span>
-                                </div>
-                            </div>
+                    <div className="flex items-start gap-3 bg-zinc-900/60 p-4 border border-zinc-800">
+                        <Check className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                        <div>
+                            <h4 className="font-bold text-xs text-white">Zero Commissions</h4>
+                            <p className="text-[11px] text-zinc-400 mt-0.5">You keep 100% of your quoted bid amount. No platform transaction cuts.</p>
+                        </div>
+                    </div>
 
-                            <ul className="space-y-3 mb-8">
-                                {plan.features.map((feature, index) => (
-                                    <li key={index} className="flex items-start gap-2.5 text-xs">
-                                        <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                                        <span className="text-zinc-700">{feature}</span>
-                                    </li>
-                                ))}
-                            </ul>
+                    <div className="flex items-start gap-3 bg-zinc-900/60 p-4 border border-zinc-800">
+                        <Check className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                        <div>
+                            <h4 className="font-bold text-xs text-white">Contractor RentScore™</h4>
+                            <p className="text-[11px] text-zinc-400 mt-0.5">Build a verified reputation rating accepted by landlords and property managers nationwide.</p>
+                        </div>
+                    </div>
+                </div>
 
-                            <Button
-                                onClick={() => subscribeMutation.mutate(plan.plan_id)}
-                                disabled={isCurrentPlan || subscribeMutation.isPending}
-                                className="w-full bg-zinc-900 hover:bg-zinc-800 text-white"
-                            >
-                                {isCurrentPlan ? 'Current Plan' : 'Subscribe Now'}
-                            </Button>
-                        </Card>
-                    );
-                })}
-            </div>
-
-            <div className="mt-12 text-center text-slate-600">
-                <p>All plans include a 7-day free trial. Cancel anytime.</p>
-            </div>
+                <div className="pt-4 border-t border-zinc-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <p className="text-xs text-zinc-400">
+                        Need to update your trade categories or service areas?
+                    </p>
+                    <Button asChild className="bg-white hover:bg-zinc-100 text-zinc-950 font-bold text-xs rounded-lg shadow-sm">
+                        <a href="/ContractorOnboarding">Manage Contractor Profile</a>
+                    </Button>
+                </div>
+            </Card>
         </div>
     );
 }

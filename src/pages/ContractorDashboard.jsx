@@ -26,7 +26,7 @@ export default function ContractorDashboard() {
     const { data: availableJobs = [] } = useQuery({
         queryKey: ['available-jobs'],
         queryFn: () => appClient.entities.Job.filter({ status: 'open' }),
-        enabled: !!contractor && contractor.subscription_status === 'active'
+        enabled: !!contractor
     });
 
     const { data: myBids = [] } = useQuery({
@@ -63,19 +63,6 @@ export default function ContractorDashboard() {
                 <p className="text-xs text-zinc-500 mb-6">Set up your contractor profile to start bidding on jobs</p>
                 <Button asChild className="bg-zinc-900 hover:bg-zinc-800 text-white">
                     <Link to={createPageUrl('ContractorOnboarding')}>Complete Profile</Link>
-                </Button>
-            </div>
-        );
-    }
-
-    if (contractor.subscription_status !== 'active') {
-        return (
-            <div className="max-w-2xl mx-auto text-center py-12 sharp-card bg-white p-8 border border-transparent hover:border-zinc-900">
-                <DollarSign className="w-12 h-12 text-zinc-900 mx-auto mb-3" />
-                <h2 className="text-xl font-bold text-zinc-900 mb-2">Subscription Required</h2>
-                <p className="text-xs text-zinc-500 mb-6">Subscribe to access job listings and start bidding</p>
-                <Button asChild className="bg-zinc-900 hover:bg-zinc-800 text-white">
-                    <Link to={createPageUrl('ContractorSubscription')}>View Plans</Link>
                 </Button>
             </div>
         );
@@ -136,17 +123,19 @@ export default function ContractorDashboard() {
                 />
             </div>
 
-            {/* Subscription Status */}
+            {/* 100% Free Contractor Membership Banner */}
             <Card className="p-6 mb-8 sharp-card bg-zinc-950 text-white border border-transparent hover:border-zinc-800">
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                        <h3 className="font-bold text-sm text-white mb-1">Subscription Status</h3>
+                        <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-bold text-base text-white">100% Free Contractor Access</h3>
+                            <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px]">Active</Badge>
+                        </div>
                         <p className="text-xs text-zinc-400">
-                            {planName.charAt(0).toUpperCase() + planName.slice(1)} Plan
-                            {contractor.subscription_end_date && ` - Valid until ${formatDate(contractor.subscription_end_date)}`}
+                            No monthly fees, zero commission on bids, and unlimited access to maintenance job listings nationwide.
                         </p>
                     </div>
-                    <Badge className="bg-zinc-800 text-zinc-200 border-zinc-700">Active</Badge>
+                    <Badge className="bg-white text-zinc-950 font-bold px-3 py-1 shrink-0 w-fit">Free Forever</Badge>
                 </div>
             </Card>
 
