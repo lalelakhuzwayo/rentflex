@@ -89,18 +89,21 @@ export default function ContractorDashboard() {
         .reduce((sum, bid) => sum + bid.bid_amount, 0);
 
     const verificationProgress = [
-        { label: 'Profile Complete', done: !!contractor.company_name },
+        { label: 'Profile Complete', done: !!(contractor.company_name || contractor.business_name) },
         { label: 'License Added', done: !!contractor.license_number },
-        { label: 'Insurance Verified', done: contractor.insurance_verified },
-        { label: 'Verified Contractor', done: contractor.verified }
+        { label: 'Insurance Verified', done: Boolean(contractor.insurance_verified) },
+        { label: 'Verified Contractor', done: Boolean(contractor.verified) }
     ];
     const verifiedCount = verificationProgress.filter(v => v.done).length;
+
+    const displayName = contractor.company_name || contractor.business_name || 'Contractor';
+    const planName = contractor.subscription_plan || contractor.subscription_status || 'pro';
 
     return (
         <div>
             <div className="mb-8">
                 <h1 className="text-2xl font-bold text-zinc-900 mb-1">
-                    Welcome back, {contractor.company_name}!
+                    Welcome back, {displayName}!
                 </h1>
                 <p className="text-xs text-zinc-500">Manage your bids and find new opportunities</p>
             </div>
@@ -127,7 +130,7 @@ export default function ContractorDashboard() {
                 />
                 <StatsCard
                     title="Rating"
-                    value={contractor.rating.toFixed(1)}
+                    value={Number(contractor.rating || 5.0).toFixed(1)}
                     icon={Star}
                     color="amber"
                 />
@@ -139,7 +142,7 @@ export default function ContractorDashboard() {
                     <div>
                         <h3 className="font-bold text-sm text-white mb-1">Subscription Status</h3>
                         <p className="text-xs text-zinc-400">
-                            {contractor.subscription_plan.charAt(0).toUpperCase() + contractor.subscription_plan.slice(1)} Plan
+                            {planName.charAt(0).toUpperCase() + planName.slice(1)} Plan
                             {contractor.subscription_end_date && ` - Valid until ${formatDate(contractor.subscription_end_date)}`}
                         </p>
                     </div>

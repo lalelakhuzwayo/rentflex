@@ -37,20 +37,51 @@ export default function ContractorOnboarding() {
 
     const createProfileMutation = useMutation({
         mutationFn: async (data) => {
-            await appClient.entities.Contractor.create({
-                ...data,
-                user_id: user.id,
-                service_areas: data.service_areas.split(',').map(s => s.trim()),
-                years_experience: parseFloat(data.years_experience)
-            });
+            const userId = user?.id || user?.email;
+            if (!userId) throw new Error('User session not found');
 
-            // Update user type
+            const serviceAreasList = typeof data.service_areas === 'string' 
+                ? data.service_areas.split(',').map(s => s.trim()).filter(Boolean)
+                : (data.service_areas || []);
+
+            const mainTradeCategory = (Array.isArray(data.services) && data.services.length > 0)
+                ? data.services[0]
+                : 'general';
+
+            const payload = {
+                user_id: userId,
+                business_name: data.company_name?.trim() || 'Contractor',
+                company_name: data.company_name?.trim() || 'Contractor',
+                trade_category: mainTradeCategory,
+                services: data.services || [],
+                description: data.description?.trim() || '',
+                years_experience: parseFloat(data.years_experience) || 1,
+                phone: data.phone?.trim() || '',
+                license_number: data.license_number?.trim() || null,
+                service_areas: serviceAreasList,
+                rating: 5.0,
+                subscription_status: 'pro'
+            };
+
+            // Check if profile already exists for this user_id
+            const existingProfiles = await appClient.entities.Contractor.filter({ user_id: userId });
+            if (existingProfiles && existingProfiles.length > 0) {
+                await appClient.entities.Contractor.update(existingProfiles[0].id, payload);
+            } else {
+                await appClient.entities.Contractor.create(payload);
+            }
+
+            // Update user type in Auth Profile
             await appClient.auth.updateMe({ user_type: 'contractor' });
         },
         onSuccess: () => {
-            queryClient.invalidateQueries(['my-contractor-profile']);
-            toast.success('Profile created successfully!');
-            navigate(createPageUrl('ContractorSubscription'));
+            queryClient.invalidateQueries({ queryKey: ['my-contractor-profile'] });
+            toast.success('Contractor profile saved successfully!');
+            navigate(createPageUrl('ContractorDashboard'));
+        },
+        onError: (err) => {
+            console.error('Contractor profile setup error:', err);
+            toast.error(err.message || 'Failed to save contractor profile.');
         }
     });
 
