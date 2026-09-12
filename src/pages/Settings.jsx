@@ -382,7 +382,7 @@ export default function Settings() {
 
                     <div className="flex items-center justify-between py-1">
                         <div>
-                            <p className="font-medium text-xs text-zinc-900">Rent & Escrow Payment Alerts</p>
+                            <p className="font-medium text-xs text-zinc-900">Rent & Paygate Payment Alerts</p>
                             <p className="text-[11px] text-zinc-500">Alerts 3 days before rent is due, payment confirmations, and BNPL reminders</p>
                         </div>
                         <Switch

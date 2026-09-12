@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { authActions } from '@/api/authActions';
@@ -35,6 +35,8 @@ export default function Auth() {
     const confirmedFromUrl = searchParams.get('confirmed') === 'true';
 
     const {
+        user,
+        isAuthenticated,
         signIn,
         signUp,
         signInWithGoogle,
@@ -42,6 +44,22 @@ export default function Auth() {
         signInWithApple,
         signInWithWindows
     } = useAuth();
+
+    // Auto-redirect authenticated users (handles OAuth returns, persistent sessions, and active logins)
+    useEffect(() => {
+        if (isAuthenticated && user) {
+            const userRole = (user.user_type || '').toLowerCase();
+            if (userRole === 'sysadmin') {
+                navigate(createPageUrl('SysAdminDashboard'), { replace: true });
+            } else if (userRole === 'landlord') {
+                navigate(createPageUrl('LandlordDashboard'), { replace: true });
+            } else if (userRole === 'contractor') {
+                navigate(createPageUrl('ContractorDashboard'), { replace: true });
+            } else {
+                navigate(createPageUrl('Dashboard'), { replace: true });
+            }
+        }
+    }, [user, isAuthenticated, navigate]);
 
     // Form fields
     const [formData, setFormData] = useState({

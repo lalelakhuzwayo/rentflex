@@ -163,6 +163,9 @@ export const authActions = {
         });
 
         if (error) {
+            if (error.message?.toLowerCase().includes('email not confirmed')) {
+                throw new Error('Your email address has not been confirmed yet. Please check your inbox for the confirmation email or resend it.');
+            }
             throw new Error(error.message);
         }
 
@@ -201,7 +204,7 @@ export const authActions = {
             }
 
             // Fetch enriched profile from public.profiles
-            const { data: profile, error: profileError } = await supabase
+            let { data: profile, error: profileError } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', user.id)
@@ -211,13 +214,41 @@ export const authActions = {
                 console.warn('Profile fetch notice:', profileError.message);
             }
 
+            // Auto-create/upsert profile for OAuth or new auth users if missing in profiles table
+            if (!profile && user?.id) {
+                try {
+                    const defaultRole = user.user_metadata?.user_type || 'tenant';
+                    const { data: createdProfile } = await supabase
+                        .from('profiles')
+                        .upsert({
+                            id: user.id,
+                            email: user.email,
+                            full_name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0],
+                            user_type: defaultRole,
+                            phone: user.user_metadata?.phone || null,
+                            verified: true,
+                            id_verified: true,
+                            status: 'verified',
+                            updated_at: new Date().toISOString()
+                        }, { onConflict: 'id' })
+                        .select()
+                        .maybeSingle();
+
+                    if (createdProfile) {
+                        profile = createdProfile;
+                    }
+                } catch (upsertErr) {
+                    console.warn('Auto profile creation notice:', upsertErr);
+                }
+            }
+
             const rawType = profile?.user_type || user.user_metadata?.user_type || 'tenant';
             const normalizedType = (rawType === 'rentee' ? 'tenant' : (rawType?.toLowerCase() === 'admin' || rawType?.toLowerCase() === 'sysadmin' ? 'sysAdmin' : rawType));
 
             return {
                 id: user.id,
                 email: user.email,
-                full_name: profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0],
+                full_name: profile?.full_name || user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0],
                 user_type: normalizedType,
                 phone: profile?.phone || user.user_metadata?.phone || null,
                 ...profile,

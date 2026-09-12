@@ -197,23 +197,23 @@ export default function JobDetails() {
                                         )}
                                         {bid.status === 'accepted' && (
                                             <div className="space-y-3 mt-3 pt-3 border-t border-zinc-100">
-                                                <div className="bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800 flex items-center justify-between">
-                                                    <div className="flex items-center gap-2 font-medium">
-                                                        <Shield className="w-4 h-4 text-emerald-600" />
-                                                        <span>Escrow Protected: R{Number(bid.bid_amount || 0).toLocaleString()} held in RentFlex Safe-Vault</span>
-                                                    </div>
-                                                    <Badge className="bg-emerald-600 text-white">Funds Secured</Badge>
-                                                </div>
+                                                 <div className="bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800 flex items-center justify-between">
+                                                     <div className="flex items-center gap-2 font-medium">
+                                                         <Shield className="w-4 h-4 text-emerald-600" />
+                                                         <span>Verified Quote: R{Number(bid.bid_amount || 0).toLocaleString()} via Direct Paygate</span>
+                                                     </div>
+                                                     <Badge className="bg-emerald-600 text-white">Direct Paygate</Badge>
+                                                 </div>
 
-                                                <Button
-                                                    size="sm"
-                                                    className="w-full bg-zinc-900 hover:bg-zinc-800 text-white"
-                                                    onClick={() => {
-                                                        toast.success('🎉 Proof of work approved! Escrow funds released to contractor.');
-                                                    }}
-                                                >
-                                                    Approve Proof-of-Work & Release Escrow Payment
-                                                </Button>
+                                                 <Button
+                                                     size="sm"
+                                                     className="w-full bg-zinc-900 hover:bg-zinc-800 text-white"
+                                                     onClick={() => {
+                                                         toast.success('🎉 Proof of work approved! Direct Paygate payment processed to contractor.');
+                                                     }}
+                                                 >
+                                                     Approve Proof-of-Work & Pay Contractor via Paygate
+                                                 </Button>
                                             </div>
                                         )}
                                     </div>

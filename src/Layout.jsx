@@ -174,7 +174,7 @@ export default function Layout({ children, currentPageName }) {
             { name: 'System Admin', href: createPageUrl('SysAdminDashboard'), icon: Shield, badge: 'Control' },
             { name: 'All Properties', href: createPageUrl('Properties'), icon: Building2, badge: null },
             { name: 'Screening & Users', href: createPageUrl('ApplicationScreening'), icon: Users, badge: null },
-            { name: 'Payments & Escrow', href: createPageUrl('Payments'), icon: CreditCard, badge: null },
+            { name: 'Payments & Paygate', href: createPageUrl('Payments'), icon: CreditCard, badge: null },
             { name: 'Leases', href: createPageUrl('Leases'), icon: FileText, badge: null },
         ];
         secondaryNavigation = [

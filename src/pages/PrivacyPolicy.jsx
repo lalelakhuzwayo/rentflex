@@ -44,7 +44,7 @@ export default function PrivacyPolicy() {
         {
             num: 3,
             title: 'Purpose Specification (Sections 13-14)',
-            description: 'Information is collected for defined, explicit, and lawful purposes relating to rental facilitation, credit vetting, lease enforcement, and escrow management.'
+            description: 'Information is collected for defined, explicit, and lawful purposes relating to rental facilitation, credit vetting, lease enforcement, and payment transaction logging.'
         },
         {
             num: 4,
@@ -75,7 +75,7 @@ export default function PrivacyPolicy() {
 
     const retentionSchedule = [
         {
-            category: 'Financial & Escrow Records',
+            category: 'Financial & Payment Records',
             retention: '5 Years from Date of Transaction',
             statute: 'Tax Administration Act (s29) & Companies Act (s24)',
             basis: 'Statutory compliance for rental receipts, invoice tracking, deposit interest statements, and auditing.'

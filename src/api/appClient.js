@@ -216,11 +216,11 @@ export const appClient = {
             return { success: true, pageName };
         }
     },
-    entities: new Proxy({}, {
+    entities: /** @type {any} */ (new Proxy({}, {
         get: (target, prop) => {
-            return createSupabaseEntityHandler(prop);
+            return createSupabaseEntityHandler(/** @type {string} */ (prop));
         }
-    }),
+    })),
     integrations: {
         Core: {
             UploadFile: async ({ file }) => {

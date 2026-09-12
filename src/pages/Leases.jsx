@@ -422,7 +422,7 @@ export default function Leases() {
                                 <p><strong>Landlord / Owner:</strong> {selectedLease.landlord_id}</p>
                                 <p><strong>Tenant / Lessee:</strong> {selectedLease.tenant_id}</p>
                                 <p><strong>Monthly Rent:</strong> R{Number(selectedLease.monthly_rent || 0).toLocaleString()} (Due on the 1st of each month)</p>
-                                <p><strong>Security Deposit:</strong> R{Number(selectedLease.deposit_amount || 0).toLocaleString()} (Held in RentFlex Escrow / Protection)</p>
+                                <p><strong>Security Deposit:</strong> R{Number(selectedLease.deposit_amount || 0).toLocaleString()} (Direct Tenant-to-Landlord Security Deposit)</p>
                                 <p><strong>Term Duration:</strong> {formatDateRange(selectedLease.start_date, selectedLease.end_date)}</p>
                                 <p className="text-zinc-600 pt-2 border-t border-zinc-200 text-[11px]">
                                     <strong>Dual Execution Clause:</strong> This digital lease agreement is legally binding once signed by both Tenant and Landlord. It remains in full legal force until lapsed at contract expiry or terminated in accordance with the terms herein.

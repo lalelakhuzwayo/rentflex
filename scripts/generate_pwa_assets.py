@@ -79,7 +79,7 @@ def generate_pwa_package():
         "id": "/",
         "name": "RentFlex - Smart Property & Lease Management",
         "short_name": "RentFlex",
-        "description": "Next-Generation South African PropTech & Escrow Platform. Seamless rentals, transparent leases, automated BNPL deposits, and smart contractor coordination.",
+        "description": "Next-Generation South African PropTech & Paygate Platform. Seamless rentals, transparent leases, automated BNPL deposits, and smart contractor coordination.",
         "start_url": "/",
         "scope": "/",
         "display": "standalone",
@@ -138,9 +138,9 @@ def generate_pwa_package():
                 "icons": [{ "src": "/android-chrome-192x192.png", "sizes": "192x192" }]
             },
             {
-                "name": "Payments & Escrow",
+                "name": "Payments & Paygate",
                 "short_name": "Payments",
-                "description": "Manage monthly rent and deposit escrow",
+                "description": "Manage monthly rent and direct paygate transactions",
                 "url": "/Payments",
                 "icons": [{ "src": "/android-chrome-192x192.png", "sizes": "192x192" }]
             },

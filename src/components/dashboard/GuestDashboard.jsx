@@ -41,7 +41,7 @@ export default function GuestDashboard() {
                     </h1>
 
                     <p className="mt-4 text-sm sm:text-base md:text-lg text-zinc-300 leading-relaxed max-w-2xl">
-                        RentFlex brings flexible payment cycles, automated bank trust escrow under the Rental Housing Act, and verified RentScore™ reputation tracking to tenants, owners, and contractors.
+                        RentFlex provides flexible payment cycles, direct payment gateway transfers between tenants, landlords, & contractors, and verified RentScore™ reputation tracking.
                     </p>
 
                     <div className="mt-8 flex flex-wrap items-center gap-3 sm:gap-4">
@@ -109,9 +109,9 @@ export default function GuestDashboard() {
                         <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center border border-blue-100">
                             <Shield className="w-4 h-4" />
                         </div>
-                        <h3 className="font-bold text-sm text-zinc-900">Deposit Escrow Protection</h3>
+                        <h3 className="font-bold text-sm text-zinc-900">Direct Paygate Processing</h3>
                         <p className="text-xs text-zinc-500 leading-relaxed">
-                            Security deposits safely locked in regulated trust accounts under the Rental Housing Act.
+                            Pay rent & deposits directly to landlords via secure paygates with zero middleman custody.
                         </p>
                     </div>
 
@@ -122,7 +122,7 @@ export default function GuestDashboard() {
                         </div>
                         <h3 className="font-bold text-sm text-zinc-900">Verified Contractor Bids</h3>
                         <p className="text-xs text-zinc-500 leading-relaxed">
-                            Screened service professionals bid on repairs with automated escrow payouts upon inspection.
+                            Screened service professionals bid on repairs with direct paygate payouts upon completion.
                         </p>
                     </div>
                 </div>
@@ -198,7 +198,7 @@ export default function GuestDashboard() {
                     <div className="bg-white rounded-xl p-5 border border-zinc-200 space-y-3 flex flex-col justify-between">
                         <div className="space-y-2">
                             <Badge variant="outline" className="text-zinc-700 border-zinc-300">Contractors</Badge>
-                            <h3 className="font-bold text-sm text-zinc-900">Escrow-Backed Jobs</h3>
+                            <h3 className="font-bold text-sm text-zinc-900">Direct Verified Payouts</h3>
                             <ul className="text-xs text-zinc-600 space-y-2 pt-1">
                                 <li className="flex items-start gap-2">
                                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
@@ -206,11 +206,11 @@ export default function GuestDashboard() {
                                 </li>
                                 <li className="flex items-start gap-2">
                                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
-                                    <span>Funds pre-funded into escrow before work begins</span>
+                                    <span>Secure paygate settlement upon job completion</span>
                                 </li>
                                 <li className="flex items-start gap-2">
                                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
-                                    <span>Same-day payout upon completion</span>
+                                    <span>Fast payout & verified contractor RentScore</span>
                                 </li>
                             </ul>
                         </div>

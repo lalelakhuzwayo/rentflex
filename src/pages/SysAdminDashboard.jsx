@@ -244,7 +244,7 @@ export default function SysAdminDashboard() {
                     <div className="flex items-center gap-1.5 mt-1 sm:mt-2 text-[10px] sm:text-[11px] text-zinc-500 font-medium leading-tight">
                         <span className="text-emerald-700 font-bold">100% Guaranteed</span>
                         <span>•</span>
-                        <span className="text-zinc-600">Zero Escrow Defaults</span>
+                        <span className="text-zinc-600">Direct Paygate Settlements</span>
                     </div>
                 </motion.div>
             </div>

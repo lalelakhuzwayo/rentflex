@@ -24,6 +24,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import PaymentCard from '@/components/payments/PaymentCard';
+import { processPaygateRentScoreUpdate } from '@/utils/rentScoreEngine';
 
 export default function Payments() {
     const [user, setUser] = useState(null);
@@ -59,11 +60,18 @@ export default function Payments() {
     });
 
     const updatePaymentMutation = useMutation({
-        mutationFn: (/** @type {{ id: string, data: any }} */ { id, data }) => appClient.entities.Payment.update(id, data),
+        mutationFn: async (/** @type {{ id: string, data: any, tenant_id?: string }} */ { id, data, tenant_id }) => {
+            const result = await appClient.entities.Payment.update(id, data);
+            if (tenant_id) {
+                await processPaygateRentScoreUpdate(tenant_id, data);
+            }
+            return result;
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['payments'] });
+            queryClient.invalidateQueries({ queryKey: ['rentScore'] });
             setPaymentDialog({ open: false, payment: null });
-            toast.success('Payment processed successfully!');
+            toast.success('🎉 Direct payment confirmed via Paygate! RentScore updated (+15 pts).');
         },
     });
 
@@ -76,11 +84,12 @@ export default function Payments() {
 
         updatePaymentMutation.mutate({
             id: paymentDialog.payment.id,
+            tenant_id: paymentDialog.payment.tenant_id || user?.email,
             data: {
                 status: 'paid',
                 paid_date: new Date().toISOString().split('T')[0],
                 payment_method: paymentMethod,
-                transaction_id: `TXN-${Date.now()}`
+                transaction_id: `PAYGATE-P2P-${Date.now()}`
             }
         });
     };
@@ -306,8 +315,14 @@ export default function Payments() {
                                         R{(paymentDialog.payment?.amount ?? 0).toLocaleString()}
                                     </span>
                                 </div>
-                                <p className="text-xs text-zinc-500 mt-1">
-                                    Due: {formatDate(paymentDialog.payment?.due_date)}
+                                <div className="flex items-center justify-between text-xs text-zinc-500 mt-2 pt-2 border-t border-zinc-200/60">
+                                    <span>Due: {formatDate(paymentDialog.payment?.due_date)}</span>
+                                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                        Direct Paygate P2P
+                                    </span>
+                                </div>
+                                <p className="text-[11px] text-zinc-400 mt-1.5 leading-tight">
+                                    Direct transaction to {paymentDialog.payment?.landlord_id || 'Landlord'}. RentFlex does not hold or escrow funds.
                                 </p>
                             </div>
 

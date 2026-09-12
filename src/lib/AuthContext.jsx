@@ -120,22 +120,22 @@ export const AuthProvider = ({ children }) => {
     };
 
     // Scalable OAuth / SSO Provider Connectors
-    const signInWithGoogle = async (redirectUrl = window.location.href) => {
+    const signInWithGoogle = async (redirectUrl = `${window.location.origin}/Auth`) => {
         toast.info('Connecting to Google Identity Services...');
         return appClient.auth.redirectToLogin(redirectUrl, 'google');
     };
 
-    const signInWithFacebook = async (redirectUrl = window.location.href) => {
+    const signInWithFacebook = async (redirectUrl = `${window.location.origin}/Auth`) => {
         toast.info('Connecting to Facebook Login...');
         return appClient.auth.redirectToLogin(redirectUrl, 'facebook');
     };
 
-    const signInWithApple = async (redirectUrl = window.location.href) => {
+    const signInWithApple = async (redirectUrl = `${window.location.origin}/Auth`) => {
         toast.info('Connecting to Apple ID Sign-In (iOS)...');
         return appClient.auth.redirectToLogin(redirectUrl, 'apple');
     };
 
-    const signInWithWindows = async (redirectUrl = window.location.href) => {
+    const signInWithWindows = async (redirectUrl = `${window.location.origin}/Auth`) => {
         toast.info('Connecting to Microsoft Azure AD / Windows Hello...');
         return appClient.auth.redirectToLogin(redirectUrl, 'azure');
     };
