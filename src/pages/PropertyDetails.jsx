@@ -64,10 +64,6 @@ export default function PropertyDetails() {
     const urlParams = new URLSearchParams(window.location.search);
     const propertyId = urlParams.get('id');
 
-    useEffect(() => {
-        appClient.auth.me().then(setUser).catch(() => { });
-    }, []);
-
     const { data: property, isLoading } = useQuery({
         queryKey: ['property', propertyId],
         queryFn: async () => {
