@@ -226,22 +226,32 @@ export const appClient = {
             UploadFile: async ({ file }) => {
                 if (isSupabaseConfigured) {
                     try {
-                        const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+                        const sanitizedName = file.name ? file.name.replace(/[^a-zA-Z0-9._-]/g, '_') : 'upload.png';
+                        const fileName = `${Date.now()}_${sanitizedName}`;
                         const { data, error } = await supabase.storage
                             .from('rentflex-files')
-                            .upload(fileName, file);
+                            .upload(fileName, file, {
+                                upsert: true,
+                                contentType: file.type || 'image/jpeg'
+                            });
 
-                        if (!error && data) {
+                        if (error) {
+                            console.error('Supabase storage upload error:', error);
+                            throw new Error(error.message || 'Storage upload failed');
+                        }
+
+                        if (data) {
                             const { data: { publicUrl } } = supabase.storage
                                 .from('rentflex-files')
                                 .getPublicUrl(fileName);
                             return { file_url: publicUrl };
                         }
                     } catch (e) {
-                        console.error('Supabase storage upload error:', e);
+                        console.error('Supabase storage upload catch:', e);
+                        throw e;
                     }
                 }
-                return { file_url: URL.createObjectURL(file) };
+                throw new Error('Supabase client is not configured for storage uploads.');
             }
         }
     }

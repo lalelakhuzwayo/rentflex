@@ -133,7 +133,8 @@ export default function PropertyDetails() {
         'https://images.unsplash.com/photo-1560185007-cde436f6a4d0?w=1200&q=80',
     ];
 
-    const images = property?.images?.length ? property.images : defaultImages;
+    const validImages = (property?.images || []).filter(img => typeof img === 'string' && !img.startsWith('blob:'));
+    const images = validImages.length > 0 ? validImages : defaultImages;
 
     if (isLoading) {
         return (

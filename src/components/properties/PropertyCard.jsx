@@ -14,6 +14,11 @@ export default function PropertyCard({ property, index = 0 }) {
         unlisted: 'bg-rose-50 text-rose-700 border-rose-200/80',
     };
 
+    const rawImage = property.images?.[0];
+    const displayImage = (rawImage && typeof rawImage === 'string' && !rawImage.startsWith('blob:'))
+        ? rawImage
+        : defaultImage;
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -25,11 +30,15 @@ export default function PropertyCard({ property, index = 0 }) {
                 {/* Image */}
                 <div className="relative h-48 sm:h-52 overflow-hidden bg-zinc-100">
                     <img
-                        src={property.images?.[0] || defaultImage}
+                        src={displayImage}
                         alt={property.title}
                         loading="lazy"
                         decoding="async"
                         className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
+                        onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = defaultImage;
+                        }}
                     />
                     <div className="absolute top-3 left-3 flex gap-1.5">
                         <Badge className={`${statusColors[property.status]} text-[11px] font-medium px-2 py-0.5 rounded-md`}>

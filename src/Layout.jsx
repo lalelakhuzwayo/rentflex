@@ -202,7 +202,6 @@ export default function Layout({ children, currentPageName }) {
             { name: 'Contractor Hub', href: createPageUrl('ContractorDashboard'), icon: Wrench, badge: 'Contractor' },
             { name: 'Jobs Board', href: createPageUrl('Jobs'), icon: Building2, badge: 'Jobs' },
             { name: 'Maintenance Tasks', href: createPageUrl('Maintenance'), icon: Wrench, badge: null },
-            { name: 'Free Access', href: createPageUrl('ContractorSubscription'), icon: CreditCard, badge: '100% Free' },
         ];
         secondaryNavigation = [
             { name: 'Contractor Verification', href: createPageUrl('ContractorOnboarding'), icon: ShieldCheck, badge: null },
