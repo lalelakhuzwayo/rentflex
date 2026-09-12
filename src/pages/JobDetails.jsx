@@ -55,15 +55,23 @@ export default function JobDetails() {
 
     const createBidMutation = useMutation({
         mutationFn: (data) => appClient.entities.ContractorBid.create({
-            ...data,
             job_id: id,
-            contractor_id: user.id,
+            contractor_id: user?.id || user?.email || 'contractor',
+            contractor_name: contractor?.company_name || contractor?.business_name || user?.full_name || user?.email?.split('@')[0] || 'Contractor',
+            amount: parseFloat(data.bid_amount),
+            estimated_days: parseInt(data.estimated_duration_days || '1', 10),
+            proposal: data.proposal || '',
             status: 'pending'
         }),
         onSuccess: () => {
-            queryClient.invalidateQueries(['job-bids', id]);
+            queryClient.invalidateQueries({ queryKey: ['job-bids', id] });
+            toast.success('Bid submitted successfully!');
             setBidDialogOpen(false);
             setBidForm({ bid_amount: '', estimated_duration_days: '', proposal: '' });
+        },
+        onError: (err) => {
+            console.error('Contractor bid submit error:', err);
+            toast.error(err.message || 'Failed to submit bid.');
         }
     });
 
@@ -76,17 +84,26 @@ export default function JobDetails() {
             });
         },
         onSuccess: () => {
-            queryClient.invalidateQueries(['job', id]);
-            queryClient.invalidateQueries(['job-bids', id]);
+            queryClient.invalidateQueries({ queryKey: ['job', id] });
+            queryClient.invalidateQueries({ queryKey: ['job-bids', id] });
+            toast.success('Job awarded successfully!');
             setAwardDialogOpen(false);
+        },
+        onError: (err) => {
+            console.error('Award job error:', err);
+            toast.error(err.message || 'Failed to award job.');
         }
     });
 
     const handleSubmitBid = (e) => {
         e.preventDefault();
+        if (!bidForm.bid_amount) {
+            toast.error('Please enter a bid amount');
+            return;
+        }
         createBidMutation.mutate({
-            bid_amount: parseFloat(bidForm.bid_amount),
-            estimated_duration_days: parseInt(bidForm.estimated_duration_days),
+            bid_amount: bidForm.bid_amount,
+            estimated_duration_days: bidForm.estimated_duration_days,
             proposal: bidForm.proposal
         });
     };

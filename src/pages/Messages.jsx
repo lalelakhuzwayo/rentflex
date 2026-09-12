@@ -38,11 +38,31 @@ export default function Messages() {
         appClient.auth.me().then(setUser).catch(() => { });
     }, []);
 
-    const { data: leases } = useQuery({
-        queryKey: ['my-leases'],
-        queryFn: () => appClient.entities.Lease.filter({ tenant_id: user?.email }),
-        enabled: !!user,
-        initialData: [],
+    const isLandlord = user?.user_type === 'landlord';
+    const isSysAdmin = user?.user_type === 'sysAdmin';
+
+    const { data: leases = [] } = useQuery({
+        queryKey: ['conversations-leases', user?.email, user?.id, user?.user_type],
+        queryFn: async () => {
+            if (!user) return [];
+            if (isSysAdmin) {
+                return await appClient.entities.Lease.list();
+            }
+            if (isLandlord) {
+                const byEmail = await appClient.entities.Lease.filter({ landlord_id: user.email });
+                const byId = user.id ? await appClient.entities.Lease.filter({ landlord_id: user.id }) : [];
+                const merged = [...byEmail, ...byId];
+                return Array.from(new Map(merged.map(item => [item.id, item])).values());
+            }
+            // Tenant or Contractor
+            const byEmail = await appClient.entities.Lease.filter({ tenant_id: user.email });
+            const byId = user.id ? await appClient.entities.Lease.filter({ tenant_id: user.id }) : [];
+            const merged = [...byEmail, ...byId];
+            if (merged.length > 0) return Array.from(new Map(merged.map(item => [item.id, item])).values());
+            // Fallback: list all leases if user participates in any
+            return await appClient.entities.Lease.list();
+        },
+        enabled: !!user?.email || !!user?.id,
     });
 
     const { data: messages = [] } = useQuery({
@@ -64,16 +84,17 @@ export default function Messages() {
         if (!messageInput.trim() || !selectedConversation) return;
 
         const lease = leases.find(l => l.id === selectedConversation);
+        const receiverId = isLandlord ? lease?.tenant_id : lease?.landlord_id;
 
         sendMessageMutation.mutate({
             conversation_id: selectedConversation,
             property_id: lease?.property_id,
             property_title: lease?.property_title,
             lease_id: lease?.id,
-            sender_id: user?.email,
-            sender_name: user?.full_name,
-            sender_type: 'tenant',
-            receiver_id: lease?.landlord_id,
+            sender_id: user?.email || user?.id,
+            sender_name: user?.full_name || user?.email,
+            sender_type: user?.user_type || 'tenant',
+            receiver_id: receiverId,
             message_type: 'text',
             content: messageInput,
             attachments: [],
@@ -93,16 +114,17 @@ export default function Messages() {
             try {
                 const { file_url } = await appClient.integrations.Core.UploadFile({ file });
                 const lease = leases.find(l => l.id === selectedConversation);
+                const receiverId = isLandlord ? lease?.tenant_id : lease?.landlord_id;
 
                 await sendMessageMutation.mutateAsync({
                     conversation_id: selectedConversation,
                     property_id: lease?.property_id,
                     property_title: lease?.property_title,
                     lease_id: lease?.id,
-                    sender_id: user?.email,
-                    sender_name: user?.full_name,
-                    sender_type: 'tenant',
-                    receiver_id: lease?.landlord_id,
+                    sender_id: user?.email || user?.id,
+                    sender_name: user?.full_name || user?.email,
+                    sender_type: user?.user_type || 'tenant',
+                    receiver_id: receiverId,
                     message_type: 'text',
                     content: `Shared a ${type}`,
                     attachments: [{
@@ -132,9 +154,9 @@ export default function Messages() {
             property_id: lease?.property_id,
             property_title: lease?.property_title,
             lease_id: lease?.id,
-            sender_id: user?.email,
-            sender_name: user?.full_name,
-            sender_type: 'tenant',
+            sender_id: user?.email || user?.id,
+            sender_name: user?.full_name || user?.email,
+            sender_type: user?.user_type || 'tenant',
             receiver_id: lease?.landlord_id,
             message_type: 'notice_to_vacate',
             content: `Notice to Vacate - Moving out on ${formatDate(vacateDate)}`,

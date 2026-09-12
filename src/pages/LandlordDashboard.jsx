@@ -263,7 +263,7 @@ export default function LandlordDashboard() {
                     <div className="flex items-center justify-between mb-5">
                         <h2 className="text-lg font-semibold text-zinc-900">Your Properties</h2>
                         <Link
-                            to={createPageUrl('MyProperties')}
+                            to={createPageUrl('Properties')}
                             className="text-sm text-zinc-900 hover:text-zinc-700 font-semibold flex items-center gap-1"
                         >
                             View All <ArrowRight className="w-4 h-4" />
@@ -278,28 +278,35 @@ export default function LandlordDashboard() {
                         </div>
                     ) : properties?.length > 0 ? (
                         <div className="space-y-3">
-                            {properties.slice(0, 3).map((property) => (
+                            {properties.slice(0, 5).map((property) => (
                                 <div
                                     key={property.id}
                                     className="flex items-center justify-between p-4 rounded-xl bg-zinc-50 hover:bg-zinc-100/90 border border-zinc-200/70 transition-colors"
                                 >
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center border border-zinc-200">
+                                        <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center border border-zinc-200 shrink-0">
                                             <Home className="w-5 h-5 text-zinc-700" />
                                         </div>
                                         <div>
-                                            <p className="font-medium text-zinc-900">{property.title}</p>
-                                            <p className="text-sm text-zinc-500">{property.city}, {property.state}</p>
+                                            <p className="font-medium text-zinc-900 text-sm line-clamp-1">{property.title}</p>
+                                            <p className="text-xs text-zinc-500">{property.city}, {property.state}</p>
                                         </div>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="font-semibold text-zinc-900">R{property.monthly_rent?.toLocaleString()}/mo</p>
-                                        <Badge className={`${property.status === 'available' ? 'bg-emerald-50 text-emerald-700' :
-                                                property.status === 'rented' ? 'bg-zinc-100 text-zinc-700' :
-                                                    'bg-amber-50 text-amber-700'
-                                            } text-xs`}>
-                                            {property.status}
-                                        </Badge>
+                                    <div className="flex items-center gap-3">
+                                        <div className="text-right">
+                                            <p className="font-semibold text-zinc-900 text-xs">R{property.monthly_rent?.toLocaleString()}/mo</p>
+                                            <Badge className={`${property.status === 'available' ? 'bg-emerald-50 text-emerald-700' :
+                                                    property.status === 'rented' ? 'bg-zinc-100 text-zinc-700' :
+                                                        'bg-amber-50 text-amber-700'
+                                                } text-[10px]`}>
+                                                {property.status}
+                                            </Badge>
+                                        </div>
+                                        <Button asChild size="sm" variant="outline" className="h-7 text-xs px-2.5">
+                                            <Link to={createPageUrl(`EditProperty?id=${property.id}`)}>
+                                                Edit
+                                            </Link>
+                                        </Button>
                                     </div>
                                 </div>
                             ))}

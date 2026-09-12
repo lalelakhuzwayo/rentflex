@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { appClient } from '@/api/appClient';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Upload, X, ArrowLeft } from 'lucide-react';
+import { Upload, X, ArrowLeft, Building2, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const AMENITIES_OPTIONS = [
@@ -22,6 +22,10 @@ const AMENITIES_OPTIONS = [
 
 export default function AddProperty() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const propertyId = searchParams.get('id');
+    const isEditing = Boolean(propertyId);
+
     const queryClient = useQueryClient();
     const [user, setUser] = useState(null);
     const [uploading, setUploading] = useState(false);
@@ -51,17 +55,58 @@ export default function AddProperty() {
 
     useEffect(() => {
         appClient.auth.me().then(setUser).catch(() => navigate(createPageUrl('Welcome')));
-    }, []);
+    }, [navigate]);
 
-    const createPropertyMutation = useMutation({
-        mutationFn: (data) => appClient.entities.Property.create(data),
+    // Fetch property data if in edit mode
+    const { data: existingProperty, isLoading: loadingProperty } = useQuery({
+        queryKey: ['property-edit', propertyId],
+        queryFn: () => appClient.entities.Property.get(propertyId),
+        enabled: !!propertyId
+    });
+
+    useEffect(() => {
+        if (existingProperty) {
+            setFormData({
+                title: existingProperty.title || '',
+                address: existingProperty.address || '',
+                city: existingProperty.city || '',
+                state: existingProperty.state || '',
+                zip_code: existingProperty.zip_code || '',
+                property_type: existingProperty.property_type || 'apartment',
+                bedrooms: existingProperty.bedrooms || 1,
+                bathrooms: existingProperty.bathrooms || 1,
+                sqft: existingProperty.sqft || '',
+                monthly_rent: existingProperty.monthly_rent || '',
+                deposit_amount: existingProperty.deposit_amount || '',
+                min_rentscore: existingProperty.min_rentscore || 600,
+                amenities: Array.isArray(existingProperty.amenities) ? existingProperty.amenities : [],
+                images: Array.isArray(existingProperty.images) ? existingProperty.images : [],
+                description: existingProperty.description || '',
+                available_date: existingProperty.available_date || '',
+                status: existingProperty.status || 'available',
+                accepts_bidding: Boolean(existingProperty.accepts_bidding),
+                bidding_ends: existingProperty.bidding_ends || '',
+                flexible_payments: existingProperty.flexible_payments !== false
+            });
+        }
+    }, [existingProperty]);
+
+    const savePropertyMutation = useMutation({
+        mutationFn: (data) => {
+            if (isEditing && propertyId) {
+                return appClient.entities.Property.update(propertyId, data);
+            }
+            return appClient.entities.Property.create(data);
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['properties'] });
-            toast.success('Property added successfully!');
-            navigate(createPageUrl('LandlordDashboard'));
+            queryClient.invalidateQueries({ queryKey: ['properties-list'] });
+            queryClient.invalidateQueries({ queryKey: ['myProperties'] });
+            toast.success(isEditing ? 'Property updated successfully!' : 'Property added successfully!');
+            navigate(createPageUrl('Properties'));
         },
         onError: (error) => {
-            toast.error('Failed to add property');
+            toast.error(isEditing ? 'Failed to update property' : 'Failed to add property');
             console.error(error);
         }
     });
@@ -115,7 +160,7 @@ export default function AddProperty() {
             return;
         }
 
-        const landlordId = user?.email || user?.id || 'landlord';
+        const landlordId = existingProperty?.landlord_id || user?.email || user?.id || 'landlord';
 
         const propertyData = {
             ...formData,
@@ -128,61 +173,98 @@ export default function AddProperty() {
             min_rentscore: Number(formData.min_rentscore || 600)
         };
 
-        createPropertyMutation.mutate(propertyData);
+        savePropertyMutation.mutate(propertyData);
     };
 
     return (
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-4xl mx-auto pb-12">
             <div className="mb-6">
                 <Button
                     variant="ghost"
-                    onClick={() => navigate(createPageUrl('LandlordDashboard'))}
-                    className="mb-4"
+                    onClick={() => navigate(createPageUrl('Properties'))}
+                    className="mb-4 text-zinc-600 hover:text-zinc-900"
                 >
                     <ArrowLeft className="w-4 h-4 mr-2" />
-                    Back to Dashboard
+                    Back to Properties
                 </Button>
-                <h1 className="text-3xl font-bold text-slate-900">Add New Property</h1>
-                <p className="text-slate-600 mt-2">List your property and start receiving applications</p>
+                <div className="flex items-center gap-3">
+                    <Building2 className="w-7 h-7 text-zinc-900" />
+                    <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">
+                        {isEditing ? 'Edit Property Details' : 'Add New Property'}
+                    </h1>
+                </div>
+                <p className="text-xs text-zinc-500 mt-1">
+                    {isEditing ? 'Update rent prices, photos, description, and status' : 'Fill in the information below to list your property'}
+                </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Basic Information */}
-                <Card>
+                {/* Basic Info */}
+                <Card className="sharp-card bg-white">
                     <CardHeader>
-                        <CardTitle>Basic Information</CardTitle>
+                        <CardTitle className="text-base font-bold text-zinc-900">Basic Information</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div>
-                            <Label htmlFor="title">Property Title *</Label>
+                            <Label className="text-xs font-semibold text-zinc-700">Property Title *</Label>
                             <Input
-                                id="title"
-                                placeholder="e.g., Modern 2BR Apartment in City Center"
+                                placeholder="e.g. Modern 2-Bedroom Luxury Apartment in Sea Point"
                                 value={formData.title}
                                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                                 required
+                                className="mt-1"
                             />
                         </div>
 
-                        <div>
-                            <Label htmlFor="description">Description</Label>
-                            <Textarea
-                                id="description"
-                                placeholder="Describe your property..."
-                                rows={4}
-                                value={formData.description}
-                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                            />
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="property_type">Property Type</Label>
+                                <Label className="text-xs font-semibold text-zinc-700">Address *</Label>
+                                <Input
+                                    placeholder="123 Beach Road"
+                                    value={formData.address}
+                                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                                    required
+                                    className="mt-1"
+                                />
+                            </div>
+                            <div>
+                                <Label className="text-xs font-semibold text-zinc-700">City / Suburb *</Label>
+                                <Input
+                                    placeholder="Cape Town"
+                                    value={formData.city}
+                                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                                    required
+                                    className="mt-1"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                                <Label className="text-xs font-semibold text-zinc-700">Province / State</Label>
+                                <Input
+                                    placeholder="Western Cape"
+                                    value={formData.state}
+                                    onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                                    className="mt-1"
+                                />
+                            </div>
+                            <div>
+                                <Label className="text-xs font-semibold text-zinc-700">Postal / Zip Code</Label>
+                                <Input
+                                    placeholder="8005"
+                                    value={formData.zip_code}
+                                    onChange={(e) => setFormData({ ...formData, zip_code: e.target.value })}
+                                    className="mt-1"
+                                />
+                            </div>
+                            <div>
+                                <Label className="text-xs font-semibold text-zinc-700">Property Type</Label>
                                 <Select
                                     value={formData.property_type}
-                                    onValueChange={(value) => setFormData({ ...formData, property_type: value })}
+                                    onValueChange={(val) => setFormData({ ...formData, property_type: val })}
                                 >
-                                    <SelectTrigger>
+                                    <SelectTrigger className="mt-1">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -194,303 +276,203 @@ export default function AddProperty() {
                                     </SelectContent>
                                 </Select>
                             </div>
+                        </div>
 
+                        {isEditing && (
                             <div>
-                                <Label htmlFor="status">Status</Label>
+                                <Label className="text-xs font-semibold text-zinc-700 block mb-1">Listing Status</Label>
                                 <Select
                                     value={formData.status}
-                                    onValueChange={(value) => setFormData({ ...formData, status: value })}
+                                    onValueChange={(val) => setFormData({ ...formData, status: val })}
                                 >
                                     <SelectTrigger>
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="available">Available</SelectItem>
-                                        <SelectItem value="pending">Pending</SelectItem>
-                                        <SelectItem value="rented">Rented</SelectItem>
-                                        <SelectItem value="unlisted">Unlisted</SelectItem>
+                                        <SelectItem value="available">Available (Public)</SelectItem>
+                                        <SelectItem value="rented">Rented / Occupied</SelectItem>
+                                        <SelectItem value="pending">Pending Application</SelectItem>
+                                        <SelectItem value="unlisted">Unlisted / Private</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
-                        </div>
+                        )}
                     </CardContent>
                 </Card>
 
-                {/* Location */}
-                <Card>
+                {/* Details & Pricing */}
+                <Card className="sharp-card bg-white">
                     <CardHeader>
-                        <CardTitle>Location</CardTitle>
+                        <CardTitle className="text-base font-bold text-zinc-900">Property Features & Financials</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div>
-                            <Label htmlFor="address">Street Address *</Label>
-                            <Input
-                                id="address"
-                                placeholder="123 Main Street"
-                                value={formData.address}
-                                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                                required
-                            />
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div>
-                                <Label htmlFor="city">City</Label>
+                                <Label className="text-xs font-semibold text-zinc-700">Bedrooms</Label>
                                 <Input
-                                    id="city"
-                                    placeholder="Cape Town"
-                                    value={formData.city}
-                                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                                />
-                            </div>
-
-                            <div>
-                                <Label htmlFor="state">State/Province</Label>
-                                <Input
-                                    id="state"
-                                    placeholder="Western Cape"
-                                    value={formData.state}
-                                    onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                                />
-                            </div>
-
-                            <div>
-                                <Label htmlFor="zip_code">Zip/Postal Code</Label>
-                                <Input
-                                    id="zip_code"
-                                    placeholder="8001"
-                                    value={formData.zip_code}
-                                    onChange={(e) => setFormData({ ...formData, zip_code: e.target.value })}
-                                />
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Property Details */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Property Details</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                                <Label htmlFor="bedrooms">Bedrooms</Label>
-                                <Input
-                                    id="bedrooms"
                                     type="number"
                                     min="0"
                                     value={formData.bedrooms}
                                     onChange={(e) => setFormData({ ...formData, bedrooms: e.target.value })}
+                                    className="mt-1"
                                 />
                             </div>
-
                             <div>
-                                <Label htmlFor="bathrooms">Bathrooms</Label>
+                                <Label className="text-xs font-semibold text-zinc-700">Bathrooms</Label>
                                 <Input
-                                    id="bathrooms"
                                     type="number"
                                     min="0"
                                     step="0.5"
                                     value={formData.bathrooms}
                                     onChange={(e) => setFormData({ ...formData, bathrooms: e.target.value })}
+                                    className="mt-1"
                                 />
                             </div>
-
                             <div>
-                                <Label htmlFor="sqft">Square Feet</Label>
+                                <Label className="text-xs font-semibold text-zinc-700">Square Feet / Meters (m²)</Label>
                                 <Input
-                                    id="sqft"
                                     type="number"
-                                    placeholder="1200"
+                                    placeholder="85"
                                     value={formData.sqft}
                                     onChange={(e) => setFormData({ ...formData, sqft: e.target.value })}
+                                    className="mt-1"
                                 />
                             </div>
                         </div>
-                    </CardContent>
-                </Card>
 
-                {/* Pricing */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Pricing & Requirements</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div>
-                                <Label htmlFor="monthly_rent">Monthly Rent (R) *</Label>
+                                <Label className="text-xs font-semibold text-zinc-700">Monthly Rent (ZAR) *</Label>
                                 <Input
-                                    id="monthly_rent"
                                     type="number"
                                     placeholder="15000"
                                     value={formData.monthly_rent}
                                     onChange={(e) => setFormData({ ...formData, monthly_rent: e.target.value })}
                                     required
+                                    className="mt-1"
                                 />
                             </div>
-
                             <div>
-                                <Label htmlFor="deposit_amount">Deposit Amount (R)</Label>
+                                <Label className="text-xs font-semibold text-zinc-700">Deposit Amount (ZAR)</Label>
                                 <Input
-                                    id="deposit_amount"
                                     type="number"
                                     placeholder="15000"
                                     value={formData.deposit_amount}
                                     onChange={(e) => setFormData({ ...formData, deposit_amount: e.target.value })}
+                                    className="mt-1"
                                 />
                             </div>
-                        </div>
-
-                        <div>
-                            <Label htmlFor="min_rentscore">Minimum RentScore</Label>
-                            <Input
-                                id="min_rentscore"
-                                type="number"
-                                min="300"
-                                max="850"
-                                placeholder="600"
-                                value={formData.min_rentscore}
-                                onChange={(e) => setFormData({ ...formData, min_rentscore: e.target.value })}
-                            />
-                        </div>
-
-                        <div>
-                            <Label htmlFor="available_date">Available From</Label>
-                            <Input
-                                id="available_date"
-                                type="date"
-                                value={formData.available_date}
-                                onChange={(e) => setFormData({ ...formData, available_date: e.target.value })}
-                            />
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Features */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Features & Options</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        <div className="flex items-center justify-between">
                             <div>
-                                <Label>Accept Bidding</Label>
-                                <p className="text-sm text-slate-500">Allow tenants to place bids on this property</p>
-                            </div>
-                            <Switch
-                                checked={formData.accepts_bidding}
-                                onCheckedChange={(checked) => setFormData({ ...formData, accepts_bidding: checked })}
-                            />
-                        </div>
-
-                        {formData.accepts_bidding && (
-                            <div>
-                                <Label htmlFor="bidding_ends">Bidding Ends</Label>
+                                <Label className="text-xs font-semibold text-zinc-700">Min. RentScore Required</Label>
                                 <Input
-                                    id="bidding_ends"
-                                    type="datetime-local"
-                                    value={formData.bidding_ends}
-                                    onChange={(e) => setFormData({ ...formData, bidding_ends: e.target.value })}
+                                    type="number"
+                                    placeholder="600"
+                                    value={formData.min_rentscore}
+                                    onChange={(e) => setFormData({ ...formData, min_rentscore: e.target.value })}
+                                    className="mt-1"
                                 />
-                            </div>
-                        )}
-
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <Label>Flexible Payments</Label>
-                                <p className="text-sm text-slate-500">Allow weekly/bi-weekly payment schedules</p>
-                            </div>
-                            <Switch
-                                checked={formData.flexible_payments}
-                                onCheckedChange={(checked) => setFormData({ ...formData, flexible_payments: checked })}
-                            />
-                        </div>
-
-                        <div>
-                            <Label>Amenities</Label>
-                            <div className="flex flex-wrap gap-2 mt-3">
-                                {AMENITIES_OPTIONS.map(amenity => (
-                                    <Badge
-                                        key={amenity}
-                                        variant={formData.amenities.includes(amenity) ? "default" : "outline"}
-                                        className="cursor-pointer"
-                                        onClick={() => toggleAmenity(amenity)}
-                                    >
-                                        {amenity}
-                                    </Badge>
-                                ))}
                             </div>
                         </div>
                     </CardContent>
                 </Card>
 
-                {/* Images */}
-                <Card>
+                {/* Photos & Description */}
+                <Card className="sharp-card bg-white">
                     <CardHeader>
-                        <CardTitle>Property Images</CardTitle>
+                        <CardTitle className="text-base font-bold text-zinc-900">Photos & Description</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <div className="space-y-4">
-                            <div className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center">
-                                <input
-                                    type="file"
-                                    id="images"
-                                    multiple
-                                    accept="image/*"
-                                    onChange={handleImageUpload}
-                                    className="hidden"
-                                    disabled={uploading}
-                                />
-                                <label htmlFor="images" className="cursor-pointer">
-                                    <Upload className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-                                    <p className="text-slate-600 font-medium">
-                                        {uploading ? 'Uploading...' : 'Click to upload images'}
-                                    </p>
-                                    <p className="text-sm text-slate-400 mt-1">PNG, JPG up to 10MB each</p>
+                    <CardContent className="space-y-4">
+                        <div>
+                            <Label className="text-xs font-semibold text-zinc-700">Property Photos</Label>
+                            <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                {formData.images.map((url, idx) => (
+                                    <div key={idx} className="relative h-28 rounded-lg overflow-hidden border border-zinc-200 group">
+                                        <img src={url} alt={`Upload ${idx}`} className="w-full h-full object-cover" />
+                                        <button
+                                            type="button"
+                                            onClick={() => removeImage(idx)}
+                                            className="absolute top-1.5 right-1.5 p-1 bg-zinc-950/80 text-white rounded-full hover:bg-zinc-950"
+                                        >
+                                            <X className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                ))}
+
+                                <label className="h-28 border-2 border-dashed border-zinc-300 hover:border-zinc-900 rounded-lg flex flex-col items-center justify-center cursor-pointer transition-colors text-center p-2">
+                                    <Upload className="w-5 h-5 text-zinc-500 mb-1" />
+                                    <span className="text-xs font-semibold text-zinc-700">
+                                        {uploading ? 'Uploading...' : 'Upload Photos'}
+                                    </span>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        multiple
+                                        onChange={handleImageUpload}
+                                        disabled={uploading}
+                                        className="hidden"
+                                    />
                                 </label>
                             </div>
+                        </div>
 
-                            {formData.images.length > 0 && (
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    {formData.images.map((url, index) => (
-                                        <div key={index} className="relative group">
-                                            <img
-                                                src={url}
-                                                alt={`Property ${index + 1}`}
-                                                className="w-full h-32 object-cover rounded-lg"
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => removeImage(index)}
-                                                className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                        <div>
+                            <Label className="text-xs font-semibold text-zinc-700">Description</Label>
+                            <Textarea
+                                placeholder="Describe key highlights, neighborhood attractions, transport access..."
+                                value={formData.description}
+                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                rows={4}
+                                className="mt-1"
+                            />
                         </div>
                     </CardContent>
                 </Card>
 
-                {/* Submit */}
-                <div className="flex gap-4">
+                {/* Amenities */}
+                <Card className="sharp-card bg-white">
+                    <CardHeader>
+                        <CardTitle className="text-base font-bold text-zinc-900">Amenities & Features</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="flex flex-wrap gap-2">
+                            {AMENITIES_OPTIONS.map((amenity) => {
+                                const selected = formData.amenities.includes(amenity);
+                                return (
+                                    <button
+                                        key={amenity}
+                                        type="button"
+                                        onClick={() => toggleAmenity(amenity)}
+                                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                                            selected
+                                                ? 'border-zinc-950 bg-zinc-950 text-white'
+                                                : 'border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300'
+                                        }`}
+                                    >
+                                        {selected && <CheckCircle2 className="w-3.5 h-3.5 inline mr-1" />}
+                                        {amenity}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <div className="flex justify-end gap-3 pt-4">
                     <Button
                         type="button"
                         variant="outline"
-                        onClick={() => navigate(createPageUrl('LandlordDashboard'))}
-                        className="flex-1"
+                        onClick={() => navigate(createPageUrl('Properties'))}
                     >
                         Cancel
                     </Button>
                     <Button
                         type="submit"
-                        disabled={createPropertyMutation.isPending}
-                        className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-white"
+                        disabled={savePropertyMutation.isPending}
+                        className="bg-zinc-950 hover:bg-zinc-900 text-white px-8 font-semibold"
                     >
-                        {createPropertyMutation.isPending ? 'Adding Property...' : 'Add Property'}
+                        {savePropertyMutation.isPending
+                            ? (isEditing ? 'Saving Changes...' : 'Listing Property...')
+                            : (isEditing ? 'Save Changes' : 'Create Property Listing')}
                     </Button>
                 </div>
             </form>

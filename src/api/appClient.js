@@ -12,6 +12,7 @@ const ENTITY_TABLE_MAP = {
     Payment: 'payments',
     MaintenanceRequest: 'maintenance_requests',
     Job: 'jobs',
+    ContractorJob: 'jobs',
     ContractorBid: 'contractor_bids',
     Bid: 'bids',
     Contractor: 'contractors',

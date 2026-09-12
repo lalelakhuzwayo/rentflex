@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl, formatDate, formatDateTime } from '@/utils';
 import { appClient } from '@/api/appClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/lib/AuthContext';
 import {
     ArrowLeft,
     MapPin,
@@ -21,7 +22,8 @@ import {
     Waves,
     Shield,
     CreditCard,
-    Sparkles
+    Sparkles,
+    Edit3
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -54,7 +56,7 @@ const amenityIcons = {
 };
 
 export default function PropertyDetails() {
-    const [user, setUser] = useState(null);
+    const { user, isLandlord, isSysAdmin } = useAuth();
     const [bidDialogOpen, setBidDialogOpen] = useState(false);
     const [selectedImage, setSelectedImage] = useState(0);
     const queryClient = useQueryClient();
@@ -84,6 +86,11 @@ export default function PropertyDetails() {
         enabled: !!propertyId,
     });
 
+    const highestBid = bids.reduce((max, bid) => {
+        const val = Number(bid.proposed_rent || bid.bid_amount || 0);
+        return val > max ? val : max;
+    }, 0);
+
     const { data: rentScore } = useQuery({
         queryKey: ['myRentScore', user?.email],
         queryFn: async () => {
@@ -107,6 +114,10 @@ export default function PropertyDetails() {
             setBidDialogOpen(false);
             toast.success('Bid submitted successfully!');
         },
+        onError: (err) => {
+            console.error('Bid submit error:', err);
+            toast.error(err.message || 'Failed to submit bid.');
+        }
     });
 
     const handleSubmitBid = () => {
@@ -115,15 +126,24 @@ export default function PropertyDetails() {
             return;
         }
 
+        const numericBid = parseFloat(bidForm.bid_amount);
+        if (isNaN(numericBid) || numericBid <= 0) {
+            toast.error('Please enter a valid bid amount');
+            return;
+        }
+
         createBidMutation.mutate({
             property_id: propertyId,
-            bidder_id: user?.email,
-            bid_amount: parseFloat(bidForm.bid_amount),
-            proposed_lease_months: parseInt(bidForm.proposed_lease_months),
+            tenant_id: user?.email || user?.id || 'guest',
+            tenant_name: user?.full_name || user?.email?.split('@')[0] || 'Tenant',
+            proposed_rent: numericBid,
+            lease_duration_months: parseInt(bidForm.proposed_lease_months || '12', 10),
             move_in_date: bidForm.move_in_date,
-            message: bidForm.message,
-            bidder_rentscore: rentScore?.score || 0,
-            status: 'pending'
+            status: 'pending',
+            bidder_id: user?.email || user?.id,
+            bid_amount: numericBid,
+            proposed_lease_months: parseInt(bidForm.proposed_lease_months || '12', 10),
+            message: bidForm.message
         });
     };
 
@@ -159,18 +179,29 @@ export default function PropertyDetails() {
         );
     }
 
-    const highestBid = bids?.length ? Math.max(...bids.map(b => b.bid_amount)) : property.monthly_rent;
+    const canEdit = isSysAdmin || (isLandlord && (property?.landlord_id === user?.email || property?.landlord_id === user?.id));
 
     return (
         <div className="space-y-6">
-            {/* Back Button */}
-            <Link
-                to={createPageUrl('Properties')}
-                className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors"
-            >
-                <ArrowLeft className="w-4 h-4" />
-                Back to listings
-            </Link>
+            {/* Back Button & Admin/Landlord Actions */}
+            <div className="flex items-center justify-between gap-4">
+                <Link
+                    to={createPageUrl('Properties')}
+                    className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors text-sm font-semibold"
+                >
+                    <ArrowLeft className="w-4 h-4" />
+                    Back to listings
+                </Link>
+
+                {canEdit && (
+                    <Button asChild size="sm" className="bg-zinc-950 hover:bg-zinc-900 text-white font-semibold">
+                        <Link to={createPageUrl(`EditProperty?id=${propertyId}`)}>
+                            <Edit3 className="w-4 h-4 mr-1.5" />
+                            Edit Property
+                        </Link>
+                    </Button>
+                )}
+            </div>
 
             {/* Image Gallery */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">

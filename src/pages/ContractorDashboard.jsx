@@ -99,17 +99,6 @@ export default function ContractorDashboard() {
                         <h1 className="text-2xl font-bold text-zinc-900">
                             Welcome back, {displayName}!
                         </h1>
-                        {contractor.verified ? (
-                            <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-500/20 font-bold px-2.5 py-0.5 flex items-center gap-1">
-                                <ShieldCheck className="w-3.5 h-3.5" />
-                                Verified Contractor
-                            </Badge>
-                        ) : (
-                            <Badge className="bg-amber-500/10 text-amber-700 border-amber-500/20 font-bold px-2.5 py-0.5 flex items-center gap-1">
-                                <ShieldAlert className="w-3.5 h-3.5" />
-                                {verificationStatus.toUpperCase()}
-                            </Badge>
-                        )}
                     </div>
                     <p className="text-xs text-zinc-500 mt-0.5">Manage your bids and find new opportunities</p>
                 </div>

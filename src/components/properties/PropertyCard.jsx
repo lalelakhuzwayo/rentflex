@@ -1,11 +1,15 @@
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { useAuth } from '@/lib/AuthContext';
 import { motion } from 'framer-motion';
-import { MapPin, Bed, Bath, Square, TrendingUp, Clock, Gavel } from 'lucide-react';
+import { MapPin, Bed, Bath, Square, TrendingUp, Clock, Gavel, Edit3 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 export default function PropertyCard({ property, index = 0 }) {
+    const { user, isLandlord, isSysAdmin } = useAuth();
     const defaultImage = 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800&q=80';
+
+    const canEdit = isSysAdmin || (isLandlord && (property.landlord_id === user?.email || property.landlord_id === user?.id));
 
     const statusColors = {
         available: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
@@ -24,9 +28,9 @@ export default function PropertyCard({ property, index = 0 }) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05, duration: 0.25 }}
-            className="group bg-white rounded-xl overflow-hidden border border-zinc-200/80 hover:border-zinc-300 hover:shadow-md hover:-translate-y-0.5 transition-[border-color,box-shadow,transform] duration-200 transform-gpu"
+            className="group bg-white rounded-xl overflow-hidden border border-zinc-200/80 hover:border-zinc-300 hover:shadow-md hover:-translate-y-0.5 transition-[border-color,box-shadow,transform] duration-200 transform-gpu flex flex-col justify-between"
         >
-            <Link to={createPageUrl(`PropertyDetails?id=${property.id}`)}>
+            <Link to={createPageUrl(`PropertyDetails?id=${property.id}`)} className="block">
                 {/* Image */}
                 <div className="relative h-48 sm:h-52 overflow-hidden bg-zinc-100">
                     <img
@@ -41,7 +45,7 @@ export default function PropertyCard({ property, index = 0 }) {
                         }}
                     />
                     <div className="absolute top-3 left-3 flex gap-1.5">
-                        <Badge className={`${statusColors[property.status]} text-[11px] font-medium px-2 py-0.5 rounded-md`}>
+                        <Badge className={`${statusColors[property.status] || 'bg-zinc-100 text-zinc-700'} text-[11px] font-medium px-2 py-0.5 rounded-md`}>
                             {property.status}
                         </Badge>
                         {property.accepts_bidding && (
@@ -110,6 +114,17 @@ export default function PropertyCard({ property, index = 0 }) {
                     )}
                 </div>
             </Link>
+
+            {canEdit && (
+                <div className="px-4 pb-4 pt-1 flex justify-end bg-white border-t border-zinc-100">
+                    <Button asChild size="sm" variant="outline" className="h-8 text-xs font-semibold border-zinc-200 hover:bg-zinc-100">
+                        <Link to={createPageUrl(`EditProperty?id=${property.id}`)}>
+                            <Edit3 className="w-3.5 h-3.5 mr-1 text-zinc-700" />
+                            Edit Property
+                        </Link>
+                    </Button>
+                </div>
+            )}
         </motion.div>
     );
 }

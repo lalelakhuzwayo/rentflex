@@ -43,17 +43,40 @@ export default function ApplicationScreening() {
     }, []);
 
     const isSysAdmin = user?.user_type === 'sysAdmin';
+    const isTenant = user?.user_type === 'tenant';
 
     const { data: applications, isLoading } = useQuery({
-        queryKey: ['applications', user?.email, isSysAdmin],
-        queryFn: () => isSysAdmin ? appClient.entities.Application.list() : appClient.entities.Application.filter({ landlord_id: user?.email }),
-        enabled: !!user?.email,
+        queryKey: ['applications', user?.email, user?.id, user?.user_type],
+        queryFn: async () => {
+            if (!user) return [];
+            if (isSysAdmin) {
+                return await appClient.entities.Application.list();
+            }
+            if (isTenant) {
+                const byEmail = await appClient.entities.Application.filter({ tenant_id: user.email });
+                const byId = user.id ? await appClient.entities.Application.filter({ tenant_id: user.id }) : [];
+                const merged = [...byEmail, ...byId];
+                return Array.from(new Map(merged.map(item => [item.id, item])).values());
+            }
+            const byEmail = await appClient.entities.Application.filter({ landlord_id: user.email });
+            const byId = user.id ? await appClient.entities.Application.filter({ landlord_id: user.id }) : [];
+            const merged = [...byEmail, ...byId];
+            return Array.from(new Map(merged.map(item => [item.id, item])).values());
+        },
+        enabled: !!user?.email || !!user?.id,
     });
 
     const { data: properties } = useQuery({
-        queryKey: ['landlordProperties', user?.email, isSysAdmin],
-        queryFn: () => isSysAdmin ? appClient.entities.Property.list() : appClient.entities.Property.filter({ landlord_id: user?.email }),
-        enabled: !!user?.email,
+        queryKey: ['landlordProperties', user?.email, user?.id, isSysAdmin],
+        queryFn: async () => {
+            if (!user) return [];
+            if (isSysAdmin) return await appClient.entities.Property.list();
+            const byEmail = await appClient.entities.Property.filter({ landlord_id: user.email });
+            const byId = user.id ? await appClient.entities.Property.filter({ landlord_id: user.id }) : [];
+            const merged = [...byEmail, ...byId];
+            return Array.from(new Map(merged.map(item => [item.id, item])).values());
+        },
+        enabled: !!user?.email || !!user?.id,
     });
 
     const updateApplicationMutation = useMutation({
@@ -71,11 +94,33 @@ export default function ApplicationScreening() {
         setDetailsModalOpen(true);
     };
 
-    const handleQuickAction = (applicationId, status) => {
+    const handleQuickAction = async (applicationId, status) => {
         updateApplicationMutation.mutate({
             id: applicationId,
             data: { status }
         });
+
+        if (status === 'approved') {
+            const appToApprove = applications?.find(a => a.id === applicationId);
+            if (appToApprove) {
+                try {
+                    await appClient.entities.Lease.create({
+                        property_id: appToApprove.property_id,
+                        property_title: appToApprove.property_title || 'Leased Property',
+                        landlord_id: appToApprove.landlord_id || user?.email,
+                        tenant_id: appToApprove.tenant_id,
+                        monthly_rent: Number(appToApprove.monthly_rent || 0),
+                        deposit_amount: Number(appToApprove.deposit_amount || 0),
+                        start_date: new Date().toISOString().split('T')[0],
+                        end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                        status: 'active'
+                    });
+                    toast.success('🎉 Application approved & Active Lease automatically generated!');
+                } catch (e) {
+                    console.error('Lease generation error:', e);
+                }
+            }
+        }
     };
 
     const handleApprove = async () => {

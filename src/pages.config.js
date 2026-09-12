@@ -50,6 +50,7 @@ export const PAGES = {
     "PostJob": PostJob,
     "PrivacyPolicy": PrivacyPolicy,
     "Properties": Properties,
+    "MyProperties": Properties,
     "PropertyDetails": PropertyDetails,
     "RentScore": RentScore,
     "Settings": Settings,
@@ -57,6 +58,7 @@ export const PAGES = {
     "TenantOnboarding": TenantOnboarding,
     "Welcome": Welcome,
     "AddProperty": AddProperty,
+    "EditProperty": AddProperty,
     "PageNotFound": PageNotFound,
     "NotFound": PageNotFound,
 }
