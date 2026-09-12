@@ -203,6 +203,15 @@ export const authActions = {
                 return null;
             }
 
+            // Check if user selected a role prior to OAuth redirect (e.g. Google Auth)
+            let pendingOAuthRole = null;
+            try {
+                pendingOAuthRole = localStorage.getItem('pending_oauth_role');
+                if (pendingOAuthRole) {
+                    localStorage.removeItem('pending_oauth_role');
+                }
+            } catch (e) {}
+
             // Fetch enriched profile from public.profiles
             let { data: profile, error: profileError } = await supabase
                 .from('profiles')
@@ -214,18 +223,20 @@ export const authActions = {
                 console.warn('Profile fetch notice:', profileError.message);
             }
 
-            // Auto-create/upsert profile for OAuth or new auth users if missing in profiles table
-            if (!profile && user?.id) {
+            // If pendingOAuthRole is present, or profile is missing, upsert/update the profile with the selected user_type
+            if (pendingOAuthRole || !profile) {
                 try {
-                    const defaultRole = user.user_metadata?.user_type || 'tenant';
-                    const { data: createdProfile } = await supabase
+                    const targetRole = pendingOAuthRole || profile?.user_type || user.user_metadata?.user_type || 'tenant';
+                    const resolvedTargetRole = (targetRole === 'admin' || targetRole === 'sysadmin') ? 'sysAdmin' : targetRole;
+                    
+                    const { data: updatedProfile } = await supabase
                         .from('profiles')
                         .upsert({
                             id: user.id,
                             email: user.email,
-                            full_name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0],
-                            user_type: defaultRole,
-                            phone: user.user_metadata?.phone || null,
+                            full_name: profile?.full_name || user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0],
+                            user_type: resolvedTargetRole,
+                            phone: profile?.phone || user.user_metadata?.phone || null,
                             verified: true,
                             id_verified: true,
                             status: 'verified',
@@ -234,11 +245,11 @@ export const authActions = {
                         .select()
                         .maybeSingle();
 
-                    if (createdProfile) {
-                        profile = createdProfile;
+                    if (updatedProfile) {
+                        profile = updatedProfile;
                     }
                 } catch (upsertErr) {
-                    console.warn('Auto profile creation notice:', upsertErr);
+                    console.warn('Profile upsert/update notice:', upsertErr);
                 }
             }
 

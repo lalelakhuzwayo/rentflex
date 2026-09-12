@@ -120,22 +120,34 @@ export const AuthProvider = ({ children }) => {
     };
 
     // Scalable OAuth / SSO Provider Connectors
-    const signInWithGoogle = async (redirectUrl = `${window.location.origin}/Auth`) => {
-        toast.info('Connecting to Google Identity Services...');
+    const signInWithGoogle = async (role = 'tenant', redirectUrl = `${window.location.origin}/Auth`) => {
+        try {
+            if (role) localStorage.setItem('pending_oauth_role', role);
+        } catch (e) {}
+        toast.info(`Connecting to Google Identity Services...`);
         return appClient.auth.redirectToLogin(redirectUrl, 'google');
     };
 
-    const signInWithFacebook = async (redirectUrl = `${window.location.origin}/Auth`) => {
+    const signInWithFacebook = async (role = 'tenant', redirectUrl = `${window.location.origin}/Auth`) => {
+        try {
+            if (role) localStorage.setItem('pending_oauth_role', role);
+        } catch (e) {}
         toast.info('Connecting to Facebook Login...');
         return appClient.auth.redirectToLogin(redirectUrl, 'facebook');
     };
 
-    const signInWithApple = async (redirectUrl = `${window.location.origin}/Auth`) => {
+    const signInWithApple = async (role = 'tenant', redirectUrl = `${window.location.origin}/Auth`) => {
+        try {
+            if (role) localStorage.setItem('pending_oauth_role', role);
+        } catch (e) {}
         toast.info('Connecting to Apple ID Sign-In (iOS)...');
         return appClient.auth.redirectToLogin(redirectUrl, 'apple');
     };
 
-    const signInWithWindows = async (redirectUrl = `${window.location.origin}/Auth`) => {
+    const signInWithWindows = async (role = 'tenant', redirectUrl = `${window.location.origin}/Auth`) => {
+        try {
+            if (role) localStorage.setItem('pending_oauth_role', role);
+        } catch (e) {}
         toast.info('Connecting to Microsoft Azure AD / Windows Hello...');
         return appClient.auth.redirectToLogin(redirectUrl, 'azure');
     };

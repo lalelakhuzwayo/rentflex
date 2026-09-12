@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import StatsCard from '@/components/dashboard/StatsCard';
-import { Briefcase, DollarSign, Star, Clock, MapPin, AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
+import { Briefcase, DollarSign, Star, Clock, MapPin, AlertCircle, CheckCircle2, XCircle, ShieldCheck, ShieldAlert, FileText, ChevronRight } from 'lucide-react';
 import BlockLoader from '@/components/ui/BlockLoader';
+import { validateSouthAfricanID } from '@/utils/contractorVerificationEngine';
 
 export default function ContractorDashboard() {
     const [user, setUser] = useState(null);
@@ -62,7 +63,7 @@ export default function ContractorDashboard() {
                 <h2 className="text-xl font-bold text-zinc-900 mb-2">Complete Your Contractor Profile</h2>
                 <p className="text-xs text-zinc-500 mb-6">Set up your contractor profile to start bidding on jobs</p>
                 <Button asChild className="bg-zinc-900 hover:bg-zinc-800 text-white">
-                    <Link to={createPageUrl('ContractorOnboarding')}>Complete Profile</Link>
+                    <Link to={createPageUrl('ContractorOnboarding')}>Complete Profile & Verification</Link>
                 </Button>
             </div>
         );
@@ -73,26 +74,51 @@ export default function ContractorDashboard() {
     const rejectedBids = myBids.filter(b => b.status === 'rejected').length;
     const totalEarnings = myBids
         .filter(b => b.status === 'accepted')
-        .reduce((sum, bid) => sum + bid.bid_amount, 0);
+        .reduce((sum, bid) => sum + (Number(bid.bid_amount) || 0), 0);
 
-    const verificationProgress = [
-        { label: 'Profile Complete', done: !!(contractor.company_name || contractor.business_name) },
-        { label: 'License Added', done: !!contractor.license_number },
-        { label: 'Insurance Verified', done: Boolean(contractor.insurance_verified) },
-        { label: 'Verified Contractor', done: Boolean(contractor.verified) }
+    // Automated Verification Stats
+    const idValid = contractor.id_number && validateSouthAfricanID(contractor.id_number).valid;
+    const verificationScore = contractor.verification_score || 0;
+    const verificationStatus = contractor.verification_status || (contractor.verified ? 'verified' : 'pending');
+
+    const verificationChecklist = [
+        { label: 'SA ID Number Validated (Luhn Check)', done: Boolean(idValid) },
+        { label: 'Government ID / Passport Uploaded', done: Boolean(contractor.id_document_url) },
+        { label: 'Trade License / Certificate Uploaded', done: Boolean(contractor.trade_certificate_url) },
+        { label: 'Proof of Address Uploaded', done: Boolean(contractor.proof_of_address_url) }
     ];
-    const verifiedCount = verificationProgress.filter(v => v.done).length;
+    const completedChecklistCount = verificationChecklist.filter(v => v.done).length;
 
     const displayName = contractor.company_name || contractor.business_name || 'Contractor';
-    const planName = contractor.subscription_plan || contractor.subscription_status || 'pro';
 
     return (
         <div>
-            <div className="mb-8">
-                <h1 className="text-2xl font-bold text-zinc-900 mb-1">
-                    Welcome back, {displayName}!
-                </h1>
-                <p className="text-xs text-zinc-500">Manage your bids and find new opportunities</p>
+            <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-2xl font-bold text-zinc-900">
+                            Welcome back, {displayName}!
+                        </h1>
+                        {contractor.verified ? (
+                            <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-500/20 font-bold px-2.5 py-0.5 flex items-center gap-1">
+                                <ShieldCheck className="w-3.5 h-3.5" />
+                                Verified Contractor
+                            </Badge>
+                        ) : (
+                            <Badge className="bg-amber-500/10 text-amber-700 border-amber-500/20 font-bold px-2.5 py-0.5 flex items-center gap-1">
+                                <ShieldAlert className="w-3.5 h-3.5" />
+                                {verificationStatus.toUpperCase()}
+                            </Badge>
+                        )}
+                    </div>
+                    <p className="text-xs text-zinc-500 mt-0.5">Manage your bids and find new opportunities</p>
+                </div>
+
+                <Button asChild variant="outline" size="sm" className="w-fit">
+                    <Link to={createPageUrl('ContractorOnboarding')}>
+                        Edit Profile & Verification
+                    </Link>
+                </Button>
             </div>
 
             {/* Stats */}
@@ -139,21 +165,41 @@ export default function ContractorDashboard() {
                 </div>
             </Card>
 
-            {/* Verification Progress */}
-            <Card className="p-6 mb-8">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-semibold text-slate-900">Verification Progress</h3>
-                    <span className="text-sm text-slate-600">{verifiedCount}/4 Complete</span>
+            {/* Automated Verification Dashboard Card */}
+            <Card className="p-6 mb-8 sharp-card bg-white border border-zinc-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                            <h3 className="font-bold text-lg text-zinc-900">Automated Verification Protocol</h3>
+                        </div>
+                        <p className="text-xs text-zinc-500">
+                            Real-time South African ID Luhn validation and automated document verification engine.
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <div className="text-right">
+                            <span className="text-xs text-zinc-500 block">Verification Score</span>
+                            <span className="text-2xl font-black text-zinc-900">{verificationScore}/100</span>
+                        </div>
+                        <Button asChild size="sm" className="bg-zinc-900 hover:bg-zinc-800 text-white">
+                            <Link to={createPageUrl('ContractorOnboarding')}>
+                                Update Documents
+                                <ChevronRight className="w-4 h-4 ml-1" />
+                            </Link>
+                        </Button>
+                    </div>
                 </div>
-                <div className="space-y-3">
-                    {verificationProgress.map((item, index) => (
-                        <div key={index} className="flex items-center gap-3">
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {verificationChecklist.map((item, index) => (
+                        <div key={index} className="flex items-center gap-3 p-3 sharp-card bg-zinc-50 border border-zinc-100">
                             {item.done ? (
-                                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                                <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
                             ) : (
-                                <div className="w-5 h-5 rounded-full border-2 border-slate-300" />
+                                <div className="w-5 h-5 rounded-full border-2 border-zinc-300 shrink-0" />
                             )}
-                            <span className={`text-sm ${item.done ? 'text-slate-900' : 'text-slate-500'}`}>
+                            <span className={`text-xs font-medium ${item.done ? 'text-zinc-900' : 'text-zinc-500'}`}>
                                 {item.label}
                             </span>
                         </div>

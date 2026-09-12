@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { appClient } from '@/api/appClient';
+import { useAuth } from '@/lib/AuthContext';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
 import { motion } from 'framer-motion';
 import {
     Search,
@@ -11,7 +14,11 @@ import {
     ChevronLeft,
     ChevronRight,
     ChevronsLeft,
-    ChevronsRight
+    ChevronsRight,
+    Plus,
+    ShieldCheck,
+    Filter,
+    Layers
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -35,26 +42,60 @@ import { Slider } from "@/components/ui/slider";
 import PropertyCard from '@/components/properties/PropertyCard';
 
 export default function Properties() {
+    const { user, role, isLandlord, isSysAdmin } = useAuth();
+
+    // Default viewTab: Landlords default to 'my_properties', sysAdmins to 'all_system', others to 'marketplace'
+    const [viewTab, setViewTab] = useState(() => {
+        if (isLandlord) return 'my_properties';
+        if (isSysAdmin) return 'all_system';
+        return 'marketplace';
+    });
+
     const [searchTerm, setSearchTerm] = useState('');
     const [propertyType, setPropertyType] = useState('all');
+    const [statusFilter, setStatusFilter] = useState('all');
     const [priceRange, setPriceRange] = useState([0, 50000]);
     const [bedrooms, setBedrooms] = useState('any');
     const [showBiddingOnly, setShowBiddingOnly] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 6;
 
-    const { data: properties, isLoading } = useQuery({
-        queryKey: ['properties'],
-        queryFn: () => appClient.entities.Property.filter({ status: 'available' }),
+    const landlordIdentifier = user?.email || user?.id;
+
+    // Fetch properties based on role and active viewTab
+    const { data: properties = [], isLoading } = useQuery({
+        queryKey: ['properties-list', viewTab, landlordIdentifier, isSysAdmin, isLandlord],
+        queryFn: async () => {
+            if (isLandlord && viewTab === 'my_properties') {
+                if (!landlordIdentifier) return [];
+                const list1 = await appClient.entities.Property.filter({ landlord_id: user?.email });
+                const list2 = user?.id && user.id !== user.email 
+                    ? await appClient.entities.Property.filter({ landlord_id: user.id }) 
+                    : [];
+                const combined = [...list1, ...list2];
+                return Array.from(new Map(combined.map(item => [item.id, item])).values());
+            }
+
+            if (isSysAdmin || (isLandlord && viewTab === 'all_system')) {
+                // Return all properties in system regardless of status
+                const allProps = await appClient.entities.Property.filter({});
+                return allProps || [];
+            }
+
+            // Tenant / Guest / Marketplace view: only available properties
+            return appClient.entities.Property.filter({ status: 'available' });
+        },
     });
 
-    const filteredProperties = properties?.filter(property => {
+    const filteredProperties = properties.filter(property => {
         const matchesSearch = !searchTerm ||
             property.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             property.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             property.city?.toLowerCase().includes(searchTerm.toLowerCase());
 
         const matchesType = propertyType === 'all' || property.property_type === propertyType;
+
+        const matchesStatus = statusFilter === 'all' || property.status === statusFilter;
 
         const rent = Number(property.monthly_rent || 0);
         const matchesPrice = rent >= priceRange[0] && (priceRange[1] >= 50000 || rent <= priceRange[1]);
@@ -64,13 +105,13 @@ export default function Properties() {
 
         const matchesBidding = !showBiddingOnly || property.accepts_bidding;
 
-        return matchesSearch && matchesType && matchesPrice && matchesBedrooms && matchesBidding;
+        return matchesSearch && matchesType && matchesStatus && matchesPrice && matchesBedrooms && matchesBidding;
     }) || [];
 
     // Reset pagination when search/filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchTerm, propertyType, priceRange, bedrooms, showBiddingOnly]);
+    }, [searchTerm, propertyType, statusFilter, priceRange, bedrooms, showBiddingOnly, viewTab]);
 
     const totalPages = Math.max(1, Math.ceil(filteredProperties.length / itemsPerPage));
     const startIndex = (currentPage - 1) * itemsPerPage;
@@ -84,6 +125,7 @@ export default function Properties() {
 
     const activeFiltersCount = [
         propertyType !== 'all',
+        statusFilter !== 'all',
         bedrooms !== 'any',
         priceRange[0] > 0 || priceRange[1] < 50000,
         showBiddingOnly
@@ -91,6 +133,7 @@ export default function Properties() {
 
     const clearFilters = () => {
         setPropertyType('all');
+        setStatusFilter('all');
         setBedrooms('any');
         setPriceRange([0, 50000]);
         setShowBiddingOnly(false);
@@ -101,10 +144,68 @@ export default function Properties() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">Explore Rentals</h1>
-                    <p className="text-zinc-500 text-xs mt-0.5">Browse available listings and submit competitive bids</p>
+                    <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">
+                        {isLandlord && viewTab === 'my_properties'
+                            ? 'My Managed Properties'
+                            : isSysAdmin
+                                ? 'System Properties Directory'
+                                : 'Explore Rental Properties'}
+                    </h1>
+                    <p className="text-zinc-500 text-xs mt-0.5">
+                        {isLandlord && viewTab === 'my_properties'
+                            ? 'Manage your rental portfolio, tenant listings, and property statuses'
+                            : isSysAdmin
+                                ? 'Full administrative access to all properties across the platform'
+                                : 'Browse available listings and submit competitive bids'}
+                    </p>
                 </div>
+
+                {/* Add Property Button for Landlords & Admins */}
+                {(isLandlord || isSysAdmin) && (
+                    <Button asChild className="bg-zinc-950 hover:bg-zinc-900 text-white font-semibold shadow-sm">
+                        <Link to={createPageUrl('AddProperty')}>
+                            <Plus className="w-4 h-4 mr-2" />
+                            Add New Property
+                        </Link>
+                    </Button>
+                )}
             </div>
+
+            {/* View Selection Tabs for Landlords & Admins */}
+            {(isLandlord || isSysAdmin) && (
+                <div className="flex border-b border-zinc-200">
+                    {isLandlord && (
+                        <button
+                            type="button"
+                            onClick={() => setViewTab('my_properties')}
+                            className={`py-3 px-5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
+                                viewTab === 'my_properties'
+                                    ? 'border-zinc-950 text-zinc-950'
+                                    : 'border-transparent text-zinc-500 hover:text-zinc-800'
+                            }`}
+                        >
+                            <Building2 className="w-4 h-4 text-zinc-900" />
+                            My Managed Properties
+                            <Badge className="bg-zinc-900 text-white text-[10px] ml-1">
+                                {isLandlord && viewTab === 'my_properties' ? properties.length : 'Mine'}
+                            </Badge>
+                        </button>
+                    )}
+
+                    <button
+                        type="button"
+                        onClick={() => setViewTab(isSysAdmin ? 'all_system' : 'marketplace')}
+                        className={`py-3 px-5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
+                            viewTab !== 'my_properties'
+                                ? 'border-zinc-950 text-zinc-950'
+                                : 'border-transparent text-zinc-500 hover:text-zinc-800'
+                        }`}
+                    >
+                        <Layers className="w-4 h-4" />
+                        {isSysAdmin ? 'All System Properties' : 'Marketplace Listings'}
+                    </button>
+                </div>
+            )}
 
             {/* Search & Filters */}
             <div className="bg-white rounded-xl p-3 sm:p-4 border border-zinc-200/80 hover:border-zinc-300 transition-colors duration-150">
@@ -122,6 +223,20 @@ export default function Properties() {
 
                     {/* Quick Filters */}
                     <div className="flex gap-2">
+                        {(isLandlord || isSysAdmin) && (
+                            <Select value={statusFilter} onValueChange={setStatusFilter}>
+                                <SelectTrigger className="w-28 h-10 text-xs rounded-lg border-zinc-200/80">
+                                    <SelectValue placeholder="Status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Statuses</SelectItem>
+                                    <SelectItem value="available">Available</SelectItem>
+                                    <SelectItem value="rented">Rented</SelectItem>
+                                    <SelectItem value="pending">Pending</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        )}
+
                         <Select value={propertyType} onValueChange={setPropertyType}>
                             <SelectTrigger className="w-32 h-10 text-xs rounded-lg border-zinc-200/80">
                                 <Building2 className="w-3.5 h-3.5 mr-1.5 text-zinc-400" />
@@ -217,6 +332,14 @@ export default function Properties() {
                                 </button>
                             </Badge>
                         )}
+                        {statusFilter !== 'all' && (
+                            <Badge variant="secondary" className="bg-zinc-100 text-zinc-700">
+                                {statusFilter}
+                                <button onClick={() => setStatusFilter('all')} className="ml-1">
+                                    <X className="w-3 h-3" />
+                                </button>
+                            </Badge>
+                        )}
                         {bedrooms !== 'any' && (
                             <Badge variant="secondary" className="bg-zinc-100 text-zinc-700">
                                 {bedrooms} beds
@@ -225,10 +348,10 @@ export default function Properties() {
                                 </button>
                             </Badge>
                         )}
-                        {(priceRange[0] > 0 || priceRange[1] < 10000) && (
+                        {(priceRange[0] > 0 || priceRange[1] < 50000) && (
                             <Badge variant="secondary" className="bg-zinc-100 text-zinc-700">
                                 R{priceRange[0]} - R{priceRange[1]}
-                                <button onClick={() => setPriceRange([0, 10000])} className="ml-1">
+                                <button onClick={() => setPriceRange([0, 50000])} className="ml-1">
                                     <X className="w-3 h-3" />
                                 </button>
                             </Badge>
@@ -363,16 +486,30 @@ export default function Properties() {
                 <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="text-center py-16"
+                    className="text-center py-16 bg-white rounded-xl border border-zinc-200 p-8"
                 >
-                    <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
-                        <Home className="w-8 h-8 text-slate-400" />
+                    <div className="w-16 h-16 rounded-full bg-zinc-100 flex items-center justify-center mx-auto mb-4">
+                        <Home className="w-8 h-8 text-zinc-400" />
                     </div>
-                    <h3 className="text-lg font-semibold text-slate-900 mb-2">No properties found</h3>
-                    <p className="text-slate-500 mb-4">Try adjusting your filters or search criteria</p>
-                    <Button variant="outline" onClick={clearFilters}>
-                        Clear Filters
-                    </Button>
+                    <h3 className="text-lg font-semibold text-zinc-900 mb-2">No properties found</h3>
+                    <p className="text-zinc-500 text-xs mb-6">
+                        {isLandlord && viewTab === 'my_properties'
+                            ? "You haven't listed any properties under your landlord account yet."
+                            : 'Try adjusting your filters or search criteria.'}
+                    </p>
+                    <div className="flex justify-center gap-3">
+                        <Button variant="outline" size="sm" onClick={clearFilters}>
+                            Clear Filters
+                        </Button>
+                        {isLandlord && (
+                            <Button asChild size="sm" className="bg-zinc-950 hover:bg-zinc-900 text-white">
+                                <Link to={createPageUrl('AddProperty')}>
+                                    <Plus className="w-4 h-4 mr-1" />
+                                    Add Your First Property
+                                </Link>
+                            </Button>
+                        )}
+                    </div>
                 </motion.div>
             )}
         </div>
