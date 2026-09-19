@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { createPageUrl } from './utils';
 import { useAuth } from '@/lib/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { appClient } from '@/api/appClient';
 import {
     Home,
     Building2,
@@ -144,6 +146,33 @@ export default function Layout({ children, currentPageName }) {
         securityStatus 
     } = useAuth();
     const [drawerOpen, setDrawerOpen] = useState(false);
+
+    const { data: pendingNotificationCount = 0 } = useQuery({
+        queryKey: ['layout-notifications', user?.email, user?.id],
+        queryFn: async () => {
+            if (!user) return 0;
+            try {
+                let count = 0;
+                const bids = await appClient.entities.Bid.list();
+                if (Array.isArray(bids)) {
+                    count += bids.filter(b => b.status === 'pending').length;
+                }
+                const tours = await appClient.entities.TourSchedule.list();
+                if (Array.isArray(tours)) {
+                    count += tours.filter(t => t.status === 'pending').length;
+                }
+                const apps = await appClient.entities.Application.list();
+                if (Array.isArray(apps)) {
+                    count += apps.filter(a => a.status === 'pending' || a.status === 'under_review').length;
+                }
+                return count;
+            } catch (err) {
+                return 0;
+            }
+        },
+        enabled: !!user?.email || !!user?.id,
+        refetchInterval: 10000,
+    });
 
     // Hide navigation chrome when user is on the Auth login/register page
     const isAuthPage = 
@@ -480,9 +509,14 @@ export default function Layout({ children, currentPageName }) {
                         {/* Right: Quick Action Shortcuts & User Menu */}
                         <div className="flex items-center gap-1.5 sm:gap-3">
                             {user && (
-                                <Button asChild variant="ghost" size="sm" className="h-8 w-8 sm:h-9 sm:w-9 p-0 rounded-lg text-zinc-700 hover:bg-zinc-100 flex items-center justify-center relative" title="Messages & Chat">
+                                <Button asChild variant="ghost" size="sm" className="h-8 w-8 sm:h-9 sm:w-9 p-0 rounded-lg text-zinc-700 hover:bg-zinc-100 flex items-center justify-center relative" title="Messages & Notifications">
                                     <Link to={createPageUrl('Messages')}>
                                         <MessageSquare className="w-4 h-4 text-zinc-800" />
+                                        {pendingNotificationCount > 0 && (
+                                            <span className="absolute -top-1 -right-1 h-4 min-w-[16px] px-1 bg-rose-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-white animate-pulse">
+                                                {pendingNotificationCount > 9 ? '9+' : pendingNotificationCount}
+                                            </span>
+                                        )}
                                     </Link>
                                 </Button>
                             )}
@@ -565,8 +599,11 @@ export default function Layout({ children, currentPageName }) {
                                         isActive ? 'text-zinc-950 font-bold' : 'text-zinc-400 hover:text-zinc-700'
                                     }`}
                                 >
-                                    <div className={`p-1 rounded-md transition-colors ${isActive ? 'bg-zinc-100 text-zinc-950' : ''}`}>
+                                    <div className={`p-1 rounded-md transition-colors relative ${isActive ? 'bg-zinc-100 text-zinc-950 font-bold' : ''}`}>
                                         <item.icon className="w-4 h-4" />
+                                        {item.page === 'Messages' && pendingNotificationCount > 0 && (
+                                            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-rose-600 rounded-full border border-white animate-pulse" />
+                                        )}
                                     </div>
                                     <span className="text-[10px] tracking-tight leading-tight mt-0.5">{item.name}</span>
                                 </Link>
