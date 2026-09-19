@@ -23,7 +23,10 @@ import {
     Shield,
     CreditCard,
     Sparkles,
-    Edit3
+    Edit3,
+    ChevronLeft,
+    ChevronRight,
+    Image as ImageIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -58,6 +61,7 @@ const amenityIcons = {
 export default function PropertyDetails() {
     const { user, isLandlord, isSysAdmin } = useAuth();
     const [bidDialogOpen, setBidDialogOpen] = useState(false);
+    const [tourDialogOpen, setTourDialogOpen] = useState(false);
     const [selectedImage, setSelectedImage] = useState(0);
     const queryClient = useQueryClient();
 
@@ -82,6 +86,78 @@ export default function PropertyDetails() {
         enabled: !!propertyId,
     });
 
+    const { data: myFavorites = [] } = useQuery({
+        queryKey: ['myFavorites', user?.email],
+        queryFn: async () => {
+            if (!user?.email) return [];
+            try {
+                const res = await appClient.entities.Favorite.filter({ user_id: user.email });
+                return res || [];
+            } catch (err) {
+                console.warn('Favorites fetch warning:', err);
+                return [];
+            }
+        },
+        enabled: !!user?.email,
+    });
+
+    const isFavorited = myFavorites.some(f => f.property_id === propertyId);
+
+    const toggleFavoriteMutation = useMutation({
+        mutationFn: async () => {
+            if (!user?.email) {
+                toast.error('Please sign in to save favorite properties');
+                return;
+            }
+            if (isFavorited) {
+                const fav = myFavorites.find(f => f.property_id === propertyId);
+                if (fav?.id) {
+                    await appClient.entities.Favorite.delete(fav.id);
+                }
+                toast.info('Removed from favorites');
+            } else {
+                await appClient.entities.Favorite.create({
+                    user_id: user.email,
+                    property_id: propertyId
+                });
+                toast.success('Added to favorites!');
+            }
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['myFavorites', user?.email] });
+        },
+        onError: (err) => {
+            console.error('Favorite error:', err);
+            toast.error('Failed to update favorites');
+        }
+    });
+
+    const handleShare = async () => {
+        const shareUrl = window.location.href;
+        const shareData = {
+            title: property?.title || 'RentFlex Property Listing',
+            text: `Check out ${property?.title || 'this property'} on RentFlex!`,
+            url: shareUrl
+        };
+
+        if (navigator.share) {
+            try {
+                await navigator.share(shareData);
+                toast.success('Listing shared!');
+                return;
+            } catch (err) {
+                // User cancelled or share API fell back
+            }
+        }
+
+        try {
+            await navigator.clipboard.writeText(shareUrl);
+            toast.success('Property link copied to clipboard!');
+        } catch (e) {
+            toast.error('Failed to copy link');
+        }
+    };
+
     const highestBid = bids.reduce((max, bid) => {
         const val = Number(bid.proposed_rent || bid.bid_amount || 0);
         return val > max ? val : max;
@@ -103,18 +179,88 @@ export default function PropertyDetails() {
         message: ''
     });
 
+    const [tourForm, setTourForm] = useState({
+        requested_date: '',
+        requested_time: '10:00 AM',
+        notes: ''
+    });
+
     const createBidMutation = useMutation({
-        mutationFn: (data) => appClient.entities.Bid.create(data),
+        mutationFn: async (data) => {
+            const createdBid = await appClient.entities.Bid.create(data);
+            const landlordId = property?.landlord_id;
+            if (landlordId) {
+                try {
+                    await appClient.entities.Message.create({
+                        conversation_id: `${user?.email || 'tenant'}_${landlordId}`,
+                        sender_id: user?.email || user?.id || 'tenant',
+                        receiver_id: landlordId,
+                        content: `🏷️ New Bid Received: R${data.bid_amount?.toLocaleString()} for property "${property?.title}". Proposed move-in: ${data.move_in_date || 'N/A'}. ${data.message ? `Note: ${data.message}` : ''}`
+                    });
+                } catch (e) {
+                    console.warn('Could not send message notification to landlord:', e);
+                }
+            }
+            return createdBid;
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['propertyBids', propertyId] });
             setBidDialogOpen(false);
-            toast.success('Bid submitted successfully!');
+            toast.success('Bid submitted to landlord successfully!');
         },
         onError: (err) => {
             console.error('Bid submit error:', err);
             toast.error(err.message || 'Failed to submit bid.');
         }
     });
+
+    const createTourMutation = useMutation({
+        mutationFn: async (data) => {
+            const res = await appClient.entities.TourSchedule.create(data);
+            const landlordId = property?.landlord_id;
+            if (landlordId) {
+                try {
+                    await appClient.entities.Message.create({
+                        conversation_id: `${user?.email || 'tenant'}_${landlordId}`,
+                        sender_id: user?.email || user?.id || 'tenant',
+                        receiver_id: landlordId,
+                        content: `📅 New Tour Request: Viewing requested for "${property?.title}" on ${data.requested_date} at ${data.requested_time}. ${data.notes ? `Note: ${data.notes}` : ''}`
+                    });
+                } catch (e) {
+                    console.warn('Could not send message notification to landlord:', e);
+                }
+            }
+            return res;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['propertyTours', propertyId] });
+            setTourDialogOpen(false);
+            toast.success('Viewing request submitted! Landlord will respond soon.');
+        },
+        onError: (err) => {
+            console.error('Tour schedule error:', err);
+            toast.error(err.message || 'Failed to request viewing.');
+        }
+    });
+
+    const handleSubmitTour = () => {
+        if (!tourForm.requested_date || !tourForm.requested_time) {
+            toast.error('Please select a date and time for the viewing');
+            return;
+        }
+
+        const landlordId = property?.landlord_id || 'landlord';
+        createTourMutation.mutate({
+            property_id: propertyId,
+            tenant_id: user?.email || user?.id || 'guest',
+            tenant_name: user?.full_name || user?.email?.split('@')[0] || 'Tenant',
+            landlord_id: landlordId,
+            requested_date: tourForm.requested_date,
+            requested_time: tourForm.requested_time,
+            notes: tourForm.notes,
+            status: 'pending'
+        });
+    };
 
     const handleSubmitBid = () => {
         if (!bidForm.bid_amount || !bidForm.move_in_date) {
@@ -151,6 +297,16 @@ export default function PropertyDetails() {
 
     const validImages = (property?.images || []).filter(img => typeof img === 'string' && !img.startsWith('blob:'));
     const images = validImages.length > 0 ? validImages : defaultImages;
+
+    const handleNextImage = (e) => {
+        if (e) e.stopPropagation();
+        setSelectedImage((prev) => (prev + 1) % images.length);
+    };
+
+    const handlePrevImage = (e) => {
+        if (e) e.stopPropagation();
+        setSelectedImage((prev) => (prev - 1 + images.length) % images.length);
+    };
 
     if (isLoading) {
         return (
@@ -200,26 +356,75 @@ export default function PropertyDetails() {
             </div>
 
             {/* Image Gallery */}
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
-                <div className="lg:col-span-3 aspect-[16/10] overflow-hidden bg-zinc-100">
-                    <img
-                        src={images[selectedImage]}
-                        alt={property.title}
-                        className="w-full h-full object-cover"
-                    />
-                </div>
-                <div className="hidden lg:flex flex-col gap-3">
-                    {images.slice(0, 3).map((img, idx) => (
-                        <button
-                            key={idx}
-                            onClick={() => setSelectedImage(idx)}
-                            className={`aspect-[4/3] overflow-hidden border transition-colors ${selectedImage === idx ? 'border-zinc-900' : 'border-transparent'
+            <div className="space-y-3">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+                    {/* Main Showcase Image */}
+                    <div className="lg:col-span-3 aspect-[16/10] overflow-hidden bg-zinc-900 rounded-xl relative group select-none shadow-sm">
+                        <img
+                            src={images[selectedImage]}
+                            alt={property.title}
+                            className="w-full h-full object-cover transition-opacity duration-200"
+                        />
+
+                        {/* Navigation Overlay Arrows (shown when more than 1 image exists) */}
+                        {images.length > 1 && (
+                            <>
+                                <button
+                                    onClick={handlePrevImage}
+                                    className="absolute left-2.5 sm:left-4 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white p-2 rounded-full backdrop-blur-md transition-all active:scale-90 shadow-md z-10"
+                                    aria-label="Previous Image"
+                                >
+                                    <ChevronLeft className="w-5 h-5" />
+                                </button>
+                                <button
+                                    onClick={handleNextImage}
+                                    className="absolute right-2.5 sm:right-4 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white p-2 rounded-full backdrop-blur-md transition-all active:scale-90 shadow-md z-10"
+                                    aria-label="Next Image"
+                                >
+                                    <ChevronRight className="w-5 h-5" />
+                                </button>
+                            </>
+                        )}
+
+                        {/* Image Counter Badge */}
+                        <div className="absolute bottom-3 right-3 bg-black/70 backdrop-blur-md text-white px-3 py-1 rounded-full text-xs font-semibold tracking-wide flex items-center gap-1.5 z-10 border border-white/10">
+                            <ImageIcon className="w-3.5 h-3.5" />
+                            <span>{selectedImage + 1} / {images.length}</span>
+                        </div>
+                    </div>
+
+                    {/* Desktop Vertical Thumbnails Sidebar */}
+                    <div className="hidden lg:flex flex-col gap-2.5 max-h-[460px] overflow-y-auto pr-1">
+                        {images.map((img, idx) => (
+                            <button
+                                key={idx}
+                                onClick={() => setSelectedImage(idx)}
+                                className={`aspect-[4/3] rounded-lg overflow-hidden border-2 transition-all relative shrink-0 ${
+                                    selectedImage === idx ? 'border-zinc-950 ring-2 ring-zinc-950/20 opacity-100' : 'border-transparent opacity-65 hover:opacity-100'
                                 }`}
-                        >
-                            <img src={img} alt="" className="w-full h-full object-cover" />
-                        </button>
-                    ))}
+                            >
+                                <img src={img} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
+                            </button>
+                        ))}
+                    </div>
                 </div>
+
+                {/* Mobile & Tablet Horizontal Scrollable Thumbnails Strip */}
+                {images.length > 1 && (
+                    <div className="lg:hidden flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none snap-x pt-1">
+                        {images.map((img, idx) => (
+                            <button
+                                key={idx}
+                                onClick={() => setSelectedImage(idx)}
+                                className={`w-20 sm:w-24 aspect-[4/3] rounded-lg overflow-hidden border-2 transition-all shrink-0 snap-start relative ${
+                                    selectedImage === idx ? 'border-zinc-950 ring-2 ring-zinc-950/20 opacity-100 shadow-sm' : 'border-zinc-200 opacity-60 hover:opacity-100'
+                                }`}
+                            >
+                                <img src={img} alt={`Mobile thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* Main Content */}
@@ -247,11 +452,24 @@ export default function PropertyDetails() {
                                 </div>
                             </div>
                             <div className="flex gap-2">
-                                <Button variant="outline" size="icon" className="border-zinc-200">
-                                    <Heart className="w-4 h-4" />
+                                <Button 
+                                    variant="outline" 
+                                    size="icon" 
+                                    onClick={() => toggleFavoriteMutation.mutate()}
+                                    disabled={toggleFavoriteMutation.isPending}
+                                    className={`border-zinc-200 transition-colors ${isFavorited ? 'bg-rose-50 border-rose-200 text-rose-600' : 'hover:bg-zinc-100'}`}
+                                    title={isFavorited ? 'Remove from favorites' : 'Save to favorites'}
+                                >
+                                    <Heart className={`w-4 h-4 ${isFavorited ? 'fill-rose-600 text-rose-600' : ''}`} />
                                 </Button>
-                                <Button variant="outline" size="icon" className="border-zinc-200">
-                                    <Share2 className="w-4 h-4" />
+                                <Button 
+                                    variant="outline" 
+                                    size="icon" 
+                                    onClick={handleShare}
+                                    className="border-zinc-200 hover:bg-zinc-100"
+                                    title="Share property listing"
+                                >
+                                    <Share2 className="w-4 h-4 text-zinc-700" />
                                 </Button>
                             </div>
                         </div>
@@ -465,9 +683,67 @@ export default function PropertyDetails() {
                                     Apply Now
                                 </Button>
                             )}
-                            <Button variant="outline" className="w-full border-zinc-200">
-                                Schedule Tour
-                            </Button>
+                            {/* Schedule Viewing / Tour Dialog */}
+                            <Dialog open={tourDialogOpen} onOpenChange={setTourDialogOpen}>
+                                <DialogTrigger asChild>
+                                    <Button variant="outline" className="w-full border-zinc-200 hover:bg-zinc-100 font-medium">
+                                        <Calendar className="w-4 h-4 mr-2 text-zinc-700" />
+                                        Schedule Tour
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="border-zinc-200 max-w-md">
+                                    <DialogHeader>
+                                        <DialogTitle className="text-base font-bold text-zinc-900">Schedule In-Person Viewing</DialogTitle>
+                                    </DialogHeader>
+                                    <div className="space-y-4 mt-4">
+                                        <div>
+                                            <Label className="text-xs font-semibold text-zinc-700">Preferred Viewing Date *</Label>
+                                            <Input
+                                                type="date"
+                                                min={new Date().toISOString().split('T')[0]}
+                                                value={tourForm.requested_date}
+                                                onChange={(e) => setTourForm({ ...tourForm, requested_date: e.target.value })}
+                                                className="mt-1"
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs font-semibold text-zinc-700">Preferred Time Slot *</Label>
+                                            <Select
+                                                value={tourForm.requested_time}
+                                                onValueChange={(v) => setTourForm({ ...tourForm, requested_time: v })}
+                                            >
+                                                <SelectTrigger className="mt-1">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="09:00 AM">09:00 AM (Morning)</SelectItem>
+                                                    <SelectItem value="10:30 AM">10:30 AM (Morning)</SelectItem>
+                                                    <SelectItem value="01:00 PM">01:00 PM (Afternoon)</SelectItem>
+                                                    <SelectItem value="03:00 PM">03:00 PM (Afternoon)</SelectItem>
+                                                    <SelectItem value="05:00 PM">05:00 PM (Evening)</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs font-semibold text-zinc-700">Note for Landlord (optional)</Label>
+                                            <Textarea
+                                                placeholder="Any special requests or questions for the viewing..."
+                                                value={tourForm.notes}
+                                                onChange={(e) => setTourForm({ ...tourForm, notes: e.target.value })}
+                                                className="mt-1"
+                                                rows={3}
+                                            />
+                                        </div>
+                                        <Button
+                                            className="w-full bg-zinc-900 hover:bg-zinc-800 text-white font-medium"
+                                            onClick={handleSubmitTour}
+                                            disabled={createTourMutation.isPending}
+                                        >
+                                            {createTourMutation.isPending ? 'Sending Request...' : 'Confirm Viewing Request'}
+                                        </Button>
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
                         </div>
                         {/* Available Date */}
                         {property.available_date && (

@@ -68,11 +68,17 @@ export default function TenantOnboarding() {
     });
 
     const handleNext = async () => {
-        // Save progress
-        if (currentStep > 0) {
+        // Save progress and profile data
+        try {
             await updateUserMutation.mutateAsync({
-                onboarding_step: currentStep + 1
+                onboarding_step: currentStep + 1,
+                id_number: formData.id_number || undefined,
+                id_verified: formData.id_verified || undefined,
+                full_name: formData.full_name || undefined,
+                phone: formData.phone || undefined
             });
+        } catch (e) {
+            console.warn('Step progress save warning:', e);
         }
 
         if (currentStep < STEPS.length - 1) {

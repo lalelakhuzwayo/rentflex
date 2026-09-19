@@ -21,6 +21,8 @@ const ENTITY_TABLE_MAP = {
     Message: 'messages',
     Application: 'applications',
     Profile: 'profiles',
+    TourSchedule: 'tour_schedules',
+    Favorite: 'favorites',
 };
 
 const normalizeItemNumbers = (data) => {

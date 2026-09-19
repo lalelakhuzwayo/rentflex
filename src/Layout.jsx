@@ -271,7 +271,7 @@ export default function Layout({ children, currentPageName }) {
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="hidden md:flex items-center gap-2 border border-zinc-200/80 hover:bg-zinc-100 hover:text-zinc-900 font-medium text-zinc-700 h-9 px-3 rounded-lg"
+                                        className="flex items-center gap-1.5 sm:gap-2 border border-zinc-200/80 hover:bg-zinc-100 hover:text-zinc-900 font-medium text-zinc-700 h-8 sm:h-9 px-2.5 sm:px-3 rounded-lg"
                                         aria-label="Open Navigation Drawer"
                                     >
                                         <Menu className="w-4 h-4 text-zinc-800" />
