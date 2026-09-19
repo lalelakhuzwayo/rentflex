@@ -17,7 +17,8 @@ import {
     FileText,
     TrendingUp,
     ArrowUp,
-    Lock
+    Lock,
+    MessageSquare
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -188,7 +189,8 @@ export default function Layout({ children, currentPageName }) {
         mainNavigation = [
             { name: 'Dashboard', href: createPageUrl('LandlordDashboard'), icon: Home, badge: null },
             { name: 'My Properties', href: createPageUrl('Properties'), icon: Building2, badge: null },
-            { name: 'Tenant Screening', href: createPageUrl('ApplicationScreening'), icon: Users, badge: 'Review' },
+            { name: 'Screening, Bids & Tours', href: createPageUrl('ApplicationScreening'), icon: Users, badge: 'Review' },
+            { name: 'Tenant Messages', href: createPageUrl('Messages'), icon: MessageSquare, badge: 'Chat' },
             { name: 'Rent Payments', href: createPageUrl('Payments'), icon: CreditCard, badge: null },
             { name: 'Leases', href: createPageUrl('Leases'), icon: FileText, badge: null },
         ];
@@ -212,6 +214,7 @@ export default function Layout({ children, currentPageName }) {
         mainNavigation = [
             { name: 'Dashboard', href: createPageUrl('Dashboard'), icon: Home, badge: null },
             { name: 'Browse Homes', href: createPageUrl('Properties'), icon: Building2, badge: 'Find' },
+            { name: 'Messages & Inquiries', href: createPageUrl('Messages'), icon: MessageSquare, badge: 'Chat' },
             { name: 'My Payments', href: createPageUrl('Payments'), icon: CreditCard, badge: 'BNPL' },
             { name: 'RentScore', href: createPageUrl('RentScore'), icon: TrendingUp, badge: 'Rating' },
             { name: 'My Leases', href: createPageUrl('Leases'), icon: FileText, badge: null },
@@ -240,7 +243,7 @@ export default function Layout({ children, currentPageName }) {
         { name: 'Home', href: createPageUrl('LandlordDashboard'), icon: Home, page: 'LandlordDashboard' },
         { name: 'Units', href: createPageUrl('Properties'), icon: Building2, page: 'Properties' },
         { name: 'Screening', href: createPageUrl('ApplicationScreening'), icon: Users, page: 'ApplicationScreening' },
-        { name: 'Payments', href: createPageUrl('Payments'), icon: CreditCard, page: 'Payments' },
+        { name: 'Messages', href: createPageUrl('Messages'), icon: MessageSquare, page: 'Messages' },
     ] : userRole === 'contractor' ? [
         { name: 'Hub', href: createPageUrl('ContractorDashboard'), icon: Wrench, page: 'ContractorDashboard' },
         { name: 'Jobs', href: createPageUrl('Jobs'), icon: Building2, page: 'Jobs' },
@@ -249,8 +252,8 @@ export default function Layout({ children, currentPageName }) {
     ] : [
         { name: 'Home', href: createPageUrl('Dashboard'), icon: Home, page: 'Dashboard' },
         { name: 'Explore', href: createPageUrl('Properties'), icon: Building2, page: 'Properties' },
+        { name: 'Messages', href: createPageUrl('Messages'), icon: MessageSquare, page: 'Messages' },
         { name: 'Payments', href: createPageUrl('Payments'), icon: CreditCard, page: 'Payments' },
-        { name: 'RentScore', href: createPageUrl('RentScore'), icon: TrendingUp, page: 'RentScore' },
     ];
 
     return (
@@ -271,7 +274,7 @@ export default function Layout({ children, currentPageName }) {
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="flex items-center gap-1.5 sm:gap-2 border border-zinc-200/80 hover:bg-zinc-100 hover:text-zinc-900 font-medium text-zinc-700 h-8 sm:h-9 px-2.5 sm:px-3 rounded-lg"
+                                        className="hidden md:flex items-center gap-1.5 sm:gap-2 border border-zinc-200/80 hover:bg-zinc-100 hover:text-zinc-900 font-medium text-zinc-700 h-8 sm:h-9 px-2.5 sm:px-3 rounded-lg"
                                         aria-label="Open Navigation Drawer"
                                     >
                                         <Menu className="w-4 h-4 text-zinc-800" />
@@ -476,6 +479,13 @@ export default function Layout({ children, currentPageName }) {
 
                         {/* Right: Quick Action Shortcuts & User Menu */}
                         <div className="flex items-center gap-1.5 sm:gap-3">
+                            {user && (
+                                <Button asChild variant="ghost" size="sm" className="h-8 w-8 sm:h-9 sm:w-9 p-0 rounded-lg text-zinc-700 hover:bg-zinc-100 flex items-center justify-center relative" title="Messages & Chat">
+                                    <Link to={createPageUrl('Messages')}>
+                                        <MessageSquare className="w-4 h-4 text-zinc-800" />
+                                    </Link>
+                                </Button>
+                            )}
                             {user ? (
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
@@ -565,13 +575,17 @@ export default function Layout({ children, currentPageName }) {
 
                         {/* Quick Menu Button to Open Full Drawer */}
                         <button
+                            type="button"
                             onClick={() => setDrawerOpen(true)}
-                            className="flex flex-col items-center justify-center h-full py-1 text-zinc-400 hover:text-zinc-700 transition-all"
+                            className={`flex flex-col items-center justify-center h-full py-1 transition-all ${
+                                drawerOpen ? 'text-zinc-950 font-bold' : 'text-zinc-500 hover:text-zinc-900'
+                            }`}
+                            aria-label="Open Navigation Drawer Menu"
                         >
-                            <div className="p-1 rounded-md">
-                                <Menu className="w-4 h-4" />
+                            <div className={`p-1 rounded-md transition-colors ${drawerOpen ? 'bg-zinc-100 text-zinc-950 font-bold' : ''}`}>
+                                <Menu className="w-4 h-4 text-zinc-900" />
                             </div>
-                            <span className="text-[10px] tracking-tight leading-tight mt-0.5">More</span>
+                            <span className="text-[10px] font-semibold tracking-tight leading-tight mt-0.5 text-zinc-900">Menu</span>
                         </button>
                     </div>
                 </nav>

@@ -15,7 +15,9 @@ import {
     CheckCircle2,
     Home,
     ArrowRight,
-    FileText
+    FileText,
+    MessageSquare,
+    Calendar
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -245,8 +247,8 @@ export default function LandlordDashboard() {
                                 </div>
                             </div>
                             <Button asChild className="bg-white text-zinc-950 hover:bg-zinc-100 font-semibold shrink-0">
-                                <Link to={createPageUrl('Properties')}>
-                                    Review Bids <ArrowRight className="w-4 h-4 ml-2" />
+                                <Link to={createPageUrl('ApplicationScreening')}>
+                                    Review Bids & Tours <ArrowRight className="w-4 h-4 ml-2" />
                                 </Link>
                             </Button>
                         </div>
@@ -376,7 +378,7 @@ export default function LandlordDashboard() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <Link
                         to={createPageUrl('AddProperty')}
-                        className="flex flex-col items-center gap-3 p-4 rounded-xl bg-zinc-50 hover:bg-white hover:border-zinc-300 hover:shadow-xs border border-zinc-200/70 transition-all group"
+                        className="flex flex-col items-center gap-3 p-4 rounded-xl bg-zinc-50 hover:bg-white hover:border-zinc-300 hover:shadow-xs border border-zinc-200/70 transition-all group text-center"
                     >
                         <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center group-hover:bg-zinc-200 transition-colors">
                             <Plus className="w-5 h-5 text-zinc-900" />
@@ -384,26 +386,35 @@ export default function LandlordDashboard() {
                         <span className="text-sm font-medium text-zinc-700">Add Property</span>
                     </Link>
 
-                    <button className="flex flex-col items-center gap-3 p-4 rounded-xl bg-zinc-50 hover:bg-white hover:border-zinc-300 hover:shadow-xs border border-zinc-200/70 transition-all group">
+                    <Link
+                        to={createPageUrl('ApplicationScreening')}
+                        className="flex flex-col items-center gap-3 p-4 rounded-xl bg-zinc-50 hover:bg-white hover:border-zinc-300 hover:shadow-xs border border-zinc-200/70 transition-all group text-center"
+                    >
                         <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center group-hover:bg-emerald-200 transition-colors">
                             <Users className="w-5 h-5 text-emerald-700" />
                         </div>
-                        <span className="text-sm font-medium text-zinc-700">View Tenants</span>
-                    </button>
+                        <span className="text-sm font-medium text-zinc-700">Screening & Bids</span>
+                    </Link>
 
-                    <button className="flex flex-col items-center gap-3 p-4 rounded-xl bg-zinc-50 hover:bg-white hover:border-zinc-300 hover:shadow-xs border border-zinc-200/70 transition-all group">
+                    <Link
+                        to={createPageUrl('Messages')}
+                        className="flex flex-col items-center gap-3 p-4 rounded-xl bg-zinc-50 hover:bg-white hover:border-zinc-300 hover:shadow-xs border border-zinc-200/70 transition-all group text-center"
+                    >
+                        <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+                            <MessageSquare className="w-5 h-5 text-blue-700" />
+                        </div>
+                        <span className="text-sm font-medium text-zinc-700">Messages & Chat</span>
+                    </Link>
+
+                    <Link
+                        to={createPageUrl('Payments')}
+                        className="flex flex-col items-center gap-3 p-4 rounded-xl bg-zinc-50 hover:bg-white hover:border-zinc-300 hover:shadow-xs border border-zinc-200/70 transition-all group text-center"
+                    >
                         <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center group-hover:bg-amber-200 transition-colors">
                             <DollarSign className="w-5 h-5 text-amber-700" />
                         </div>
-                        <span className="text-sm font-medium text-zinc-700">Payments</span>
-                    </button>
-
-                    <button className="flex flex-col items-center gap-3 p-4 rounded-xl bg-zinc-50 hover:bg-white hover:border-zinc-300 hover:shadow-xs border border-zinc-200/70 transition-all group">
-                        <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center group-hover:bg-zinc-200 transition-colors">
-                            <TrendingUp className="w-5 h-5 text-zinc-900" />
-                        </div>
-                        <span className="text-sm font-medium text-zinc-700">Analytics</span>
-                    </button>
+                        <span className="text-sm font-medium text-zinc-700">Payments & Income</span>
+                    </Link>
                 </div>
             </motion.div>
         </div>

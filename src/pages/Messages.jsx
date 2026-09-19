@@ -65,6 +65,62 @@ export default function Messages() {
         enabled: !!user?.email || !!user?.id,
     });
 
+    const { data: allUserMessages = [] } = useQuery({
+        queryKey: ['user-all-messages', user?.email, user?.id],
+        queryFn: async () => {
+            if (!user) return [];
+            try {
+                const userEmail = user.email;
+                const userId = user.id;
+                const list1 = userEmail ? await appClient.entities.Message.filter({ receiver_id: userEmail }) : [];
+                const list2 = userEmail ? await appClient.entities.Message.filter({ sender_id: userEmail }) : [];
+                const list3 = userId && userId !== userEmail ? await appClient.entities.Message.filter({ receiver_id: userId }) : [];
+                const list4 = userId && userId !== userEmail ? await appClient.entities.Message.filter({ sender_id: userId }) : [];
+                const combined = [...list1, ...list2, ...list3, ...list4];
+                return Array.from(new Map(combined.map(item => [item.id, item])).values());
+            } catch (err) {
+                return [];
+            }
+        },
+        enabled: !!user?.email || !!user?.id,
+    });
+
+    const conversations = React.useMemo(() => {
+        const map = new Map();
+
+        // 1. Add conversations from leases
+        leases.forEach(l => {
+            map.set(l.id, {
+                id: l.id,
+                title: l.property_title || 'Rental Unit',
+                subtitle: l.property_address || 'Lease Agreement',
+                lease: l,
+            });
+        });
+
+        // 2. Add conversations from direct messages (bids, schedules, inquiries)
+        allUserMessages.forEach(m => {
+            const cid = m.conversation_id || m.lease_id || m.id;
+            if (!map.has(cid)) {
+                map.set(cid, {
+                    id: cid,
+                    title: m.property_title || m.sender_name || 'Property Inquiry',
+                    subtitle: m.content || 'Message history',
+                    lastMessage: m,
+                });
+            }
+        });
+
+        return Array.from(map.values());
+    }, [leases, allUserMessages]);
+
+    // Auto select first conversation if none selected
+    useEffect(() => {
+        if (!selectedConversation && conversations.length > 0) {
+            setSelectedConversation(conversations[0].id);
+        }
+    }, [conversations, selectedConversation]);
+
     const { data: messages = [] } = useQuery({
         queryKey: ['messages', selectedConversation],
         queryFn: () => appClient.entities.Message.filter({ conversation_id: selectedConversation }),
@@ -76,6 +132,7 @@ export default function Messages() {
         mutationFn: (data) => appClient.entities.Message.create(data),
         onSuccess: () => {
             queryClient.invalidateQueries(['messages']);
+            queryClient.invalidateQueries(['user-all-messages']);
             setMessageInput('');
         },
     });
@@ -83,18 +140,25 @@ export default function Messages() {
     const handleSendMessage = () => {
         if (!messageInput.trim() || !selectedConversation) return;
 
-        const lease = leases.find(l => l.id === selectedConversation);
-        const receiverId = isLandlord ? lease?.tenant_id : lease?.landlord_id;
+        const activeConv = conversations.find(c => c.id === selectedConversation);
+        const lease = activeConv?.lease;
+        const lastMsg = activeConv?.lastMessage;
+        
+        let receiverId = isLandlord ? lease?.tenant_id : lease?.landlord_id;
+        if (!receiverId && lastMsg) {
+            const myId = user?.email || user?.id;
+            receiverId = lastMsg.sender_id === myId ? lastMsg.receiver_id : lastMsg.sender_id;
+        }
 
         sendMessageMutation.mutate({
             conversation_id: selectedConversation,
-            property_id: lease?.property_id,
-            property_title: lease?.property_title,
+            property_id: lease?.property_id || lastMsg?.property_id,
+            property_title: lease?.property_title || lastMsg?.property_title || 'Property',
             lease_id: lease?.id,
             sender_id: user?.email || user?.id,
             sender_name: user?.full_name || user?.email,
-            sender_type: user?.user_type || 'tenant',
-            receiver_id: receiverId,
+            sender_type: user?.user_type || (isLandlord ? 'landlord' : 'tenant'),
+            receiver_id: receiverId || 'landlord',
             message_type: 'text',
             content: messageInput,
             attachments: [],
@@ -185,22 +249,22 @@ export default function Messages() {
                         </div>
                         <ScrollArea className="h-[calc(100vh-280px)] sm:h-[600px]">
                             <div className="p-2">
-                                {leases.map(lease => (
+                                {conversations.map(conv => (
                                     <button
-                                        key={lease.id}
-                                        onClick={() => setSelectedConversation(lease.id)}
-                                        className={`w-full text-left p-3.5 mb-2 transition-colors border ${selectedConversation === lease.id
+                                        key={conv.id}
+                                        onClick={() => setSelectedConversation(conv.id)}
+                                        className={`w-full text-left p-3.5 mb-2 transition-colors border ${selectedConversation === conv.id
                                                 ? 'bg-zinc-100 border-zinc-900'
                                                 : 'hover:bg-zinc-50 border-transparent'
                                             }`}
                                     >
                                         <div className="flex items-start gap-3">
-                                            <div className="w-9 h-9 bg-zinc-100 flex items-center justify-center">
+                                            <div className="w-9 h-9 bg-zinc-100 flex items-center justify-center shrink-0 rounded-lg">
                                                 <Home className="w-5 h-5 text-slate-600" />
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <p className="font-medium text-slate-900 truncate">{lease.property_title}</p>
-                                                <p className="text-sm text-slate-500 truncate">{lease.property_address}</p>
+                                                <p className="font-medium text-slate-900 truncate">{conv.title}</p>
+                                                <p className="text-xs text-slate-500 truncate">{conv.subtitle}</p>
                                             </div>
                                         </div>
                                     </button>
@@ -228,7 +292,7 @@ export default function Messages() {
                                     </Button>
                                     <div className="min-w-0">
                                         <h3 className="font-semibold text-sm sm:text-base text-slate-900 truncate">
-                                            {leases.find(l => l.id === selectedConversation)?.property_title}
+                                            {conversations.find(c => c.id === selectedConversation)?.title || 'Property Conversation'}
                                         </h3>
                                         <p className="text-xs text-slate-500 truncate">Chat with landlord</p>
                                     </div>
