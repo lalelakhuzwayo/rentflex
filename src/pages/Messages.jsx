@@ -680,8 +680,7 @@ export default function Messages() {
                                         <h3 className="font-bold text-sm sm:text-base text-zinc-900 truncate">
                                             {activeConv.contactName}
                                         </h3>
-                                        <p className="text-xs text-zinc-500 truncate flex items-center gap-1">
-                                            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                                        <p className="text-xs text-zinc-500 truncate">
                                             {activeConv.title}
                                         </p>
                                     </div>
@@ -694,88 +693,104 @@ export default function Messages() {
                                 </div>
                             </div>
 
-                            {/* Top Banner for Actionable Bids or Tour Schedules */}
-                            {activeConv.type === 'bid' && activeConv.data && (
-                                <div className="p-3 sm:p-3.5 bg-rose-50 border-b border-rose-200 shrink-0">
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                                        <div>
-                                            <span className="text-[10px] uppercase font-bold tracking-wider text-rose-800 bg-rose-200/70 px-2 py-0.5 rounded">
-                                                Property Bid Offer
-                                            </span>
-                                            <p className="text-xs sm:text-sm font-bold text-zinc-900 mt-1">
-                                                Proposed Monthly Rent: <span className="text-rose-700">R{(activeConv.data.proposed_rent || activeConv.data.bid_amount || 0).toLocaleString()}</span>
-                                            </p>
-                                        </div>
-                                        {isLandlord && activeConv.data.status === 'pending' && (
-                                            <div className="flex items-center gap-2 shrink-0">
-                                                <Button
-                                                    size="sm"
-                                                    className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs h-7 px-3 rounded-lg"
-                                                    onClick={() => updateBidMutation.mutate({ id: activeConv.rawId, status: 'accepted' })}
-                                                    disabled={updateBidMutation.isPending}
-                                                >
-                                                    <Check className="w-3.5 h-3.5 mr-1" /> Accept
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    className="border-rose-300 text-rose-700 hover:bg-rose-100 font-bold text-xs h-7 px-3 rounded-lg"
-                                                    onClick={() => updateBidMutation.mutate({ id: activeConv.rawId, status: 'rejected' })}
-                                                    disabled={updateBidMutation.isPending}
-                                                >
-                                                    <X className="w-3.5 h-3.5 mr-1" /> Decline
-                                                </Button>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {activeConv.type === 'tour' && activeConv.data && (
-                                <div className="p-3 sm:p-3.5 bg-blue-50 border-b border-blue-200 shrink-0">
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                                        <div>
-                                            <span className="text-[10px] uppercase font-bold tracking-wider text-blue-800 bg-blue-200/70 px-2 py-0.5 rounded">
-                                                Viewing Request
-                                            </span>
-                                            <p className="text-xs sm:text-sm font-bold text-zinc-900 mt-1">
-                                                Requested Date: <span className="text-blue-700">{activeConv.data.requested_date}</span> at {activeConv.data.requested_time}
-                                            </p>
-                                        </div>
-                                        {isLandlord && activeConv.data.status === 'pending' && (
-                                            <div className="flex items-center gap-2 shrink-0">
-                                                <Button
-                                                    size="sm"
-                                                    className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs h-7 px-3 rounded-lg"
-                                                    onClick={() => updateTourMutation.mutate({ id: activeConv.rawId, status: 'confirmed' })}
-                                                    disabled={updateTourMutation.isPending}
-                                                >
-                                                    <Check className="w-3.5 h-3.5 mr-1" /> Confirm
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    className="border-rose-300 text-rose-700 hover:bg-rose-100 font-bold text-xs h-7 px-3 rounded-lg"
-                                                    onClick={() => updateTourMutation.mutate({ id: activeConv.rawId, status: 'declined' })}
-                                                    disabled={updateTourMutation.isPending}
-                                                >
-                                                    <X className="w-3.5 h-3.5 mr-1" /> Decline
-                                                </Button>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
                             {/* WhatsApp Speech Bubbles Container */}
-                            <div className="flex-1 p-3 sm:p-5 overflow-y-auto space-y-3 min-h-0 bg-zinc-50/60">
-                                {sortedMessages.length === 0 ? (
-                                    <div className="text-center py-12 text-zinc-400">
-                                        <div className="w-12 h-12 bg-zinc-200/60 rounded-full flex items-center justify-center mx-auto mb-2">
-                                            <MessageSquare className="w-6 h-6 text-zinc-500" />
+                            <div className="flex-1 p-3 sm:p-5 overflow-y-auto space-y-3.5 min-h-0 bg-[#f4f6f8] relative">
+                                {/* Ambient Background Pattern */}
+                                <div className="absolute inset-0 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:20px_20px] opacity-35 pointer-events-none" />
+
+                                {/* Actionable Bid Offer Chat Bubble */}
+                                {activeConv.type === 'bid' && activeConv.data && (
+                                    <div className="flex justify-start relative z-10 my-1">
+                                        <div className="w-[270px] sm:w-[350px] md:w-[400px] max-w-[88vw] shrink-0">
+                                            <div className="p-3.5 sm:p-4 text-xs sm:text-[13.5px] relative shadow-md rounded-2xl rounded-tl-none bg-white border border-zinc-200/90 text-zinc-900">
+                                                {/* Inverted Triangle Pointer Tail (Top-Left) */}
+                                                <svg className="absolute -left-2 top-0 w-2.5 h-3.5 text-white fill-current pointer-events-none" viewBox="0 0 10 14">
+                                                    <path d="M10,0 L0,0 L10,14 Z" />
+                                                </svg>
+                                                <div className="flex items-center justify-between gap-2 mb-2">
+                                                    <span className="text-[10px] uppercase font-bold tracking-wider text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-100">
+                                                        PROPERTY BID OFFER
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs sm:text-sm font-bold text-zinc-900">
+                                                    Proposed Rent: <span className="text-rose-600 font-extrabold">R{(activeConv.data.proposed_rent || activeConv.data.bid_amount || 0).toLocaleString()}</span>
+                                                </p>
+                                                {isLandlord && activeConv.data.status === 'pending' && (
+                                                    <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-zinc-100">
+                                                        <Button
+                                                            size="sm"
+                                                            className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs"
+                                                            onClick={() => updateBidMutation.mutate({ id: activeConv.rawId, status: 'accepted' })}
+                                                            disabled={updateBidMutation.isPending}
+                                                        >
+                                                            <Check className="w-3.5 h-3.5 mr-1" /> Accept Bid
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="border-rose-200 text-rose-700 hover:bg-rose-50 font-bold text-xs h-7.5 px-3 rounded-lg"
+                                                            onClick={() => updateBidMutation.mutate({ id: activeConv.rawId, status: 'rejected' })}
+                                                            disabled={updateBidMutation.isPending}
+                                                        >
+                                                            <X className="w-3.5 h-3.5 mr-1" /> Decline
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                        <p className="text-xs font-semibold text-zinc-700">Isolated Conversation Thread</p>
-                                        <p className="text-[11px] text-zinc-500 max-w-xs mx-auto mt-0.5">
+                                    </div>
+                                )}
+
+                                {/* Actionable Viewing Request Chat Bubble */}
+                                {activeConv.type === 'tour' && activeConv.data && (
+                                    <div className="flex justify-start relative z-10 my-1">
+                                        <div className="w-[270px] sm:w-[350px] md:w-[400px] max-w-[88vw] shrink-0">
+                                            <div className="p-3.5 sm:p-4 text-xs sm:text-[13.5px] relative shadow-md rounded-2xl rounded-tl-none bg-white border border-zinc-200/90 text-zinc-900">
+                                                {/* Inverted Triangle Pointer Tail (Top-Left) */}
+                                                <svg className="absolute -left-2 top-0 w-2.5 h-3.5 text-white fill-current pointer-events-none" viewBox="0 0 10 14">
+                                                    <path d="M10,0 L0,0 L10,14 Z" />
+                                                </svg>
+                                                <div className="flex items-center justify-between gap-2 mb-2">
+                                                    <span className="text-[10px] uppercase font-bold tracking-wider text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                                                        VIEWING REQUEST
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs sm:text-sm font-bold text-zinc-900">
+                                                    Viewing: <span className="text-blue-600 font-extrabold">{activeConv.data.requested_date} @ {activeConv.data.requested_time}</span>
+                                                </p>
+                                                {isLandlord && activeConv.data.status === 'pending' && (
+                                                    <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-zinc-100">
+                                                        <Button
+                                                            size="sm"
+                                                            className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs"
+                                                            onClick={() => updateTourMutation.mutate({ id: activeConv.rawId, status: 'confirmed' })}
+                                                            disabled={updateTourMutation.isPending}
+                                                        >
+                                                            <Check className="w-3.5 h-3.5 mr-1" /> Confirm
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="border-rose-200 text-rose-700 hover:bg-rose-50 font-bold text-xs h-7.5 px-3 rounded-lg"
+                                                            onClick={() => updateTourMutation.mutate({ id: activeConv.rawId, status: 'declined' })}
+                                                            disabled={updateTourMutation.isPending}
+                                                        >
+                                                            <X className="w-3.5 h-3.5 mr-1" /> Decline
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {sortedMessages.length === 0 ? (
+                                    <div className="text-center py-16 text-zinc-400 relative z-10">
+                                        <div className="w-14 h-14 bg-white shadow-sm border border-zinc-200/80 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                                            <MessageSquare className="w-7 h-7 text-zinc-700" />
+                                        </div>
+                                        <p className="text-sm font-bold text-zinc-800">Isolated Conversation Thread</p>
+                                        <p className="text-xs text-zinc-500 max-w-xs mx-auto mt-1 leading-relaxed">
                                             All messages sent here are strictly isolated to this contact and thread.
                                         </p>
                                     </div>
@@ -785,26 +800,48 @@ export default function Messages() {
                                         return (
                                             <motion.div
                                                 key={msg.id}
-                                                initial={{ opacity: 0, y: 6 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+                                                initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                transition={{ duration: 0.2 }}
+                                                className={`flex ${isOwn ? 'justify-end' : 'justify-start'} relative z-10`}
                                             >
-                                                <div className="max-w-[85%] sm:max-w-[75%] min-w-0">
-                                                    <div className={`p-3 sm:p-3.5 rounded-2xl text-xs sm:text-sm break-words whitespace-pre-wrap shadow-2xs relative ${
+                                                {/* Fixed Width Chat Bubble Container per Device Breakpoint */}
+                                                <div className="w-[270px] sm:w-[350px] md:w-[400px] max-w-[88vw] shrink-0">
+                                                    <div className={`p-3.5 sm:p-4 text-xs sm:text-[13.5px] break-words whitespace-pre-wrap relative shadow-sm transition-shadow hover:shadow-md ${
                                                         isOwn
-                                                            ? 'bg-zinc-950 text-white rounded-tr-none'
-                                                            : 'bg-white text-zinc-900 border border-zinc-200/90 rounded-tl-none'
+                                                            ? 'bg-gradient-to-br from-slate-900 via-zinc-900 to-slate-950 text-white rounded-2xl rounded-tr-none border border-zinc-800/90'
+                                                            : 'bg-white text-zinc-900 border border-zinc-200/90 rounded-2xl rounded-tl-none'
                                                     }`}>
-                                                        <p className="leading-relaxed">{msg.content}</p>
+                                                        {/* Speech Bubble Triangle Tail */}
+                                                        {isOwn ? (
+                                                            <svg className="absolute -right-2 top-0 w-2.5 h-3.5 text-slate-950 fill-current pointer-events-none" viewBox="0 0 10 14">
+                                                                <path d="M0,0 L10,0 L0,14 Z" />
+                                                            </svg>
+                                                        ) : (
+                                                            <svg className="absolute -left-2 top-0 w-2.5 h-3.5 text-white fill-current pointer-events-none" viewBox="0 0 10 14">
+                                                                <path d="M10,0 L0,0 L10,14 Z" />
+                                                            </svg>
+                                                        )}
+
+                                                        {/* Incoming Sender Name */}
+                                                        {!isOwn && (
+                                                            <p className="text-[11px] font-bold text-emerald-600 mb-1 tracking-tight">
+                                                                {activeConv?.contactName}
+                                                            </p>
+                                                        )}
+
+                                                        <p className={`leading-relaxed font-normal ${isOwn ? 'text-slate-100' : 'text-zinc-800'}`}>
+                                                            {msg.content}
+                                                        </p>
 
                                                         {/* Attached File Preview */}
                                                         {msg.file_url && (
-                                                            <div className="mt-2 rounded-lg overflow-hidden border border-zinc-200/40">
+                                                            <div className={`mt-2.5 rounded-xl overflow-hidden border ${isOwn ? 'border-slate-800 bg-slate-950/60' : 'border-zinc-200 bg-zinc-50'} p-1`}>
                                                                 {msg.file_url.match(/\.(jpeg|jpg|gif|png|webp)/i) || msg.content?.toLowerCase().includes('image') ? (
-                                                                    <img src={msg.file_url} alt="Attachment" className="max-h-56 w-full object-cover rounded-md" />
+                                                                    <img src={msg.file_url} alt="Attachment" className="max-h-60 w-full object-cover rounded-lg" />
                                                                 ) : (
-                                                                    <a href={msg.file_url} target="_blank" rel="noreferrer" className="text-xs underline text-blue-400 p-2 block">
-                                                                        📁 View Attached File
+                                                                    <a href={msg.file_url} target="_blank" rel="noreferrer" className={`text-xs font-semibold underline p-2.5 flex items-center gap-2 ${isOwn ? 'text-indigo-300 hover:text-indigo-200' : 'text-indigo-600 hover:text-indigo-700'}`}>
+                                                                        📁 View Attached Document
                                                                     </a>
                                                                 )}
                                                             </div>
@@ -812,14 +849,14 @@ export default function Messages() {
 
                                                         {/* Legacy Attachments Array Support */}
                                                         {msg.attachments && msg.attachments.length > 0 && !msg.file_url && (
-                                                            <div className="mt-2 space-y-1.5">
+                                                            <div className="mt-2.5 space-y-1.5">
                                                                 {msg.attachments.map((att, idx) => (
-                                                                    <div key={idx} className="rounded-lg overflow-hidden border border-zinc-200/40">
+                                                                    <div key={idx} className={`rounded-xl overflow-hidden border ${isOwn ? 'border-slate-800 bg-slate-950/60' : 'border-zinc-200 bg-zinc-50'} p-1`}>
                                                                         {att.type === 'image' ? (
-                                                                            <img src={att.url} alt="Attachment" className="max-h-48 w-full object-cover rounded-md" />
+                                                                            <img src={att.url} alt="Attachment" className="max-h-52 w-full object-cover rounded-lg" />
                                                                         ) : (
-                                                                            <a href={att.url} target="_blank" rel="noreferrer" className="text-xs underline text-blue-400 p-2 block">
-                                                                                📁 View Attached File
+                                                                            <a href={att.url} target="_blank" rel="noreferrer" className={`text-xs font-semibold underline p-2.5 flex items-center gap-2 ${isOwn ? 'text-indigo-300 hover:text-indigo-200' : 'text-indigo-600 hover:text-indigo-700'}`}>
+                                                                                📁 View Attached Document
                                                                             </a>
                                                                         )}
                                                                     </div>
@@ -827,12 +864,16 @@ export default function Messages() {
                                                             </div>
                                                         )}
 
-                                                        {/* Timestamp & Double Ticks */}
-                                                        <div className={`flex items-center justify-end gap-1 text-[10px] mt-1.5 ${
-                                                            isOwn ? 'text-zinc-400' : 'text-zinc-500'
+                                                        {/* Timestamp & Read Status Bar */}
+                                                        <div className={`flex items-center justify-end gap-1.5 text-[10.5px] mt-2 pt-1 border-t ${
+                                                            isOwn ? 'border-white/10 text-slate-300' : 'border-zinc-100 text-zinc-400'
                                                         }`}>
-                                                            <span>{formatDate(msg.created_date || msg.created_at, 'h:mm a')}</span>
-                                                            {isOwn && <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />}
+                                                            <span className="font-medium tracking-tight">
+                                                                {formatDate(msg.created_date || msg.created_at, 'h:mm a')}
+                                                            </span>
+                                                            {isOwn && (
+                                                                <CheckCheck className="w-4 h-4 text-emerald-400 drop-shadow-[0_0_4px_rgba(52,211,153,0.4)] shrink-0" />
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -844,7 +885,7 @@ export default function Messages() {
                             </div>
 
                             {/* WhatsApp Style Sticky Bottom Input Bar */}
-                            <div className="p-2.5 sm:p-3 bg-white border-t border-zinc-200 shrink-0 sticky bottom-0 z-10">
+                            <div className="p-2.5 sm:p-3.5 bg-white/95 backdrop-blur-md border-t border-zinc-200/90 shrink-0 sticky bottom-0 z-10">
                                 <div className="flex items-center gap-2 max-w-full">
                                     <Button
                                         type="button"
@@ -852,10 +893,10 @@ export default function Messages() {
                                         size="sm"
                                         onClick={() => handleUploadAttachment('image')}
                                         disabled={uploading}
-                                        className="h-9 w-9 p-0 rounded-full text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 shrink-0"
+                                        className="h-10 w-10 p-0 rounded-full text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 shrink-0"
                                         title="Attach Image"
                                     >
-                                        <ImageIcon className="w-4 h-4" />
+                                        <ImageIcon className="w-4.5 h-4.5" />
                                     </Button>
                                     <Button
                                         type="button"
@@ -863,24 +904,24 @@ export default function Messages() {
                                         size="sm"
                                         onClick={() => handleUploadAttachment('video')}
                                         disabled={uploading}
-                                        className="h-9 w-9 p-0 rounded-full text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 shrink-0"
+                                        className="h-10 w-10 p-0 rounded-full text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 shrink-0"
                                         title="Attach Video"
                                     >
-                                        <Video className="w-4 h-4" />
+                                        <Video className="w-4.5 h-4.5" />
                                     </Button>
 
                                     <Input
-                                        placeholder="Type a message..."
+                                        placeholder="Type your message..."
                                         value={messageInput}
                                         onChange={(e) => setMessageInput(e.target.value)}
                                         onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                                        className="flex-1 h-10 text-xs sm:text-sm bg-zinc-100/90 border-transparent focus-visible:bg-white focus-visible:ring-zinc-950 rounded-full px-4 min-w-0"
+                                        className="flex-1 h-10 text-xs sm:text-sm bg-zinc-100/80 hover:bg-zinc-100 focus-visible:bg-white text-zinc-900 font-medium border border-zinc-200/80 focus-visible:border-zinc-900 rounded-full px-4 min-w-0 transition-colors"
                                     />
 
                                     <Button
                                         onClick={handleSendMessage}
                                         disabled={!messageInput.trim() || sendMessageMutation.isPending}
-                                        className="bg-zinc-950 hover:bg-zinc-900 text-white h-10 w-10 p-0 rounded-full shrink-0 shadow-xs flex items-center justify-center"
+                                        className="bg-gradient-to-r from-zinc-950 to-zinc-900 hover:from-zinc-900 hover:to-zinc-800 text-white h-10 w-10 p-0 rounded-full shrink-0 shadow-md hover:shadow-lg transition-all transform active:scale-95 flex items-center justify-center"
                                     >
                                         <Send className="w-4 h-4" />
                                     </Button>

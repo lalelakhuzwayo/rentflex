@@ -4,12 +4,19 @@ import { useAuth } from '@/lib/AuthContext';
 import { motion } from 'framer-motion';
 import { MapPin, Bed, Bath, Square, TrendingUp, Clock, Gavel, Edit3 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 export default function PropertyCard({ property, index = 0 }) {
     const { user, isLandlord, isSysAdmin } = useAuth();
     const defaultImage = 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800&q=80';
 
-    const canEdit = isSysAdmin || (isLandlord && (property.landlord_id === user?.email || property.landlord_id === user?.id));
+    const canEdit = isSysAdmin || (isLandlord && (
+        !property.landlord_id ||
+        property.landlord_id === 'landlord' ||
+        property.landlord_id === user?.email ||
+        property.landlord_id === user?.id ||
+        String(property.landlord_id).toLowerCase() === String(user?.email || '').toLowerCase()
+    ));
 
     const statusColors = {
         available: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',

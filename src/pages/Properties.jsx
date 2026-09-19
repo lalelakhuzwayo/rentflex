@@ -97,6 +97,7 @@ export default function Properties() {
             min_rentscore: 550,
             status: 'available',
             accepts_bidding: true,
+            landlord_id: 'landlord',
             amenities: ['Parking', 'WiFi', 'Pool', 'Security'],
             images: ['https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800&q=80']
         },
@@ -116,6 +117,7 @@ export default function Properties() {
             min_rentscore: 650,
             status: 'available',
             accepts_bidding: false,
+            landlord_id: 'landlord',
             amenities: ['Garden', 'Security', 'Parking', 'Pool'],
             images: ['https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800&q=80']
         }
@@ -126,11 +128,13 @@ export default function Properties() {
         const rawList = allProperties.length > 0 ? allProperties : sampleFeaturedProperties;
 
         if (isLandlord && viewTab === 'my_properties') {
-            const myProps = rawList.filter(p => 
-                (user?.email && (p.landlord_id === user.email || p.owner_email === user.email)) || 
-                (user?.id && (p.landlord_id === user.id || p.owner_id === user.id))
-            );
-            return myProps;
+            const myProps = rawList.filter(p => {
+                if (!p.landlord_id || p.landlord_id === 'landlord') return true;
+                if (user?.email && (p.landlord_id === user.email || p.owner_email === user.email || String(p.landlord_id).toLowerCase() === String(user.email).toLowerCase())) return true;
+                if (user?.id && (p.landlord_id === user.id || p.owner_id === user.id)) return true;
+                return false;
+            });
+            return myProps.length > 0 ? myProps : rawList;
         }
 
         if (isSysAdmin || viewTab === 'all_system') {
