@@ -44,12 +44,16 @@ import PropertyCard from '@/components/properties/PropertyCard';
 export default function Properties() {
     const { user, role, isLandlord, isSysAdmin } = useAuth();
 
-    // Default viewTab: Landlords default to 'my_properties', sysAdmins to 'all_system', others to 'marketplace'
-    const [viewTab, setViewTab] = useState(() => {
-        if (isLandlord) return 'my_properties';
-        if (isSysAdmin) return 'all_system';
-        return 'marketplace';
-    });
+    const [viewTab, setViewTab] = useState('marketplace');
+    const [hasUserSelectedTab, setHasUserSelectedTab] = useState(false);
+
+    useEffect(() => {
+        if (!hasUserSelectedTab) {
+            if (isLandlord) setViewTab('my_properties');
+            else if (isSysAdmin) setViewTab('all_system');
+            else setViewTab('marketplace');
+        }
+    }, [isLandlord, isSysAdmin, hasUserSelectedTab]);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [propertyType, setPropertyType] = useState('all');
@@ -62,34 +66,13 @@ export default function Properties() {
 
     const landlordIdentifier = user?.email || user?.id;
 
-    // Fetch properties based on role and active viewTab
-    const { data: properties = [], isLoading } = useQuery({
-        queryKey: ['properties-list', viewTab, landlordIdentifier, isSysAdmin, isLandlord],
+    // Fetch all properties cleanly from database with offline cache support
+    const { data: allProperties = [], isLoading } = useQuery({
+        queryKey: ['properties-list-all'],
         queryFn: async () => {
             try {
-                if (isLandlord && viewTab === 'my_properties') {
-                    if (!landlordIdentifier) return [];
-                    const list1 = await appClient.entities.Property.filter({ landlord_id: user?.email });
-                    const list2 = user?.id && user.id !== user.email 
-                        ? await appClient.entities.Property.filter({ landlord_id: user.id }) 
-                        : [];
-                    const combined = [...list1, ...list2];
-                    const uniqueMyProps = Array.from(new Map(combined.map(item => [item.id, item])).values());
-                    
-                    // If landlord has zero properties yet, fetch all available properties so they don't see a blank page
-                    if (uniqueMyProps.length > 0) return uniqueMyProps;
-                    const allMarketplace = await appClient.entities.Property.list();
-                    return allMarketplace || [];
-                }
-
-                const allProps = await appClient.entities.Property.list();
-                if (allProps && allProps.length > 0) {
-                    if (isSysAdmin || viewTab === 'all_system') return allProps;
-                    // Filter out unlisted properties for marketplace
-                    const activeProps = allProps.filter(p => !p.status || String(p.status).toLowerCase() !== 'unlisted');
-                    return activeProps.length > 0 ? activeProps : allProps;
-                }
-                return allProps || [];
+                const list = await appClient.entities.Property.list();
+                return list || [];
             } catch (err) {
                 console.error('Properties fetch error:', err);
                 return [];
@@ -138,7 +121,28 @@ export default function Properties() {
         }
     ];
 
-    const displayPropertiesList = (properties && properties.length > 0) ? properties : sampleFeaturedProperties;
+    // Determine target properties to display based on viewTab & landlord matching
+    const targetProperties = React.useMemo(() => {
+        const rawList = allProperties.length > 0 ? allProperties : sampleFeaturedProperties;
+
+        if (isLandlord && viewTab === 'my_properties') {
+            const myProps = rawList.filter(p => 
+                (user?.email && (p.landlord_id === user.email || p.owner_email === user.email)) || 
+                (user?.id && (p.landlord_id === user.id || p.owner_id === user.id))
+            );
+            return myProps;
+        }
+
+        if (isSysAdmin || viewTab === 'all_system') {
+            return rawList;
+        }
+
+        // Marketplace view: filter out unlisted
+        const activeOnly = rawList.filter(p => !p.status || String(p.status).toLowerCase() !== 'unlisted');
+        return activeOnly.length > 0 ? activeOnly : rawList;
+    }, [allProperties, isLandlord, isSysAdmin, viewTab, user]);
+
+    const displayPropertiesList = targetProperties || [];
 
     const filteredProperties = displayPropertiesList.filter(property => {
         const matchesSearch = !searchTerm ||
@@ -231,7 +235,10 @@ export default function Properties() {
                     {isLandlord && (
                         <button
                             type="button"
-                            onClick={() => setViewTab('my_properties')}
+                            onClick={() => {
+                                setViewTab('my_properties');
+                                setHasUserSelectedTab(true);
+                            }}
                             className={`py-3 px-5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
                                 viewTab === 'my_properties'
                                     ? 'border-zinc-950 text-zinc-950'
@@ -241,14 +248,17 @@ export default function Properties() {
                             <Building2 className="w-4 h-4 text-zinc-900" />
                             My Managed Properties
                             <Badge className="bg-zinc-900 text-white text-[10px] ml-1">
-                                {isLandlord && viewTab === 'my_properties' ? properties.length : 'Mine'}
+                                {isLandlord && viewTab === 'my_properties' ? targetProperties.length : 'Mine'}
                             </Badge>
                         </button>
                     )}
 
                     <button
                         type="button"
-                        onClick={() => setViewTab(isSysAdmin ? 'all_system' : 'marketplace')}
+                        onClick={() => {
+                            setViewTab(isSysAdmin ? 'all_system' : 'marketplace');
+                            setHasUserSelectedTab(true);
+                        }}
                         className={`py-3 px-5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
                             viewTab !== 'my_properties'
                                 ? 'border-zinc-950 text-zinc-950'
