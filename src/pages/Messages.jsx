@@ -438,17 +438,10 @@ export default function Messages() {
         }
 
         sendMessageMutation.mutate({
-            conversation_id: selectedConversation,
-            property_id: activeConv?.data?.property_id,
-            property_title: activeConv?.data?.property_title || activeConv?.title || 'Rental Unit',
-            lease_id: activeConv?.data?.id,
-            sender_id: user?.email || user?.id,
-            sender_name: user?.full_name || user?.email,
-            sender_type: user?.user_type || (isLandlord ? 'landlord' : 'tenant'),
-            receiver_id: receiverId,
-            message_type: 'text',
+            conversation_id: String(selectedConversation),
+            sender_id: String(user?.email || user?.id || 'user'),
+            receiver_id: String(receiverId || 'user'),
             content: messageInput.trim(),
-            attachments: [],
         });
     };
 
@@ -474,20 +467,11 @@ export default function Messages() {
                 }
 
                 await sendMessageMutation.mutateAsync({
-                    conversation_id: selectedConversation,
-                    property_id: activeConv?.data?.property_id,
-                    property_title: activeConv?.data?.property_title || activeConv?.title || 'Rental Unit',
-                    sender_id: user?.email || user?.id,
-                    sender_name: user?.full_name || user?.email,
-                    sender_type: user?.user_type || (isLandlord ? 'landlord' : 'tenant'),
-                    receiver_id: receiverId || 'user',
-                    message_type: 'text',
+                    conversation_id: String(selectedConversation),
+                    sender_id: String(user?.email || user?.id || 'user'),
+                    receiver_id: String(receiverId || 'user'),
                     content: `Shared a ${type}`,
-                    attachments: [{
-                        type,
-                        url: file_url,
-                        filename: file.name
-                    }],
+                    file_url: file_url,
                 });
 
                 toast.success(`${type} uploaded successfully!`);
@@ -535,10 +519,6 @@ export default function Messages() {
                                 <p className="text-[11px] text-zinc-500 capitalize">{user?.user_type || 'User'} Account</p>
                             </div>
                         </div>
-
-                        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-semibold flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" /> Live
-                        </Badge>
                     </div>
 
                     {/* WhatsApp Search Bar */}
@@ -817,8 +797,21 @@ export default function Messages() {
                                                     }`}>
                                                         <p className="leading-relaxed">{msg.content}</p>
 
-                                                        {/* Attachments */}
-                                                        {msg.attachments && msg.attachments.length > 0 && (
+                                                        {/* Attached File Preview */}
+                                                        {msg.file_url && (
+                                                            <div className="mt-2 rounded-lg overflow-hidden border border-zinc-200/40">
+                                                                {msg.file_url.match(/\.(jpeg|jpg|gif|png|webp)/i) || msg.content?.toLowerCase().includes('image') ? (
+                                                                    <img src={msg.file_url} alt="Attachment" className="max-h-56 w-full object-cover rounded-md" />
+                                                                ) : (
+                                                                    <a href={msg.file_url} target="_blank" rel="noreferrer" className="text-xs underline text-blue-400 p-2 block">
+                                                                        📁 View Attached File
+                                                                    </a>
+                                                                )}
+                                                            </div>
+                                                        )}
+
+                                                        {/* Legacy Attachments Array Support */}
+                                                        {msg.attachments && msg.attachments.length > 0 && !msg.file_url && (
                                                             <div className="mt-2 space-y-1.5">
                                                                 {msg.attachments.map((att, idx) => (
                                                                     <div key={idx} className="rounded-lg overflow-hidden border border-zinc-200/40">

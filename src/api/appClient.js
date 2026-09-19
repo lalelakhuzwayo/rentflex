@@ -41,6 +41,22 @@ const normalizeItemNumbers = (data) => {
     return data;
 };
 
+const ALLOWED_COLUMNS_MAP = {
+    Message: ['id', 'conversation_id', 'sender_id', 'receiver_id', 'content', 'file_url', 'created_at']
+};
+
+const sanitizeEntityData = (entityName, data) => {
+    const allowed = ALLOWED_COLUMNS_MAP[entityName];
+    if (!allowed || !data || typeof data !== 'object') return data;
+    const cleanData = {};
+    Object.keys(data).forEach(key => {
+        if (allowed.includes(key)) {
+            cleanData[key] = data[key];
+        }
+    });
+    return cleanData;
+};
+
 const createSupabaseEntityHandler = (entityName) => {
     const tableName = ENTITY_TABLE_MAP[entityName] || entityName.toLowerCase() + 's';
 
@@ -134,7 +150,8 @@ const createSupabaseEntityHandler = (entityName) => {
             if (!isSupabaseConfigured) {
                 throw new Error('Supabase is not configured.');
             }
-            const { data: created, error } = await supabase.from(tableName).insert([data]).select().single();
+            const payload = sanitizeEntityData(entityName, data);
+            const { data: created, error } = await supabase.from(tableName).insert([payload]).select().single();
             if (error) {
                 console.error(`Supabase create error on ${tableName}:`, error);
                 throw new Error(error.message || `Failed to create ${entityName}`);
@@ -145,7 +162,8 @@ const createSupabaseEntityHandler = (entityName) => {
             if (!isSupabaseConfigured) {
                 throw new Error('Supabase is not configured.');
             }
-            const { data: updated, error } = await supabase.from(tableName).update(data).eq('id', id).select().single();
+            const payload = sanitizeEntityData(entityName, data);
+            const { data: updated, error } = await supabase.from(tableName).update(payload).eq('id', id).select().single();
             if (error) {
                 console.error(`Supabase update error on ${tableName}:`, error);
                 throw new Error(error.message || `Failed to update ${entityName}`);
