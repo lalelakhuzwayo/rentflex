@@ -127,9 +127,40 @@ export default function ApplicationScreening() {
     });
 
     const updateApplicationMutation = useMutation({
-        mutationFn: (/** @type {{ id: string, data: any }} */ { id, data }) => appClient.entities.Application.update(id, data),
+        mutationFn: async (/** @type {{ id: string, data: any }} */ { id, data }) => {
+            const updated = await appClient.entities.Application.update(id, data);
+            const msgContent = data.status === 'approved'
+                ? `🎉 Application Approved! Your application for "${updated.property_title || 'rental property'}" has been APPROVED!`
+                : data.status === 'rejected'
+                    ? `❌ Application Declined: Your application for "${updated.property_title || 'rental property'}" was not approved.`
+                    : data.status === 'under_review'
+                        ? `📋 Application Under Review for "${updated.property_title || 'rental property'}".`
+                        : null;
+
+            if (msgContent) {
+                const targetTenant = updated.tenant_id || updated.applicant_email;
+                await appClient.entities.Message.create({
+                    conversation_id: `app_${updated.id}`,
+                    sender_id: user?.email || user?.id || 'landlord',
+                    receiver_id: targetTenant || 'tenant',
+                    content: msgContent
+                }).catch(() => {});
+
+                if (targetTenant && (updated.landlord_id || user?.email)) {
+                    await appClient.entities.Message.create({
+                        conversation_id: `${targetTenant}_${updated.landlord_id || user?.email}`,
+                        sender_id: user?.email || user?.id || 'landlord',
+                        receiver_id: targetTenant,
+                        content: msgContent
+                    }).catch(() => {});
+                }
+            }
+            return updated;
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['applications'] });
+            queryClient.invalidateQueries({ queryKey: ['messages'] });
+            queryClient.invalidateQueries({ queryKey: ['user-all-messages'] });
             toast.success('Application updated successfully');
             setDetailsModalOpen(false);
         },
@@ -138,32 +169,38 @@ export default function ApplicationScreening() {
     const updateTourMutation = useMutation({
         mutationFn: async ({ id, data }) => {
             const updated = await appClient.entities.TourSchedule.update(id, data);
-            if (data.status === 'confirmed') {
+            const msgContent = data.status === 'confirmed'
+                ? `✅ Tour Schedule Confirmed! Viewing agreed for ${updated.requested_date} at ${updated.requested_time}.`
+                : data.status === 'reschedule_requested'
+                    ? `🔄 Reschedule Proposed: Proposed viewing date ${data.reschedule_date || updated.requested_date} at ${data.reschedule_time || updated.requested_time}.`
+                    : data.status === 'declined'
+                        ? `❌ Tour Request Declined.`
+                        : null;
+
+            if (msgContent) {
+                const targetReceiver = isTenant ? updated.landlord_id : updated.tenant_id;
                 await appClient.entities.Message.create({
-                    conversation_id: `${updated.tenant_id}_${updated.landlord_id}`,
+                    conversation_id: `tour_${updated.id}`,
                     sender_id: user?.email || 'user',
-                    receiver_id: isTenant ? updated.landlord_id : updated.tenant_id,
-                    content: `✅ Tour Schedule Confirmed! Viewing agreed for ${updated.requested_date} at ${updated.requested_time}.`
+                    receiver_id: targetReceiver || 'user',
+                    content: msgContent
                 }).catch(() => {});
-            } else if (data.status === 'reschedule_requested') {
-                await appClient.entities.Message.create({
-                    conversation_id: `${updated.tenant_id}_${updated.landlord_id}`,
-                    sender_id: user?.email || 'user',
-                    receiver_id: isTenant ? updated.landlord_id : updated.tenant_id,
-                    content: `🔄 Reschedule Proposed: Proposed viewing date ${data.reschedule_date} at ${data.reschedule_time}.`
-                }).catch(() => {});
-            } else if (data.status === 'declined') {
-                await appClient.entities.Message.create({
-                    conversation_id: `${updated.tenant_id}_${updated.landlord_id}`,
-                    sender_id: user?.email || 'user',
-                    receiver_id: isTenant ? updated.landlord_id : updated.tenant_id,
-                    content: `❌ Tour Request Declined.`
-                }).catch(() => {});
+
+                if (updated.tenant_id && updated.landlord_id) {
+                    await appClient.entities.Message.create({
+                        conversation_id: `${updated.tenant_id}_${updated.landlord_id}`,
+                        sender_id: user?.email || 'user',
+                        receiver_id: targetReceiver || 'user',
+                        content: msgContent
+                    }).catch(() => {});
+                }
             }
             return updated;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['tourSchedules'] });
+            queryClient.invalidateQueries({ queryKey: ['messages'] });
+            queryClient.invalidateQueries({ queryKey: ['user-all-messages'] });
             toast.success('Tour schedule updated!');
         },
         onError: () => toast.error('Failed to update tour schedule')
@@ -172,25 +209,38 @@ export default function ApplicationScreening() {
     const updateBidMutation = useMutation({
         mutationFn: async ({ id, data }) => {
             const updated = await appClient.entities.Bid.update(id, data);
-            if (data.status === 'accepted') {
+            const msgContent = data.status === 'accepted'
+                ? `🎉 Congratulations! Your bid of R${(data.proposed_rent || updated.proposed_rent || updated.bid_amount)?.toLocaleString()} for property listing has been ACCEPTED!`
+                : data.status === 'countered'
+                    ? `💬 Counter Bid Offered: Landlord proposed R${data.proposed_rent?.toLocaleString()}/month.`
+                    : data.status === 'rejected'
+                        ? `❌ Property Bid Declined for "${updated.property_title || 'listing'}".`
+                        : null;
+
+            if (msgContent) {
+                const targetTenant = updated.tenant_id || updated.bidder_id;
                 await appClient.entities.Message.create({
-                    conversation_id: `${updated.tenant_id}_${updated.landlord_id || user?.email}`,
+                    conversation_id: `bid_${updated.id}`,
                     sender_id: user?.email || 'landlord',
-                    receiver_id: updated.tenant_id,
-                    content: `🎉 Congratulations! Your bid of R${updated.proposed_rent?.toLocaleString()} for property listing has been ACCEPTED!`
+                    receiver_id: targetTenant || 'tenant',
+                    content: msgContent
                 }).catch(() => {});
-            } else if (data.status === 'countered') {
-                await appClient.entities.Message.create({
-                    conversation_id: `${updated.tenant_id}_${updated.landlord_id || user?.email}`,
-                    sender_id: user?.email || 'landlord',
-                    receiver_id: updated.tenant_id,
-                    content: `💬 Counter Bid Offered: Landlord proposed R${data.proposed_rent?.toLocaleString()}/month.`
-                }).catch(() => {});
+
+                if (targetTenant && (updated.landlord_id || user?.email)) {
+                    await appClient.entities.Message.create({
+                        conversation_id: `${targetTenant}_${updated.landlord_id || user?.email}`,
+                        sender_id: user?.email || 'landlord',
+                        receiver_id: targetTenant,
+                        content: msgContent
+                    }).catch(() => {});
+                }
             }
             return updated;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['propertyBids'] });
+            queryClient.invalidateQueries({ queryKey: ['messages'] });
+            queryClient.invalidateQueries({ queryKey: ['user-all-messages'] });
             toast.success('Bid status updated!');
         },
         onError: () => toast.error('Failed to update bid')

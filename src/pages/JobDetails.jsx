@@ -54,17 +54,43 @@ export default function JobDetails() {
     });
 
     const createBidMutation = useMutation({
-        mutationFn: (data) => appClient.entities.ContractorBid.create({
-            job_id: id,
-            contractor_id: user?.id || user?.email || 'contractor',
-            contractor_name: contractor?.company_name || contractor?.business_name || user?.full_name || user?.email?.split('@')[0] || 'Contractor',
-            amount: parseFloat(data.bid_amount),
-            estimated_days: parseInt(data.estimated_duration_days || '1', 10),
-            proposal: data.proposal || '',
-            status: 'pending'
-        }),
+        mutationFn: async (data) => {
+            const newBid = await appClient.entities.ContractorBid.create({
+                job_id: id,
+                contractor_id: user?.id || user?.email || 'contractor',
+                contractor_name: contractor?.company_name || contractor?.business_name || user?.full_name || user?.email?.split('@')[0] || 'Contractor',
+                amount: parseFloat(data.bid_amount),
+                estimated_days: parseInt(data.estimated_duration_days || '1', 10),
+                proposal: data.proposal || '',
+                status: 'pending'
+            });
+
+            const posterId = job?.posted_by_email || job?.posted_by_id || 'landlord';
+            const contractorId = user?.email || user?.id || 'contractor';
+            const msgContent = `🔨 New Job Bid Submitted! Contractor placed a bid of R${parseFloat(data.bid_amount).toLocaleString()} (${data.estimated_duration_days} days) on "${job?.title || 'Job Listing'}".`;
+
+            await appClient.entities.Message.create({
+                conversation_id: `job_${id}`,
+                sender_id: contractorId,
+                receiver_id: posterId,
+                content: msgContent
+            }).catch(() => {});
+
+            if (contractorId && posterId) {
+                await appClient.entities.Message.create({
+                    conversation_id: `${contractorId}_${posterId}`,
+                    sender_id: contractorId,
+                    receiver_id: posterId,
+                    content: msgContent
+                }).catch(() => {});
+            }
+
+            return newBid;
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['job-bids', id] });
+            queryClient.invalidateQueries({ queryKey: ['messages'] });
+            queryClient.invalidateQueries({ queryKey: ['user-all-messages'] });
             toast.success('Bid submitted successfully!');
             setBidDialogOpen(false);
             setBidForm({ bid_amount: '', estimated_duration_days: '', proposal: '' });
@@ -76,16 +102,37 @@ export default function JobDetails() {
     });
 
     const awardJobMutation = useMutation({
-        mutationFn: async ({ bidId, contractorId }) => {
+        mutationFn: async ({ bidId, contractorId, bidAmount }) => {
             await appClient.entities.ContractorBid.update(bidId, { status: 'accepted' });
             await appClient.entities.ContractorJob.update(id, {
                 status: 'assigned',
                 contractor_id: contractorId
             });
+
+            const posterId = user?.email || user?.id || 'landlord';
+            const msgContent = `🎉 Job Awarded! Your bid for job "${job?.title || 'Listing'}" has been ACCEPTED & Awarded!`;
+
+            await appClient.entities.Message.create({
+                conversation_id: `job_${id}`,
+                sender_id: posterId,
+                receiver_id: contractorId || 'contractor',
+                content: msgContent
+            }).catch(() => {});
+
+            if (posterId && contractorId) {
+                await appClient.entities.Message.create({
+                    conversation_id: `${posterId}_${contractorId}`,
+                    sender_id: posterId,
+                    receiver_id: contractorId,
+                    content: msgContent
+                }).catch(() => {});
+            }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['job', id] });
             queryClient.invalidateQueries({ queryKey: ['job-bids', id] });
+            queryClient.invalidateQueries({ queryKey: ['messages'] });
+            queryClient.invalidateQueries({ queryKey: ['user-all-messages'] });
             toast.success('Job awarded successfully!');
             setAwardDialogOpen(false);
         },
@@ -94,6 +141,16 @@ export default function JobDetails() {
             toast.error(err.message || 'Failed to award job.');
         }
     });
+
+    // Alias for line 207 call
+    const acceptBidMutation = {
+        isPending: awardJobMutation.isPending,
+        mutate: (bid) => awardJobMutation.mutate({
+            bidId: bid.id,
+            contractorId: bid.contractor_id,
+            bidAmount: bid.bid_amount || bid.amount
+        })
+    };
 
     const handleSubmitBid = (e) => {
         e.preventDefault();

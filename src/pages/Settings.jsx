@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { appClient } from '@/api/appClient';
+import { authActions } from '@/api/authActions';
 import { useMutation } from '@tanstack/react-query';
 import {
     CreditCard,
@@ -17,7 +18,11 @@ import {
     Volume2,
     Send,
     Share2,
-    PlusSquare
+    PlusSquare,
+    Camera,
+    Upload,
+    X,
+    User
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
     Dialog,
     DialogContent,
@@ -37,11 +43,16 @@ import { pushNotifications } from '@/lib/pushNotifications';
 import { usePWAInstall } from '@/lib/usePWAInstall';
 
 export default function Settings() {
+    const fileInputRef = useRef(null);
     const [user, setUser] = useState(null);
+    const [avatarUrl, setAvatarUrl] = useState('');
+    const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
     const [form, setForm] = useState({
         full_name: '',
         phone: '',
         user_type: 'landlord',
+        avatar_url: ''
     });
 
     const [notifications, setNotifications] = useState({
@@ -65,10 +76,13 @@ export default function Settings() {
         appClient.auth.me().then(u => {
             setUser(u);
             const role = u.user_type === 'rentee' ? 'tenant' : (u.user_type || 'tenant');
+            const initialAvatar = u.avatar_url || u.avatar || '';
+            setAvatarUrl(initialAvatar);
             setForm({
                 full_name: u.full_name || '',
                 phone: u.phone || '',
                 user_type: role,
+                avatar_url: initialAvatar
             });
 
             // 2. Load stored notification preferences
@@ -81,6 +95,47 @@ export default function Settings() {
         setPushPermission(perm);
     }, []);
 
+    const handleAvatarUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploadingAvatar(true);
+        try {
+            toast.info('Uploading profile icon image...');
+            const uploaded = await appClient.integrations.Core.UploadFile({ file });
+            const newAvatarUrl = uploaded?.file_url;
+            if (!newAvatarUrl) throw new Error('Failed to retrieve uploaded image URL');
+
+            setAvatarUrl(newAvatarUrl);
+            setForm(prev => ({ ...prev, avatar_url: newAvatarUrl }));
+
+            await authActions.updateUserProfile({ avatar_url: newAvatarUrl });
+            setUser(prev => ({ ...prev, avatar_url: newAvatarUrl, avatar: newAvatarUrl }));
+            toast.success('Profile avatar updated successfully!');
+        } catch (err) {
+            console.error('Avatar upload error:', err);
+            toast.error(err.message || 'Failed to upload profile icon');
+        } finally {
+            setUploadingAvatar(false);
+        }
+    };
+
+    const handleRemoveAvatar = async () => {
+        try {
+            setUploadingAvatar(true);
+            setAvatarUrl('');
+            setForm(prev => ({ ...prev, avatar_url: '' }));
+
+            await authActions.updateUserProfile({ avatar_url: '' });
+            setUser(prev => ({ ...prev, avatar_url: '', avatar: '' }));
+            toast.info('Profile picture removed');
+        } catch (err) {
+            toast.error('Failed to remove profile picture');
+        } finally {
+            setUploadingAvatar(false);
+        }
+    };
+
     const updateMutation = useMutation({
         mutationFn: async (/** @type {any} */ data) => {
             // Save profile details and notification preferences
@@ -88,6 +143,7 @@ export default function Settings() {
                 full_name: data.full_name,
                 phone: data.phone,
                 user_type: data.user_type,
+                avatar_url: data.avatar_url || avatarUrl,
                 notification_preferences: data.notifications
             });
             await pushNotifications.savePreferences(data.notifications);
@@ -103,7 +159,7 @@ export default function Settings() {
     });
 
     const handleSave = () => {
-        updateMutation.mutate({ ...form, notifications });
+        updateMutation.mutate({ ...form, avatar_url: avatarUrl, notifications });
     };
 
     const handleLogout = () => {
@@ -273,6 +329,71 @@ export default function Settings() {
             {/* Profile Section */}
             <div className="sharp-card bg-white p-6 border border-transparent hover:border-zinc-900 transition-all duration-200">
                 <h2 className="text-base font-bold text-zinc-900 mb-5">Profile Information</h2>
+
+                {/* Profile Photo Avatar Upload Card */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 mb-6 bg-zinc-50 rounded-2xl border border-zinc-200/80">
+                    <div className="relative group shrink-0">
+                        <Avatar className="w-16 h-16 sm:w-20 sm:h-20 border-2 border-white shadow-md overflow-hidden bg-zinc-900">
+                            {(avatarUrl || form.avatar_url || user?.avatar_url || user?.avatar) && (
+                                <AvatarImage src={avatarUrl || form.avatar_url || user?.avatar_url || user?.avatar} alt={user?.full_name || 'User Avatar'} className="object-cover" />
+                            )}
+                            <AvatarFallback className="bg-zinc-900 text-white font-bold text-lg">
+                                {form.full_name?.charAt(0) || user?.email?.charAt(0) || 'U'}
+                            </AvatarFallback>
+                        </Avatar>
+
+                        <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={uploadingAvatar}
+                            className="absolute inset-0 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Change Profile Photo"
+                        >
+                            <Camera className="w-5 h-5 text-white" />
+                        </button>
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-bold text-zinc-900">User Icon & Profile Photo</h3>
+                        <p className="text-xs text-zinc-500 mt-0.5">
+                            Upload your picture to customize your user icon across header, navigation, and live chat.
+                        </p>
+                        <div className="flex items-center gap-2.5 mt-3">
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleAvatarUpload}
+                                className="hidden"
+                            />
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={uploadingAvatar}
+                                className="h-8 text-xs font-semibold border-zinc-300 hover:bg-zinc-100"
+                            >
+                                <Upload className="w-3.5 h-3.5 mr-1.5 text-zinc-700" />
+                                {uploadingAvatar ? 'Uploading...' : 'Upload Image'}
+                            </Button>
+
+                            {(avatarUrl || form.avatar_url || user?.avatar_url || user?.avatar) && (
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={handleRemoveAvatar}
+                                    disabled={uploadingAvatar}
+                                    className="h-8 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                                >
+                                    <X className="w-3.5 h-3.5 mr-1" />
+                                    Remove Photo
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                </div>
 
                 <div className="space-y-4">
                     <div>

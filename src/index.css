@@ -73,6 +73,34 @@ html::-webkit-scrollbar, body::-webkit-scrollbar {
   height: 0px;
 }
 
+/* Custom Sleek Scrollbar for Scrollable Message Panels & Lists */
+.custom-scrollbar {
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(161, 161, 170, 0.6) transparent !important;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+  display: block !important;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(161, 161, 170, 0.45);
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(113, 113, 122, 0.75);
+}
+
 /* Modern Ambient Mesh Gradient Canvas (GPU Accelerated Fixed Layer) */
 .app-bg-pattern {
   position: relative;
@@ -202,10 +230,21 @@ html::-webkit-scrollbar, body::-webkit-scrollbar {
 }
 
 /* Prevent horizontal scroll on mobile without breaking position: sticky */
+html, body, #root {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
 body {
   overflow-x: clip;
   width: 100%;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Universal Text Wrapping Safety to prevent horizontal overflow everywhere */
+*, *::before, *::after {
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 /* Touch optimizations */

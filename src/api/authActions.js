@@ -255,6 +255,7 @@ export const authActions = {
 
             const rawType = profile?.user_type || user.user_metadata?.user_type || 'tenant';
             const normalizedType = (rawType === 'rentee' ? 'tenant' : (rawType?.toLowerCase() === 'admin' || rawType?.toLowerCase() === 'sysadmin' ? 'sysAdmin' : rawType));
+            const avatarUrl = profile?.avatar_url || profile?.avatar || user.user_metadata?.avatar_url || user.user_metadata?.avatar || null;
 
             return {
                 id: user.id,
@@ -262,8 +263,11 @@ export const authActions = {
                 full_name: profile?.full_name || user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0],
                 user_type: normalizedType,
                 phone: profile?.phone || user.user_metadata?.phone || null,
+                avatar_url: avatarUrl,
+                avatar: avatarUrl,
                 ...profile,
-                user_type: normalizedType
+                user_type: normalizedType,
+                avatar_url: avatarUrl || profile?.avatar_url || user.user_metadata?.avatar_url
             };
         } catch (err) {
             console.error('Error fetching current user:', err);
@@ -279,6 +283,16 @@ export const authActions = {
 
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         if (userError || !user) throw new Error('User is not authenticated');
+
+        // Sync metadata with Supabase Auth
+        if (profileData.avatar_url || profileData.full_name) {
+            await supabase.auth.updateUser({
+                data: {
+                    ...(profileData.avatar_url ? { avatar_url: profileData.avatar_url } : {}),
+                    ...(profileData.full_name ? { full_name: profileData.full_name } : {})
+                }
+            }).catch(() => {});
+        }
 
         const { data: updated, error } = await supabase
             .from('profiles')

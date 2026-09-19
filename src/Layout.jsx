@@ -30,7 +30,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
     Sheet,
     SheetContent,
@@ -330,7 +330,10 @@ export default function Layout({ children, currentPageName }) {
                                         {user ? (
                                             <div className="px-4 py-3 bg-zinc-50 border-b border-zinc-100 flex items-center justify-between gap-2.5 shrink-0">
                                                 <div className="flex items-center gap-2.5 min-w-0">
-                                                    <Avatar className="w-8 h-8 border border-zinc-200 shadow-none shrink-0">
+                                                    <Avatar className="w-8 h-8 border border-zinc-200 shadow-none shrink-0 overflow-hidden">
+                                                        {(user.avatar_url || user.avatar) && (
+                                                            <AvatarImage src={user.avatar_url || user.avatar} alt={user.full_name || 'User Avatar'} className="object-cover" />
+                                                        )}
                                                         <AvatarFallback className="bg-zinc-900 text-white font-semibold text-xs">
                                                             {user.full_name?.charAt(0) || user.email?.charAt(0) || 'U'}
                                                         </AvatarFallback>
@@ -524,7 +527,10 @@ export default function Layout({ children, currentPageName }) {
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button variant="ghost" className="flex items-center gap-1.5 hover:bg-zinc-100 p-1 sm:px-3 rounded-lg h-8 sm:h-9">
-                                            <Avatar className="w-6 h-6 sm:w-7 sm:h-7 border border-zinc-200">
+                                            <Avatar className="w-6 h-6 sm:w-7 sm:h-7 border border-zinc-200 overflow-hidden">
+                                                {(user.avatar_url || user.avatar) && (
+                                                    <AvatarImage src={user.avatar_url || user.avatar} alt={user.full_name || 'User Avatar'} className="object-cover" />
+                                                )}
                                                 <AvatarFallback className="bg-zinc-900 text-white text-[10px] sm:text-[11px] font-bold">
                                                     {user.full_name?.charAt(0) || user.email?.charAt(0) || 'U'}
                                                 </AvatarFallback>
@@ -581,7 +587,7 @@ export default function Layout({ children, currentPageName }) {
             )}
 
             {/* Main Page Content */}
-            <main className={`flex-1 w-full mx-auto ${isAuthPage ? 'max-w-full p-0' : 'max-w-7xl px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 md:pb-8'}`}>
+            <main className={`flex-1 w-full min-w-0 overflow-x-hidden mx-auto ${isAuthPage ? 'max-w-full p-0' : 'max-w-7xl px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 md:pb-8'}`}>
                 {children}
             </main>
 

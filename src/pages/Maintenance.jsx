@@ -140,9 +140,31 @@ export default function Maintenance() {
 
     // Mutation to submit a new maintenance request
     const createMutation = useMutation({
-        mutationFn: (data) => appClient.entities.MaintenanceRequest.create(data),
+        mutationFn: async (data) => {
+            const created = await appClient.entities.MaintenanceRequest.create(data);
+            const msgContent = `🔧 New Maintenance Request: "${data.title}" submitted for ${data.property_title || 'property'}. Priority: ${String(data.priority).toUpperCase()}.`;
+
+            await appClient.entities.Message.create({
+                conversation_id: `maint_${created.id}`,
+                sender_id: data.tenant_id,
+                receiver_id: data.landlord_id,
+                content: msgContent
+            }).catch(() => {});
+
+            if (data.tenant_id && data.landlord_id) {
+                await appClient.entities.Message.create({
+                    conversation_id: `${data.tenant_id}_${data.landlord_id}`,
+                    sender_id: data.tenant_id,
+                    receiver_id: data.landlord_id,
+                    content: msgContent
+                }).catch(() => {});
+            }
+            return created;
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['maintenance-requests'] });
+            queryClient.invalidateQueries({ queryKey: ['messages'] });
+            queryClient.invalidateQueries({ queryKey: ['user-all-messages'] });
             setDialogOpen(false);
             setForm({ title: '', description: '', category: 'other', priority: 'medium', images: [] });
             toast.success('Maintenance request submitted successfully!');
@@ -155,9 +177,43 @@ export default function Maintenance() {
 
     // Mutation to update maintenance request status
     const updateMutation = useMutation({
-        mutationFn: ({ id, data }) => appClient.entities.MaintenanceRequest.update(id, data),
+        mutationFn: async ({ id, data, requestInfo }) => {
+            const updated = await appClient.entities.MaintenanceRequest.update(id, data);
+            const statusLabel = String(data.status).toUpperCase();
+            const title = requestInfo?.title || updated.title || 'Maintenance Request';
+            const msgContent = data.status === 'resolved' || data.status === 'completed'
+                ? `✅ Maintenance Request "${title}" HAS BEEN RESOLVED & Completed!`
+                : data.status === 'in_progress'
+                    ? `🔧 Maintenance Request "${title}" is now IN PROGRESS.`
+                    : data.status === 'scheduled'
+                        ? `📅 Maintenance Request "${title}" HAS BEEN SCHEDULED.`
+                        : data.status === 'cancelled'
+                            ? `❌ Maintenance Request "${title}" WAS CANCELLED.`
+                            : `ℹ️ Maintenance Request "${title}" updated to ${statusLabel}.`;
+
+            const targetReceiver = userEmail === updated.landlord_id ? updated.tenant_id : updated.landlord_id;
+
+            await appClient.entities.Message.create({
+                conversation_id: `maint_${id}`,
+                sender_id: userEmail || userId || 'user',
+                receiver_id: targetReceiver || 'user',
+                content: msgContent
+            }).catch(() => {});
+
+            if (updated.tenant_id && updated.landlord_id) {
+                await appClient.entities.Message.create({
+                    conversation_id: `${updated.tenant_id}_${updated.landlord_id}`,
+                    sender_id: userEmail || userId || 'user',
+                    receiver_id: targetReceiver || 'user',
+                    content: msgContent
+                }).catch(() => {});
+            }
+            return updated;
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['maintenance-requests'] });
+            queryClient.invalidateQueries({ queryKey: ['messages'] });
+            queryClient.invalidateQueries({ queryKey: ['user-all-messages'] });
             toast.success('Maintenance request updated!');
         },
         onError: (err) => {
