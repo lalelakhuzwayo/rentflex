@@ -124,12 +124,12 @@ export default function Messages() {
     });
 
     const landlordPropertyIds = useMemo(() => {
-        return new Set(myProperties.map(p => String(p.id)));
+        return new Set((myProperties || []).map(p => String(p.id)));
     }, [myProperties]);
 
     // 2. Property Bids Query
     const { data: bids = [] } = useQuery({
-        queryKey: ['messages-bids', user?.email, user?.id, isLandlord, myProperties.length],
+        queryKey: ['messages-bids', user?.email, user?.id, isLandlord, myProperties?.length || 0],
         queryFn: async () => {
             if (!user) return [];
             try {
@@ -159,7 +159,7 @@ export default function Messages() {
 
     // 3. Tour Schedules Query
     const { data: tourSchedules = [] } = useQuery({
-        queryKey: ['messages-tours', user?.email, user?.id, isLandlord, myProperties.length],
+        queryKey: ['messages-tours', user?.email, user?.id, isLandlord, myProperties?.length || 0],
         queryFn: async () => {
             if (!user) return [];
             try {
@@ -200,7 +200,7 @@ export default function Messages() {
 
     // 4. Applications Query
     const { data: applications = [] } = useQuery({
-        queryKey: ['messages-applications', user?.email, user?.id, isLandlord, myProperties.length],
+        queryKey: ['messages-applications', user?.email, user?.id, isLandlord, myProperties?.length || 0],
         queryFn: async () => {
             if (!user) return [];
             try {

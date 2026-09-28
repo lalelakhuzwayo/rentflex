@@ -50,7 +50,7 @@ export default function ApplicationScreening() {
     const isSysAdmin = user?.user_type === 'sysAdmin';
     const isTenant = user?.user_type === 'tenant';
 
-    const { data: applications, isLoading } = useQuery({
+    const { data: applications = [], isLoading } = useQuery({
         queryKey: ['applications', user?.email, user?.id, user?.user_type],
         queryFn: async () => {
             if (!user) return [];
@@ -71,7 +71,7 @@ export default function ApplicationScreening() {
         enabled: !!user?.email || !!user?.id,
     });
 
-    const { data: properties } = useQuery({
+    const { data: properties = [] } = useQuery({
         queryKey: ['landlordProperties', user?.email, user?.id, isSysAdmin],
         queryFn: async () => {
             if (!user) return [];
@@ -98,7 +98,7 @@ export default function ApplicationScreening() {
 
     // Tour Schedules Query
     const { data: tourSchedules = [] } = useQuery({
-        queryKey: ['tourSchedules', user?.email, user?.id, isSysAdmin, isTenant, properties.length],
+        queryKey: ['tourSchedules', user?.email, user?.id, isSysAdmin, isTenant, properties?.length || 0],
         queryFn: async () => {
             if (!user) return [];
             try {
@@ -128,7 +128,7 @@ export default function ApplicationScreening() {
 
     // Property Bids Query
     const { data: bids = [] } = useQuery({
-        queryKey: ['propertyBids', user?.email, user?.id, isSysAdmin, isTenant, properties.length],
+        queryKey: ['propertyBids', user?.email, user?.id, isSysAdmin, isTenant, properties?.length || 0],
         queryFn: async () => {
             if (!user) return [];
             try {
