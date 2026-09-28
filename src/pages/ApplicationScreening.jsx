@@ -33,6 +33,8 @@ import ApplicationDetailsModal from '@/components/screening/ApplicationDetailsMo
 import StatsCard from '@/components/dashboard/StatsCard';
 import { getViewedItemIds, markItemsAsViewed } from '@/utils/realtimeNotificationManager';
 
+const isValidUuid = (id) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
 export default function ApplicationScreening() {
     const [user, setUser] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -265,7 +267,7 @@ export default function ApplicationScreening() {
                 landlord_name: user?.full_name || 'Landlord',
                 tenant_id: bid.tenant_id || bid.bidder_id,
                 tenant_name: bid.tenant_name || 'Tenant',
-                property_id: bid.property_id,
+                property_id: isValidUuid(bid.property_id) ? bid.property_id : null,
                 property_title: bid.property_title || 'Rental Property',
                 property_address: bid.property_address || '',
                 monthly_rent: rent,
@@ -274,7 +276,11 @@ export default function ApplicationScreening() {
                 end_date: endDate,
                 status: 'pending_tenant_signature',
                 signed: false,
-                created_from_bid_id: bid.id,
+                tenant_signature: null,
+                tenant_signed_at: null,
+                landlord_signature: null,
+                landlord_signed_at: null,
+                created_from_bid_id: isValidUuid(bid.id) ? bid.id : null,
                 created_date: new Date().toISOString()
             };
 
@@ -396,7 +402,7 @@ export default function ApplicationScreening() {
             if (appToApprove) {
                 try {
                     await appClient.entities.Lease.create({
-                        property_id: appToApprove.property_id,
+                        property_id: isValidUuid(appToApprove.property_id) ? appToApprove.property_id : null,
                         property_title: appToApprove.property_title || 'Leased Property',
                         landlord_id: appToApprove.landlord_id || user?.email,
                         landlord_name: user?.full_name || 'Landlord',
@@ -408,8 +414,10 @@ export default function ApplicationScreening() {
                         end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                         status: 'pending_tenant_signature',
                         signed: false,
-                        landlord_signature: user?.full_name || 'Landlord',
-                        landlord_signed_at: new Date().toISOString()
+                        tenant_signature: null,
+                        tenant_signed_at: null,
+                        landlord_signature: null,
+                        landlord_signed_at: null
                     });
 
                     // Send instant message to tenant
@@ -443,7 +451,7 @@ export default function ApplicationScreening() {
         // 2. Automatically generate digital E-Lease contract in database for signing
         try {
             await appClient.entities.Lease.create({
-                property_id: selectedApplication.property_id,
+                property_id: isValidUuid(selectedApplication.property_id) ? selectedApplication.property_id : null,
                 property_title: selectedApplication.property_title || 'Leased Property',
                 landlord_id: selectedApplication.landlord_id || user?.email,
                 landlord_name: user?.full_name || 'Landlord',
@@ -455,8 +463,10 @@ export default function ApplicationScreening() {
                 end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 status: 'pending_tenant_signature',
                 signed: false,
-                landlord_signature: user?.full_name || 'Landlord',
-                landlord_signed_at: new Date().toISOString()
+                tenant_signature: null,
+                tenant_signed_at: null,
+                landlord_signature: null,
+                landlord_signed_at: null
             });
 
             // 3. Send instant message to tenant

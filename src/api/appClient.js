@@ -61,6 +61,26 @@ const ALLOWED_COLUMNS_MAP = {
         'landlord_notes', 'created_at', 'property_title', 'property_address', 'tenant_email', 
         'tenant_name', 'tenant_phone', 'move_in_date', 'monthly_income', 'employment_status', 
         'employer', 'credit_score', 'documents', 'reviewed_at', 'reviewed_by', 'updated_at'
+    ],
+    Lease: [
+        'id', 'property_id', 'property_title', 'property_address', 'property_image',
+        'landlord_id', 'landlord_name', 'tenant_id', 'tenant_name',
+        'monthly_rent', 'deposit_amount', 'start_date', 'end_date', 'status',
+        'documents', 'signed', 'tenant_signature', 'tenant_signed_at',
+        'landlord_signature', 'landlord_signed_at', 'terms',
+        'created_from_bid_id', 'room_number', 'is_room_rental',
+        'occupancy_status', 'active_months_monitored', 'last_rentscore_reward_date',
+        'termination_date', 'terminated_reason', 'created_at', 'updated_at'
+    ],
+    MaintenanceRequest: [
+        'id', 'lease_id', 'tenant_id', 'landlord_id', 'property_id', 'property_title',
+        'title', 'description', 'category', 'priority', 'status', 'images',
+        'contractor_id', 'estimated_cost', 'created_at', 'updated_at'
+    ],
+    Job: [
+        'id', 'maintenance_request_id', 'posted_by_id', 'title', 'description',
+        'category', 'budget_max', 'location', 'urgency', 'status',
+        'accepted_bid_id', 'created_at'
     ]
 };
 
@@ -74,6 +94,18 @@ const sanitizeEntityData = (entityName, data) => {
         }
         if (prepData.proposed_lease_months !== undefined && prepData.lease_duration_months === undefined) {
             prepData.lease_duration_months = parseInt(prepData.proposed_lease_months, 10);
+        }
+    }
+
+    if (entityName === 'Lease') {
+        if (prepData.created_date && !prepData.created_at) {
+            prepData.created_at = prepData.created_date;
+        }
+        if (prepData.monthly_rent !== undefined) {
+            prepData.monthly_rent = Number(prepData.monthly_rent);
+        }
+        if (prepData.deposit_amount !== undefined) {
+            prepData.deposit_amount = Number(prepData.deposit_amount);
         }
     }
 

@@ -307,12 +307,14 @@ export default function Messages() {
             const endDate = endDateObj.toISOString().split('T')[0];
             const rent = parseFloat(bid.proposed_rent || bid.bid_amount || 0);
 
+            const isUuid = (val) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(val));
+
             const leasePayload = {
                 landlord_id: user?.email || user?.id,
                 landlord_name: user?.full_name || 'Landlord',
                 tenant_id: bid.tenant_id || bid.bidder_id || bid.tenant_email,
                 tenant_name: bid.tenant_name || 'Tenant',
-                property_id: bid.property_id,
+                property_id: isUuid(bid.property_id) ? bid.property_id : null,
                 property_title: bid.property_title || 'Rental Property',
                 property_address: bid.property_address || '',
                 monthly_rent: rent,
@@ -321,8 +323,8 @@ export default function Messages() {
                 end_date: endDate,
                 status: 'pending_tenant_signature',
                 signed: false,
-                created_from_bid_id: bid.id,
-                created_date: new Date().toISOString()
+                created_from_bid_id: isUuid(bid.id) ? bid.id : null,
+                terms: 'Standard South African Residential Lease Agreement (Rental Housing Act compliant).'
             };
 
             const createdLease = await appClient.entities.Lease.create(leasePayload);

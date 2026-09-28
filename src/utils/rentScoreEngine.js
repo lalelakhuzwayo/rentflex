@@ -15,15 +15,24 @@ export async function syncAndScoreTenant(userOrEmail) {
     const userEmail = typeof userOrEmail === 'string' 
         ? userOrEmail.toLowerCase().trim() 
         : userOrEmail?.email?.toLowerCase()?.trim();
+    const userId = typeof userOrEmail === 'object' ? userOrEmail?.id : null;
 
-    if (!userEmail) return null;
+    if (!userEmail && !userId) return null;
+
+    const lookupKey = userEmail || userId;
 
     try {
         // 1. Fetch user's profile to check verified status
         let profile = null;
         try {
-            const profiles = await appClient.entities.Profile.filter({ email: userEmail });
-            profile = profiles?.[0] || null;
+            if (userEmail) {
+                const profiles = await appClient.entities.Profile.filter({ email: userEmail });
+                profile = profiles?.[0] || null;
+            }
+            if (!profile && userId) {
+                const profiles = await appClient.entities.Profile.filter({ id: userId });
+                profile = profiles?.[0] || null;
+            }
         } catch (_) {}
 
         // Check verification credentials
@@ -39,7 +48,16 @@ export async function syncAndScoreTenant(userOrEmail) {
         // 2. Fetch payments made by this tenant
         let paymentsCount = 0;
         try {
-            const payments = await appClient.entities.Payment.filter({ tenant_id: userEmail });
+            const paymentsByEmail = userEmail ? await appClient.entities.Payment.filter({ tenant_id: userEmail }).catch(() => []) : [];
+            const paymentsById = userId ? await appClient.entities.Payment.filter({ tenant_id: userId }).catch(() => []) : [];
+            const rawPayments = [...(Array.isArray(paymentsByEmail) ? paymentsByEmail : []), ...(Array.isArray(paymentsById) ? paymentsById : [])];
+            const seenP = new Set();
+            const payments = rawPayments.filter(p => {
+                const pid = p.id || JSON.stringify(p);
+                if (seenP.has(pid)) return false;
+                seenP.add(pid);
+                return true;
+            });
             if (Array.isArray(payments)) {
                 paymentsCount = payments.filter(p => p.status === 'completed' || p.status === 'success' || p.status === 'paid').length;
             }
@@ -53,16 +71,38 @@ export async function syncAndScoreTenant(userOrEmail) {
         let completedLeasesCount = 0;
 
         try {
-            const leases = await appClient.entities.Lease.filter({ tenant_id: userEmail });
+            const leasesByEmail = userEmail ? await appClient.entities.Lease.filter({ tenant_id: userEmail }).catch(() => []) : [];
+            const leasesById = userId ? await appClient.entities.Lease.filter({ tenant_id: userId }).catch(() => []) : [];
+            let rawLeases = [...(Array.isArray(leasesByEmail) ? leasesByEmail : []), ...(Array.isArray(leasesById) ? leasesById : [])];
+            
+            if (rawLeases.length === 0) {
+                const allLeasesList = await appClient.entities.Lease.list().catch(() => []);
+                if (Array.isArray(allLeasesList)) {
+                    rawLeases = allLeasesList.filter(l => 
+                        (userEmail && l.tenant_id && l.tenant_id.toLowerCase() === userEmail) ||
+                        (userId && l.tenant_id === userId) ||
+                        (l.tenant_name && typeof userOrEmail === 'object' && userOrEmail?.full_name && l.tenant_name.toLowerCase() === userOrEmail.full_name.toLowerCase())
+                    );
+                }
+            }
+
+            const seenL = new Set();
+            const leases = rawLeases.filter(l => {
+                const lid = l.id || JSON.stringify(l);
+                if (seenL.has(lid)) return false;
+                seenL.add(lid);
+                return true;
+            });
+
             if (Array.isArray(leases)) {
                 const now = new Date();
                 leases.forEach(lease => {
                     const isBothSigned = (lease.status === 'active' || (lease.tenant_signature && lease.landlord_signature));
                     if (isBothSigned && lease.start_date) {
+                        activeLeasesCount++;
                         const startDate = new Date(lease.start_date);
                         if (!isNaN(startDate.getTime()) && startDate <= now) {
-                            activeLeasesCount++;
-                            const diffDays = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+                            const diffDays = Math.max(0, Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
                             const months = Math.floor(diffDays / 30);
                             monthsOccupied += months;
                         }
@@ -74,8 +114,9 @@ export async function syncAndScoreTenant(userOrEmail) {
             }
         } catch (_) {}
 
-        // Occupancy Duration factor: +5 pts per month spent actively occupying
-        const occupancyPoints = Math.min(100, monthsOccupied * 5);
+        // Occupancy Duration factor: +10 base active tenancy bonus + +5 pts per month spent actively occupying
+        const activeLeaseBonus = activeLeasesCount > 0 ? 10 : 0;
+        const occupancyPoints = Math.min(100, activeLeaseBonus + (monthsOccupied * 5));
         const leaseCompletionPoints = Math.min(50, completedLeasesCount * 25);
 
         // Calculate total score: Base 550, max 850, min 300
@@ -103,11 +144,14 @@ export async function syncAndScoreTenant(userOrEmail) {
         };
 
         // Check if RentScore record exists in DB
-        const existingScores = await appClient.entities.RentScore.filter({ user_id: userEmail });
+        let existingScores = userEmail ? await appClient.entities.RentScore.filter({ user_id: userEmail }).catch(() => []) : [];
+        if ((!existingScores || existingScores.length === 0) && userId) {
+            existingScores = await appClient.entities.RentScore.filter({ user_id: userId }).catch(() => []);
+        }
         const existingRecord = existingScores?.[0];
 
         const payload = {
-            user_id: userEmail,
+            user_id: lookupKey,
             score: totalCalculated,
             history: historyPayload,
             // Also assign flat fields for backward compatibility with components

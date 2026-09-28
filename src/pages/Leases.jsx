@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { formatDate, formatDateRange, parseSafeDate } from '@/utils';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { formatDate, formatDateRange, parseSafeDate, createPageUrl } from '@/utils';
+import { useNavigate } from 'react-router-dom';
 import { appClient } from '@/api/appClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
@@ -16,13 +17,16 @@ import {
     UserCheck,
     Building2,
     Home,
-    Download
+    Download,
+    Wrench,
+    Type
 } from 'lucide-react';
 import { syncAndScoreTenant } from '@/utils/rentScoreEngine';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
+import { Input } from '@/components/ui/input';
 import {
     Dialog,
     DialogContent,
@@ -33,10 +37,13 @@ import {
 import { toast } from 'sonner';
 
 export default function Leases() {
+    const navigate = useNavigate();
     const [user, setUser] = useState(null);
     const [filter, setFilter] = useState('all');
     const [selectedLease, setSelectedLease] = useState(null);
     const [signatureModal, setSignatureModal] = useState(false);
+    const [sigMode, setSigMode] = useState('draw'); // 'draw' or 'type'
+    const [typedName, setTypedName] = useState('');
 
     const canvasRef = useRef(null);
     const [isDrawing, setIsDrawing] = useState(false);
@@ -45,27 +52,41 @@ export default function Leases() {
     const queryClient = useQueryClient();
 
     useEffect(() => {
-        appClient.auth.me().then(setUser).catch(() => { });
+        appClient.auth.me().then(u => {
+            setUser(u);
+            if (u?.full_name) {
+                setTypedName(u.full_name);
+            }
+        }).catch(() => { });
     }, []);
 
     const { data: leases = [], isLoading } = useQuery({
-        queryKey: ['leases', user?.email],
+        queryKey: ['leases', user?.email, user?.id],
         queryFn: async () => {
-            if (!user?.email) return [];
-            const userEmail = user.email.toLowerCase().trim();
-            const asTenant = await appClient.entities.Lease.filter({ tenant_id: userEmail });
-            const asLandlord = await appClient.entities.Lease.filter({ landlord_id: userEmail });
-            
-            // If sysAdmin, list all leases
-            let allLeases = [];
-            if (user.user_type === 'sysAdmin') {
-                allLeases = await appClient.entities.Lease.list();
-            }
+            if (!user) return [];
+            const myEmail = user.email?.toLowerCase().trim();
+            const myId = user.id ? String(user.id) : null;
+            const isSysAdmin = user.user_type === 'sysAdmin';
 
-            const combined = [...asTenant, ...asLandlord, ...allLeases];
-            return Array.from(new Map(combined.map(item => [item.id, item])).values());
+            try {
+                const allLeases = await appClient.entities.Lease.list();
+                if (!Array.isArray(allLeases)) return [];
+                if (isSysAdmin) return allLeases;
+
+                return allLeases.filter(l => {
+                    const tId = l.tenant_id ? String(l.tenant_id).toLowerCase().trim() : '';
+                    const lId = l.landlord_id ? String(l.landlord_id).toLowerCase().trim() : '';
+                    return (
+                        (myEmail && (tId === myEmail || lId === myEmail)) ||
+                        (myId && (tId === myId || lId === myId))
+                    );
+                });
+            } catch (err) {
+                console.error('Failed to load leases:', err);
+                return [];
+            }
         },
-        enabled: !!user?.email,
+        enabled: !!user?.email || !!user?.id,
     });
 
     const updateLeaseMutation = useMutation({
@@ -73,9 +94,24 @@ export default function Leases() {
         onSuccess: async (updated) => {
             queryClient.invalidateQueries({ queryKey: ['leases'] });
             queryClient.invalidateQueries({ queryKey: ['allLeases'] });
-            
+            queryClient.invalidateQueries({ queryKey: ['conversations-leases'] });
+            queryClient.invalidateQueries({ queryKey: ['messages'] });
+
+            const myEmail = user?.email || user?.id || 'user';
+
             if (updated.status === 'active') {
-                toast.success('Lease agreement is now fully countersigned and ACTIVE!');
+                toast.success('🎉 Lease agreement is now fully countersigned and ACTIVE!');
+
+                // Notify tenant in message thread
+                const targetTenant = updated.tenant_id;
+                if (targetTenant) {
+                    await appClient.entities.Message.create({
+                        conversation_id: `lease_${updated.id}`,
+                        sender_id: myEmail,
+                        receiver_id: targetTenant,
+                        content: `🎉 Lease Agreement In Effect! Landlord has countersigned your lease for "${updated.property_title || 'Rental Unit'}". You are officially verified for move-in on ${updated.start_date}. A signed copy is stored in your Leases portal.`
+                    }).catch(() => {});
+                }
 
                 // Update property occupancy / off-market status
                 if (updated.property_id) {
@@ -108,6 +144,19 @@ export default function Leases() {
                 if (updated.tenant_id) {
                     syncAndScoreTenant(updated.tenant_id).catch(() => {});
                 }
+            } else if (updated.status === 'pending_landlord_signature') {
+                toast.success('✍️ Lease signed! Sent to landlord for countersignature.');
+
+                // Notify landlord in message thread
+                const targetLandlord = updated.landlord_id;
+                if (targetLandlord) {
+                    await appClient.entities.Message.create({
+                        conversation_id: `lease_${updated.id}`,
+                        sender_id: myEmail,
+                        receiver_id: targetLandlord,
+                        content: `✍️ Tenant Signed E-Lease! ${updated.tenant_name || user?.full_name || 'Tenant'} has signed the lease agreement for "${updated.property_title || 'Rental Unit'}". Please review and countersign to put the lease into effect.`
+                    }).catch(() => {});
+                }
             } else if (updated.status === 'terminated') {
                 toast.info('Lease agreement marked as terminated.');
                 if (updated.property_id) {
@@ -131,8 +180,6 @@ export default function Leases() {
                         }
                     } catch (_) {}
                 }
-            } else if (updated.status === 'pending_landlord_signature') {
-                toast.success('Lease signed! Landlord has been notified to countersign and finalize.');
             } else {
                 toast.success('Lease agreement updated successfully!');
             }
@@ -145,6 +192,7 @@ export default function Leases() {
         }
     });
 
+    // Mouse canvas drawing handlers
     const startDrawing = (e) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -169,6 +217,36 @@ export default function Leases() {
         ctx.stroke();
     };
 
+    // Touch events for mobile/tablet drawing
+    const handleTouchStart = (e) => {
+        const touch = e.touches[0];
+        if (!touch) return;
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const rect = canvas.getBoundingClientRect();
+        ctx.beginPath();
+        ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+        setIsDrawing(true);
+        setHasDrawn(true);
+    };
+
+    const handleTouchMove = (e) => {
+        if (!isDrawing) return;
+        const touch = e.touches[0];
+        if (!touch) return;
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const rect = canvas.getBoundingClientRect();
+        ctx.strokeStyle = '#09090b';
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
+        ctx.stroke();
+        e.preventDefault();
+    };
+
     const stopDrawing = () => {
         setIsDrawing(false);
     };
@@ -183,20 +261,36 @@ export default function Leases() {
 
     const isCurrentUserTenant = (lease) => {
         if (!user || !lease) return false;
-        return user.email?.toLowerCase() === lease.tenant_id?.toLowerCase() || user.user_type === 'rentee' || user.user_type === 'tenant';
+        if (user.user_type === 'sysAdmin') return true;
+        const myEmail = user.email?.toLowerCase().trim();
+        const myId = user.id ? String(user.id) : null;
+        const tId = lease.tenant_id ? String(lease.tenant_id).toLowerCase().trim() : '';
+        return (myEmail && tId === myEmail) || (myId && tId === myId);
     };
 
     const isCurrentUserLandlord = (lease) => {
         if (!user || !lease) return false;
-        return user.email?.toLowerCase() === lease.landlord_id?.toLowerCase() || user.user_type === 'landlord';
+        if (user.user_type === 'sysAdmin') return true;
+        const myEmail = user.email?.toLowerCase().trim();
+        const myId = user.id ? String(user.id) : null;
+        const lId = lease.landlord_id ? String(lease.landlord_id).toLowerCase().trim() : '';
+        return (myEmail && lId === myEmail) || (myId && lId === myId);
     };
 
     const handleSignLease = (roleToSign) => {
         if (!selectedLease) return;
         const canvas = canvasRef.current;
-        const sigDataUrl = hasDrawn && canvas ? canvas.toDataURL() : `e-sign_${user?.full_name || user?.email}_${Date.now()}`;
-        const now = new Date().toISOString();
+        let sigDataUrl = '';
 
+        if (sigMode === 'draw' && hasDrawn && canvas) {
+            sigDataUrl = canvas.toDataURL();
+        } else if (sigMode === 'type' && typedName.trim()) {
+            sigDataUrl = `e-sign:${typedName.trim()}:${Date.now()}`;
+        } else {
+            sigDataUrl = `e-sign:${user?.full_name || user?.email || 'Authorized'}:${Date.now()}`;
+        }
+
+        const now = new Date().toISOString();
         const isTenantSigning = roleToSign === 'tenant';
         const isLandlordSigning = roleToSign === 'landlord';
 
@@ -208,8 +302,10 @@ export default function Leases() {
             if (selectedLease.landlord_signature) {
                 updatedData.status = 'active';
                 updatedData.signed = true;
+                updatedData.occupancy_status = 'active';
             } else {
                 updatedData.status = 'pending_landlord_signature';
+                updatedData.signed = false;
             }
         } else if (isLandlordSigning) {
             updatedData.landlord_signature = sigDataUrl;
@@ -217,8 +313,10 @@ export default function Leases() {
             if (selectedLease.tenant_signature) {
                 updatedData.status = 'active';
                 updatedData.signed = true;
+                updatedData.occupancy_status = 'active';
             } else {
                 updatedData.status = 'pending_tenant_signature';
+                updatedData.signed = false;
             }
         }
 
@@ -268,7 +366,7 @@ export default function Leases() {
         if (lease.status === 'active') {
             return (
                 <Badge className="bg-emerald-50 text-emerald-800 border-emerald-300 flex items-center gap-1 font-semibold text-xs">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Active & Executed
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Active & In Effect
                 </Badge>
             );
         }
@@ -310,7 +408,7 @@ export default function Leases() {
                 </div>
             </div>
 
-            {/* Filter Tabs (Mobile Grid + Desktop Inline Row) */}
+            {/* Filter Tabs */}
             <div className="grid grid-cols-2 sm:inline-flex sm:items-center gap-2 w-full sm:w-auto">
                 {[
                     { key: 'all', label: 'All Leases' },
@@ -340,8 +438,13 @@ export default function Leases() {
                         const progress = getLeaseProgress(lease.start_date, lease.end_date);
                         const userIsTenant = isCurrentUserTenant(lease);
                         const userIsLandlord = isCurrentUserLandlord(lease);
-                        const needsTenantSig = !lease.tenant_signature && userIsTenant;
-                        const needsLandlordSig = !lease.landlord_signature && userIsLandlord;
+
+                        // Strict workflow rules:
+                        // 1. Tenant signs first
+                        // 2. Landlord countersigns second
+                        // 3. Lease becomes active
+                        const needsTenantSig = userIsTenant && !lease.tenant_signature;
+                        const needsLandlordSig = userIsLandlord && Boolean(lease.tenant_signature) && !lease.landlord_signature;
                         const canSignNow = needsTenantSig || needsLandlordSig;
 
                         const isBothSigned = lease.status === 'active' || (Boolean(lease.tenant_signature) && Boolean(lease.landlord_signature));
@@ -351,7 +454,7 @@ export default function Leases() {
                         const isOccupying = isBothSigned && isMoveInPassed;
                         const diffDays = (startDate && isMoveInPassed) ? Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
                         const monthsOccupied = Math.floor(diffDays / 30);
-                        const rentScoreBonus = monthsOccupied * 5;
+                        const rentScoreBonus = Math.max(10, monthsOccupied * 5 + 10); // +10 base active bonus +5/month
 
                         return (
                             <motion.div
@@ -391,15 +494,15 @@ export default function Leases() {
                                         <div className="flex flex-wrap gap-4 text-xs text-zinc-500">
                                             <span className="flex items-center gap-1">
                                                 <Home className="w-3.5 h-3.5 text-zinc-700" />
-                                                Tenant: <strong className="text-zinc-800 font-mono">{lease.tenant_id}</strong>
+                                                Tenant: <strong className="text-zinc-800">{lease.tenant_name || lease.tenant_id}</strong>
                                             </span>
                                             <span className="flex items-center gap-1">
                                                 <Building2 className="w-3.5 h-3.5 text-zinc-700" />
-                                                Landlord: <strong className="text-zinc-800 font-mono">{lease.landlord_id}</strong>
+                                                Landlord: <strong className="text-zinc-800">{lease.landlord_name || lease.landlord_id}</strong>
                                             </span>
                                             <span className="flex items-center gap-1">
                                                 <Calendar className="w-3.5 h-3.5 text-zinc-900" />
-                                                Start / Move-in: {formatDate(lease.start_date)}
+                                                Move-in: {formatDate(lease.start_date)}
                                             </span>
                                             <span className="flex items-center gap-1">
                                                 <Clock className="w-3.5 h-3.5 text-amber-600" />
@@ -415,18 +518,32 @@ export default function Leases() {
                                         </div>
 
                                         {isBothSigned && (
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="border-zinc-200 text-zinc-800 hover:bg-zinc-50 font-medium flex items-center shadow-xs"
-                                                onClick={() => {
-                                                    setSelectedLease(lease);
-                                                    setSignatureModal(true);
-                                                }}
-                                            >
-                                                <Download className="w-3.5 h-3.5 mr-1.5 text-zinc-600" />
-                                                Signed E-Lease Copy
-                                            </Button>
+                                            <>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="border-zinc-200 text-zinc-800 hover:bg-zinc-50 font-medium flex items-center shadow-xs"
+                                                    onClick={() => {
+                                                        setSelectedLease(lease);
+                                                        setSignatureModal(true);
+                                                    }}
+                                                >
+                                                    <Download className="w-3.5 h-3.5 mr-1.5 text-zinc-600" />
+                                                    Signed E-Lease Copy
+                                                </Button>
+
+                                                {userIsTenant && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="border-blue-200 text-blue-700 hover:bg-blue-50 font-semibold flex items-center shadow-xs"
+                                                        onClick={() => navigate(createPageUrl('Maintenance'))}
+                                                    >
+                                                        <Wrench className="w-3.5 h-3.5 mr-1.5 text-blue-600" />
+                                                        Request Maintenance
+                                                    </Button>
+                                                )}
+                                            </>
                                         )}
 
                                         {canSignNow ? (
@@ -441,7 +558,7 @@ export default function Leases() {
                                                 <PenTool className="w-4 h-4 mr-2" />
                                                 {needsTenantSig ? 'Sign as Tenant' : 'Countersign as Landlord'}
                                             </Button>
-                                        ) : (
+                                        ) : !isBothSigned && (
                                             <Button
                                                 className="bg-zinc-900 hover:bg-zinc-800 text-white font-medium"
                                                 size="sm"
@@ -506,18 +623,18 @@ export default function Leases() {
                     {selectedLease && (
                         <div className="space-y-6 my-3">
                             {/* Legal Agreement Terms Box */}
-                            <div className="bg-zinc-50 border border-zinc-200 p-4 text-xs font-mono text-zinc-700 space-y-3 leading-relaxed max-h-56 overflow-y-auto">
+                            <div className="bg-zinc-50 border border-zinc-200 p-4 text-xs font-mono text-zinc-700 space-y-3 leading-relaxed max-h-56 overflow-y-auto rounded-lg">
                                 <p className="font-bold text-center text-zinc-900 border-b border-zinc-200 pb-2">
                                     STANDARD RESIDENTIAL LEASE CONTRACT
                                 </p>
-                                <p><strong>Property:</strong> {selectedLease.property_title}</p>
-                                <p><strong>Landlord / Owner:</strong> {selectedLease.landlord_id}</p>
-                                <p><strong>Tenant / Lessee:</strong> {selectedLease.tenant_id}</p>
-                                <p><strong>Monthly Rent:</strong> R{Number(selectedLease.monthly_rent || 0).toLocaleString()} (Due on the 1st of each month)</p>
-                                <p><strong>Security Deposit:</strong> R{Number(selectedLease.deposit_amount || 0).toLocaleString()} (Direct Tenant-to-Landlord Security Deposit)</p>
+                                <p><strong>Property:</strong> {selectedLease.property_title} {selectedLease.property_address ? `(${selectedLease.property_address})` : ''}</p>
+                                <p><strong>Landlord / Lessor:</strong> {selectedLease.landlord_name || selectedLease.landlord_id} ({selectedLease.landlord_id})</p>
+                                <p><strong>Tenant / Lessee:</strong> {selectedLease.tenant_name || selectedLease.tenant_id} ({selectedLease.tenant_id})</p>
+                                <p><strong>Monthly Rent:</strong> R{Number(selectedLease.monthly_rent || 0).toLocaleString()} (Due on the 1st of each calendar month)</p>
+                                <p><strong>Security Deposit:</strong> R{Number(selectedLease.deposit_amount || 0).toLocaleString()} (Protected security deposit)</p>
                                 <p><strong>Term Duration:</strong> {formatDateRange(selectedLease.start_date, selectedLease.end_date)}</p>
                                 <p className="text-zinc-600 pt-2 border-t border-zinc-200 text-[11px]">
-                                    <strong>Dual Execution Clause:</strong> This digital lease agreement is legally binding once signed by both Tenant and Landlord. It remains in full legal force until lapsed at contract expiry or terminated in accordance with the terms herein.
+                                    <strong>Dual Execution Clause:</strong> In accordance with the South African Rental Housing Act (RHA), this agreement is entered into electronically. The tenant signs first, following which the landlord countersigns to put the contract into full legal effect. Verified duration spent occupying this property directly impacts the tenant's RentScore.
                                 </p>
                             </div>
 
@@ -528,7 +645,7 @@ export default function Leases() {
                                     <div className="flex items-center justify-between">
                                         <span className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
                                             <UserCheck className="w-4 h-4 text-blue-600" />
-                                            Tenant Signature
+                                            1. Tenant Signature
                                         </span>
                                         {selectedLease.tenant_signature ? (
                                             <Badge className="bg-emerald-100 text-emerald-800 border-none text-[10px]">
@@ -536,18 +653,18 @@ export default function Leases() {
                                             </Badge>
                                         ) : (
                                             <Badge className="bg-amber-100 text-amber-800 border-none text-[10px]">
-                                                Pending
+                                                Awaiting Tenant
                                             </Badge>
                                         )}
                                     </div>
-                                    <p className="text-[11px] text-zinc-500 font-mono truncate">{selectedLease.tenant_id}</p>
+                                    <p className="text-[11px] text-zinc-500 font-mono truncate">{selectedLease.tenant_name || selectedLease.tenant_id}</p>
                                     {selectedLease.tenant_signature ? (
                                         <div className="bg-white p-2 border border-zinc-200 rounded text-center">
                                             {selectedLease.tenant_signature.startsWith('data:image') ? (
                                                 <img src={selectedLease.tenant_signature} alt="Tenant Signature" className="h-12 mx-auto object-contain" />
                                             ) : (
                                                 <p className="font-serif italic text-base text-zinc-800 py-1">
-                                                    {selectedLease.tenant_id?.split('@')[0] || 'Tenant Signed'}
+                                                    {selectedLease.tenant_signature.replace(/^e-sign:/, '').split(':')[0]}
                                                 </p>
                                             )}
                                             <p className="text-[9px] text-zinc-400 mt-1">
@@ -566,7 +683,7 @@ export default function Leases() {
                                     <div className="flex items-center justify-between">
                                         <span className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
                                             <Building2 className="w-4 h-4 text-emerald-600" />
-                                            Landlord Countersignature
+                                            2. Landlord Countersignature
                                         </span>
                                         {selectedLease.landlord_signature ? (
                                             <Badge className="bg-emerald-100 text-emerald-800 border-none text-[10px]">
@@ -574,18 +691,18 @@ export default function Leases() {
                                             </Badge>
                                         ) : (
                                             <Badge className="bg-amber-100 text-amber-800 border-none text-[10px]">
-                                                Pending
+                                                {selectedLease.tenant_signature ? 'Ready to Countersign' : 'Pending Tenant'}
                                             </Badge>
                                         )}
                                     </div>
-                                    <p className="text-[11px] text-zinc-500 font-mono truncate">{selectedLease.landlord_id}</p>
+                                    <p className="text-[11px] text-zinc-500 font-mono truncate">{selectedLease.landlord_name || selectedLease.landlord_id}</p>
                                     {selectedLease.landlord_signature ? (
                                         <div className="bg-white p-2 border border-zinc-200 rounded text-center">
                                             {selectedLease.landlord_signature.startsWith('data:image') ? (
                                                 <img src={selectedLease.landlord_signature} alt="Landlord Signature" className="h-12 mx-auto object-contain" />
                                             ) : (
                                                 <p className="font-serif italic text-base text-zinc-800 py-1">
-                                                    {selectedLease.landlord_id?.split('@')[0] || 'Landlord Signed'}
+                                                    {selectedLease.landlord_signature.replace(/^e-sign:/, '').split(':')[0]}
                                                 </p>
                                             )}
                                             <p className="text-[9px] text-zinc-400 mt-1">
@@ -594,41 +711,82 @@ export default function Leases() {
                                         </div>
                                     ) : (
                                         <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
-                                            Awaiting countersignature from landlord.
+                                            {selectedLease.tenant_signature 
+                                                ? 'Tenant has signed! Awaiting countersignature from landlord.'
+                                                : 'Will be available once tenant completes first signature.'}
                                         </p>
                                     )}
                                 </div>
                             </div>
 
-                            {/* Interactive Signature Pad (if current user still needs to sign) */}
+                            {/* Interactive Signature Input (if current user still needs to sign) */}
                             {((isCurrentUserTenant(selectedLease) && !selectedLease.tenant_signature) ||
-                              (isCurrentUserLandlord(selectedLease) && !selectedLease.landlord_signature) ||
+                              (isCurrentUserLandlord(selectedLease) && Boolean(selectedLease.tenant_signature) && !selectedLease.landlord_signature) ||
                               (user?.user_type === 'sysAdmin' && (!selectedLease.tenant_signature || !selectedLease.landlord_signature))) && (
-                                <div className="space-y-2 border-t border-zinc-200 pt-4">
+                                <div className="space-y-3 border-t border-zinc-200 pt-4">
                                     <div className="flex items-center justify-between">
                                         <label className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
                                             <PenTool className="w-3.5 h-3.5 text-zinc-900" />
-                                            Draw Your E-Signature Below:
+                                            {isCurrentUserTenant(selectedLease) && !selectedLease.tenant_signature
+                                                ? 'Sign as Tenant:'
+                                                : 'Countersign as Landlord:'}
                                         </label>
-                                        <button
-                                            onClick={clearCanvas}
-                                            className="text-xs text-zinc-600 hover:text-zinc-900 font-semibold underline"
-                                        >
-                                            Clear
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setSigMode('draw')}
+                                                className={`px-2 py-0.5 text-xs font-semibold rounded ${sigMode === 'draw' ? 'bg-zinc-900 text-white' : 'text-zinc-600 bg-zinc-100'}`}
+                                            >
+                                                Draw
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSigMode('type')}
+                                                className={`px-2 py-0.5 text-xs font-semibold rounded ${sigMode === 'type' ? 'bg-zinc-900 text-white' : 'text-zinc-600 bg-zinc-100'}`}
+                                            >
+                                                Type Name
+                                            </button>
+                                            {sigMode === 'draw' && (
+                                                <button
+                                                    type="button"
+                                                    onClick={clearCanvas}
+                                                    className="text-xs text-zinc-500 hover:text-zinc-900 underline ml-2"
+                                                >
+                                                    Clear
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="border-2 border-dashed border-zinc-300 bg-white rounded-lg overflow-hidden">
-                                        <canvas
-                                            ref={canvasRef}
-                                            width={550}
-                                            height={110}
-                                            onMouseDown={startDrawing}
-                                            onMouseMove={draw}
-                                            onMouseUp={stopDrawing}
-                                            onMouseLeave={stopDrawing}
-                                            className="w-full h-28 cursor-crosshair"
-                                        />
-                                    </div>
+
+                                    {sigMode === 'draw' ? (
+                                        <div className="border-2 border-dashed border-zinc-300 bg-white rounded-lg overflow-hidden touch-none">
+                                            <canvas
+                                                ref={canvasRef}
+                                                width={550}
+                                                height={110}
+                                                onMouseDown={startDrawing}
+                                                onMouseMove={draw}
+                                                onMouseUp={stopDrawing}
+                                                onMouseLeave={stopDrawing}
+                                                onTouchStart={handleTouchStart}
+                                                onTouchMove={handleTouchMove}
+                                                onTouchEnd={stopDrawing}
+                                                className="w-full h-28 cursor-crosshair"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            <Input
+                                                placeholder="Type your full legal name..."
+                                                value={typedName}
+                                                onChange={(e) => setTypedName(e.target.value)}
+                                                className="font-serif italic text-lg"
+                                            />
+                                            <p className="text-[11px] text-zinc-500">
+                                                Your typed name will be recorded as your legally binding electronic signature under the South African ECT Act & RHA.
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -643,6 +801,7 @@ export default function Leases() {
                                     Print / PDF
                                 </Button>
 
+                                {/* 1. Tenant Signs First */}
                                 {isCurrentUserTenant(selectedLease) && !selectedLease.tenant_signature && (
                                     <Button
                                         className="bg-zinc-900 hover:bg-zinc-800 text-white font-bold"
@@ -654,7 +813,8 @@ export default function Leases() {
                                     </Button>
                                 )}
 
-                                {isCurrentUserLandlord(selectedLease) && !selectedLease.landlord_signature && (
+                                {/* 2. Landlord Countersigns Once Tenant Has Signed */}
+                                {isCurrentUserLandlord(selectedLease) && Boolean(selectedLease.tenant_signature) && !selectedLease.landlord_signature && (
                                     <Button
                                         className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold"
                                         onClick={() => handleSignLease('landlord')}
@@ -665,6 +825,18 @@ export default function Leases() {
                                     </Button>
                                 )}
 
+                                {/* Landlord Viewing Waiting for Tenant */}
+                                {isCurrentUserLandlord(selectedLease) && !selectedLease.tenant_signature && (
+                                    <Button
+                                        disabled
+                                        className="bg-zinc-300 text-zinc-600 font-medium cursor-not-allowed"
+                                    >
+                                        <Clock className="w-4 h-4 mr-2" />
+                                        Awaiting Tenant Signature First
+                                    </Button>
+                                )}
+
+                                {/* Admin Override Countersign */}
                                 {user?.user_type === 'sysAdmin' && !selectedLease.landlord_signature && !isCurrentUserLandlord(selectedLease) && (
                                     <Button
                                         className="bg-purple-900 hover:bg-purple-800 text-white font-bold"
@@ -683,4 +855,3 @@ export default function Leases() {
         </div>
     );
 }
-

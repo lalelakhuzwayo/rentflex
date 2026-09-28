@@ -68,6 +68,8 @@ const statusConfig = {
     cancelled: { color: 'bg-zinc-100 text-zinc-500 border-zinc-200', label: 'Cancelled' },
 };
 
+const isValidUuid = (id) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
 export default function Maintenance() {
     const navigate = useNavigate();
     const { user, role, isLandlord, isContractor, isSysAdmin, isTenant } = useAuth();
@@ -77,6 +79,7 @@ export default function Maintenance() {
     const queryClient = useQueryClient();
 
     const [form, setForm] = useState({
+        lease_id: '',
         title: '',
         description: '',
         category: 'other',
@@ -159,7 +162,7 @@ export default function Maintenance() {
             queryClient.invalidateQueries({ queryKey: ['messages'] });
             queryClient.invalidateQueries({ queryKey: ['user-all-messages'] });
             setDialogOpen(false);
-            setForm({ title: '', description: '', category: 'other', priority: 'medium', images: [] });
+            setForm({ lease_id: '', title: '', description: '', category: 'other', priority: 'medium', images: [] });
             toast.success('Maintenance request submitted successfully!');
         },
         onError: (err) => {
@@ -218,7 +221,7 @@ export default function Maintenance() {
     const convertToJobMutation = useMutation({
         mutationFn: async (request) => {
             const newJob = await appClient.entities.Job.create({
-                maintenance_request_id: request.id,
+                maintenance_request_id: (request.id && isValidUuid(request.id)) ? request.id : null,
                 posted_by_id: userEmail || userId,
                 title: request.title,
                 description: request.description,
@@ -232,6 +235,24 @@ export default function Maintenance() {
             await appClient.entities.MaintenanceRequest.update(request.id, {
                 status: 'assigned'
             });
+
+            // Send notification to tenant that landlord posted a job for contractors
+            if (request.tenant_id) {
+                const noticeMsg = `🛠️ Contractor Job Dispatched! Landlord posted a contractor work order for "${request.title}". We will keep you updated as contractors bid and work is scheduled!`;
+                await appClient.entities.Message.create({
+                    conversation_id: `maint_${request.id}`,
+                    sender_id: userEmail || userId || 'landlord',
+                    receiver_id: request.tenant_id,
+                    content: noticeMsg
+                }).catch(() => {});
+
+                await appClient.entities.Message.create({
+                    conversation_id: `${request.tenant_id}_${userEmail || userId || 'landlord'}`,
+                    sender_id: userEmail || userId || 'landlord',
+                    receiver_id: request.tenant_id,
+                    content: noticeMsg
+                }).catch(() => {});
+            }
 
             return newJob;
         },
@@ -271,15 +292,15 @@ export default function Maintenance() {
             return;
         }
 
-        const activeLease = leases[0];
-        const landlordId = activeLease?.landlord_id || 'landlord@rentflex.co.za';
+        const selectedLease = leases.find(l => String(l.id) === String(form.lease_id)) || leases[0];
+        const landlordId = selectedLease?.landlord_id || 'landlord@rentflex.co.za';
 
         createMutation.mutate({
-            lease_id: activeLease?.id || null,
+            lease_id: (selectedLease?.id && isValidUuid(selectedLease.id)) ? selectedLease.id : null,
             tenant_id: userEmail || userId || 'tenant',
             landlord_id: landlordId,
-            property_id: activeLease?.property_id || null,
-            property_title: activeLease?.property_title || 'My Rental Property',
+            property_id: (selectedLease?.property_id && isValidUuid(selectedLease.property_id)) ? selectedLease.property_id : null,
+            property_title: selectedLease?.property_title || 'Rental Property',
             title: form.title.trim(),
             description: form.description.trim(),
             category: form.category,
@@ -325,6 +346,27 @@ export default function Maintenance() {
                                 <DialogTitle className="text-lg font-bold text-zinc-900">New Maintenance Request</DialogTitle>
                             </DialogHeader>
                             <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+                                {leases.length > 0 && (
+                                    <div>
+                                        <Label className="text-xs font-semibold text-zinc-700 block mb-1">Leased Property / Unit</Label>
+                                        <Select 
+                                            value={form.lease_id || String(leases[0]?.id || '')} 
+                                            onValueChange={(val) => setForm(prev => ({ ...prev, lease_id: val }))}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select leased property" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {leases.map(lease => (
+                                                    <SelectItem key={lease.id} value={String(lease.id)}>
+                                                        {lease.property_title || 'Rental Unit'} {lease.room_number ? `(Room ${lease.room_number})` : ''}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                )}
+
                                 <div>
                                     <Label className="text-xs font-semibold text-zinc-700 block mb-1">Issue Title *</Label>
                                     <Input
