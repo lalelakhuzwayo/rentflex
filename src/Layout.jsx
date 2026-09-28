@@ -179,7 +179,7 @@ export default function Layout({ children, currentPageName }) {
             }
         },
         enabled: !!user?.email || !!user?.id,
-        staleTime: 0,
+        staleTime: 30000,
     });
 
     // 2. Sync unread messages across tabs & local mark-as-read events
@@ -478,7 +478,7 @@ export default function Layout({ children, currentPageName }) {
                                                                 {displayBadge && (
                                                                     <span className={`text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded ${
                                                                         isMessages && unreadMessagesCount > 0
-                                                                            ? 'bg-emerald-600 text-white animate-pulse'
+                                                                            ? 'bg-emerald-600 text-white'
                                                                             : 'bg-zinc-900 text-white'
                                                                     }`}>
                                                                         {displayBadge}
@@ -605,8 +605,8 @@ export default function Layout({ children, currentPageName }) {
                                     <Link to={createPageUrl('Messages')}>
                                         <MessageSquare className="w-4 h-4 text-zinc-800" />
                                         {(unreadMessagesCount > 0 || pendingNotificationCount > 0) && (
-                                            <span className={`absolute -top-1 -right-1 h-4 min-w-[16px] px-1 text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-white shadow-xs animate-in zoom-in-50 ${
-                                                unreadMessagesCount > 0 ? 'bg-emerald-600 animate-pulse' : 'bg-rose-600'
+                                            <span className={`absolute -top-1 -right-1 h-4 min-w-[16px] px-1 text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-white shadow-xs ${
+                                                unreadMessagesCount > 0 ? 'bg-emerald-600' : 'bg-rose-600'
                                             }`}>
                                                 {unreadMessagesCount > 0 
                                                     ? (unreadMessagesCount > 99 ? '99+' : unreadMessagesCount)
@@ -702,7 +702,7 @@ export default function Layout({ children, currentPageName }) {
                                         <item.icon className="w-4 h-4" />
                                         {item.page === 'Messages' && (unreadMessagesCount > 0 || pendingNotificationCount > 0) && (
                                             <span className={`absolute -top-1.5 -right-2 h-4 min-w-[16px] px-1 text-white text-[9px] font-extrabold rounded-full flex items-center justify-center border border-white shadow-xs ${
-                                                unreadMessagesCount > 0 ? 'bg-emerald-600 animate-pulse' : 'bg-rose-600'
+                                                unreadMessagesCount > 0 ? 'bg-emerald-600' : 'bg-rose-600'
                                             }`}>
                                                 {unreadMessagesCount > 0 
                                                     ? (unreadMessagesCount > 99 ? '99+' : unreadMessagesCount)

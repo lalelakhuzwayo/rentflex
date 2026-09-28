@@ -747,7 +747,7 @@ export default function Messages() {
                             }`}
                         >
                             Bids
-                            {counts.bids > 0 && <span className="w-2 h-2 bg-rose-500 rounded-full animate-pulse" />}
+                            {counts.bids > 0 && <span className="w-2 h-2 bg-rose-500 rounded-full" />}
                         </button>
                         <button
                             onClick={() => setActiveTab('tours')}
@@ -756,7 +756,7 @@ export default function Messages() {
                             }`}
                         >
                             Tours
-                            {counts.tours > 0 && <span className="w-2 h-2 bg-rose-500 rounded-full animate-pulse" />}
+                            {counts.tours > 0 && <span className="w-2 h-2 bg-rose-500 rounded-full" />}
                         </button>
                         <button
                             onClick={() => setActiveTab('applications')}
@@ -765,7 +765,7 @@ export default function Messages() {
                             }`}
                         >
                             Apps
-                            {counts.applications > 0 && <span className="w-2 h-2 bg-rose-500 rounded-full animate-pulse" />}
+                            {counts.applications > 0 && <span className="w-2 h-2 bg-rose-500 rounded-full" />}
                         </button>
                     </div>
 
@@ -828,11 +828,11 @@ export default function Messages() {
                                                 {conv.subtitle}
                                             </p>
                                             {unreadCount > 0 ? (
-                                                <span className="h-5 min-w-[20px] px-1.5 bg-emerald-600 text-white text-[10px] font-extrabold rounded-full flex items-center justify-center shrink-0 shadow-xs animate-in zoom-in-50">
+                                                <span className="h-5 min-w-[20px] px-1.5 bg-emerald-600 text-white text-[10px] font-extrabold rounded-full flex items-center justify-center shrink-0 shadow-xs">
                                                     {unreadCount > 99 ? '99+' : unreadCount}
                                                 </span>
                                             ) : conv.isNew ? (
-                                                <span className="w-2.5 h-2.5 bg-rose-500 rounded-full shrink-0 animate-pulse" title="New notification" />
+                                                <span className="w-2.5 h-2.5 bg-rose-500 rounded-full shrink-0" title="New notification" />
                                             ) : null}
                                         </div>
                                     </div>
@@ -907,7 +907,7 @@ export default function Messages() {
                                         <span>Alert Chime</span>
                                     </button>
                                     <Badge className="bg-emerald-50 text-emerald-800 border-emerald-200 capitalize text-[10px] px-2 py-0.5 font-semibold flex items-center gap-1">
-                                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
                                         Instant Sync
                                     </Badge>
                                 </div>
