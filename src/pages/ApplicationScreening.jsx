@@ -12,7 +12,8 @@ import {
     SlidersHorizontal,
     Calendar,
     Gavel,
-    RefreshCw
+    RefreshCw,
+    FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -83,19 +84,40 @@ export default function ApplicationScreening() {
         enabled: !!user?.email || !!user?.id,
     });
 
+    // Helper to check if tour date/time has passed
+    const isTourPassed = (t) => {
+        if (!t?.requested_date) return false;
+        try {
+            const timeStr = t.requested_time ? t.requested_time.replace(/(AM|PM)/i, ' $1') : '23:59';
+            const dt = new Date(`${t.requested_date} ${timeStr}`);
+            return !isNaN(dt.getTime()) && dt < new Date();
+        } catch (_) {
+            return false;
+        }
+    };
+
     // Tour Schedules Query
     const { data: tourSchedules = [] } = useQuery({
-        queryKey: ['tourSchedules', user?.email, user?.id, isSysAdmin, isTenant],
+        queryKey: ['tourSchedules', user?.email, user?.id, isSysAdmin, isTenant, properties.length],
         queryFn: async () => {
             if (!user) return [];
             try {
                 const allTours = await appClient.entities.TourSchedule.list();
                 if (!allTours || !Array.isArray(allTours)) return [];
                 if (isSysAdmin) return allTours;
+                const myEmail = user.email?.toLowerCase().trim();
+                const myId = user.id;
+                const propIds = properties?.map(p => String(p.id)) || [];
+
                 if (isTenant) {
-                    return allTours.filter(t => t.tenant_id === user.email || t.tenant_id === user.id);
+                    return allTours.filter(t => 
+                        (t.tenant_id && (t.tenant_id.toLowerCase() === myEmail || t.tenant_id === myId))
+                    );
                 }
-                return allTours.filter(t => t.landlord_id === user.email || t.landlord_id === user.id);
+                return allTours.filter(t => 
+                    (t.landlord_id && (t.landlord_id.toLowerCase() === myEmail || t.landlord_id === myId)) ||
+                    (t.property_id && propIds.includes(String(t.property_id)))
+                );
             } catch (err) {
                 console.warn('Tour schedules query warning:', err);
                 return [];
@@ -106,18 +128,27 @@ export default function ApplicationScreening() {
 
     // Property Bids Query
     const { data: bids = [] } = useQuery({
-        queryKey: ['propertyBids', user?.email, user?.id, isSysAdmin, isTenant],
+        queryKey: ['propertyBids', user?.email, user?.id, isSysAdmin, isTenant, properties.length],
         queryFn: async () => {
             if (!user) return [];
             try {
                 const allBids = await appClient.entities.Bid.list();
                 if (!allBids || !Array.isArray(allBids)) return [];
                 if (isSysAdmin) return allBids;
+                const myEmail = user.email?.toLowerCase().trim();
+                const myId = user.id;
+                const propIds = properties?.map(p => String(p.id)) || [];
+
                 if (isTenant) {
-                    return allBids.filter(b => b.tenant_id === user.email || b.tenant_id === user.id || b.bidder_id === user.email);
+                    return allBids.filter(b => 
+                        (b.tenant_id && (b.tenant_id.toLowerCase() === myEmail || b.tenant_id === myId)) ||
+                        (b.bidder_id && (b.bidder_id.toLowerCase() === myEmail || b.bidder_id === myId))
+                    );
                 }
-                const propIds = properties?.map(p => p.id) || [];
-                return allBids.filter(b => propIds.includes(b.property_id));
+                return allBids.filter(b => 
+                    (b.landlord_id && (b.landlord_id.toLowerCase() === myEmail || b.landlord_id === myId)) ||
+                    (b.property_id && propIds.includes(String(b.property_id)))
+                );
             } catch (err) {
                 console.warn('Property bids query warning:', err);
                 return [];
@@ -171,11 +202,13 @@ export default function ApplicationScreening() {
             const updated = await appClient.entities.TourSchedule.update(id, data);
             const msgContent = data.status === 'confirmed'
                 ? `✅ Tour Schedule Confirmed! Viewing agreed for ${updated.requested_date} at ${updated.requested_time}.`
-                : data.status === 'reschedule_requested'
-                    ? `🔄 Reschedule Proposed: Proposed viewing date ${data.reschedule_date || updated.requested_date} at ${data.reschedule_time || updated.requested_time}.`
-                    : data.status === 'declined'
-                        ? `❌ Tour Request Declined.`
-                        : null;
+                : data.status === 'completed'
+                    ? `🏆 Viewing Completed! Landlord marked the tour on ${updated.requested_date} as completed.`
+                    : data.status === 'reschedule_requested'
+                        ? `🔄 Reschedule Proposed: Proposed viewing date ${data.reschedule_date || updated.requested_date} at ${data.reschedule_time || updated.requested_time}.`
+                        : data.status === 'declined'
+                            ? `❌ Tour Request Declined.`
+                            : null;
 
             if (msgContent) {
                 const targetReceiver = isTenant ? updated.landlord_id : updated.tenant_id;
@@ -199,11 +232,67 @@ export default function ApplicationScreening() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['tourSchedules'] });
+            queryClient.invalidateQueries({ queryKey: ['messages-tours'] });
             queryClient.invalidateQueries({ queryKey: ['messages'] });
             queryClient.invalidateQueries({ queryKey: ['user-all-messages'] });
             toast.success('Tour schedule updated!');
         },
         onError: () => toast.error('Failed to update tour schedule')
+    });
+
+    // Create E-Lease from Bid Mutation
+    const createLeaseFromBidMutation = useMutation({
+        mutationFn: async (bid) => {
+            const startDate = bid.move_in_date || new Date().toISOString().split('T')[0];
+            const leaseMonths = parseInt(bid.proposed_lease_months || bid.lease_duration_months || '12', 10);
+            const endDateObj = new Date(startDate);
+            endDateObj.setMonth(endDateObj.getMonth() + leaseMonths);
+            const endDate = endDateObj.toISOString().split('T')[0];
+            const rent = parseFloat(bid.proposed_rent || bid.bid_amount || 0);
+
+            const leasePayload = {
+                landlord_id: user?.email || user?.id,
+                landlord_name: user?.full_name || 'Landlord',
+                tenant_id: bid.tenant_id || bid.bidder_id,
+                tenant_name: bid.tenant_name || 'Tenant',
+                property_id: bid.property_id,
+                property_title: bid.property_title || 'Rental Property',
+                property_address: bid.property_address || '',
+                monthly_rent: rent,
+                deposit_amount: rent,
+                start_date: startDate,
+                end_date: endDate,
+                status: 'pending_tenant_signature',
+                signed: false,
+                created_from_bid_id: bid.id,
+                created_date: new Date().toISOString()
+            };
+
+            const createdLease = await appClient.entities.Lease.create(leasePayload);
+
+            // Update bid status to accepted
+            await appClient.entities.Bid.update(bid.id, { status: 'accepted' });
+
+            // Notify tenant in message thread
+            const targetTenant = bid.tenant_id || bid.bidder_id;
+            await appClient.entities.Message.create({
+                conversation_id: `bid_${bid.id}`,
+                sender_id: user?.email || user?.id || 'landlord',
+                receiver_id: targetTenant,
+                content: `📄 Digital E-Lease Prepared! Landlord accepted your bid of R${rent.toLocaleString()}/month and generated your official lease agreement for move-in on ${startDate}. Please review and sign in your Leases portal.`
+            }).catch(() => {});
+
+            return createdLease;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['propertyBids'] });
+            queryClient.invalidateQueries({ queryKey: ['messages-bids'] });
+            queryClient.invalidateQueries({ queryKey: ['leases'] });
+            toast.success('Digital E-Lease sent to tenant! The signing process has begun.');
+        },
+        onError: (err) => {
+            toast.error(err.message || 'Failed to generate digital e-lease');
+        }
     });
 
     const updateBidMutation = useMutation({
@@ -239,6 +328,7 @@ export default function ApplicationScreening() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['propertyBids'] });
+            queryClient.invalidateQueries({ queryKey: ['messages-bids'] });
             queryClient.invalidateQueries({ queryKey: ['messages'] });
             queryClient.invalidateQueries({ queryKey: ['user-all-messages'] });
             toast.success('Bid status updated!');
@@ -638,15 +728,28 @@ export default function ApplicationScreening() {
                                     {tour.notes && <p className="text-xs text-zinc-600 mt-1 italic">"{tour.notes}"</p>}
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
-                                    <Button
-                                        size="sm"
-                                        className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold"
-                                        onClick={() => updateTourMutation.mutate({ id: tour.id, data: { status: 'confirmed' } })}
-                                        disabled={tour.status === 'confirmed' || updateTourMutation.isPending}
-                                    >
-                                        <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                                        Confirm
-                                    </Button>
+                                    {tour.status === 'pending' && (
+                                        <Button
+                                            size="sm"
+                                            className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold"
+                                            onClick={() => updateTourMutation.mutate({ id: tour.id, data: { status: 'confirmed' } })}
+                                            disabled={updateTourMutation.isPending}
+                                        >
+                                            <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                                            Confirm
+                                        </Button>
+                                    )}
+                                    {(tour.status === 'confirmed' || (isTourPassed(tour) && tour.status !== 'completed' && tour.status !== 'declined')) && (
+                                        <Button
+                                            size="sm"
+                                            className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold"
+                                            onClick={() => updateTourMutation.mutate({ id: tour.id, data: { status: 'completed' } })}
+                                            disabled={tour.status === 'completed' || updateTourMutation.isPending}
+                                        >
+                                            <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                                            Mark as Complete
+                                        </Button>
+                                    )}
                                     <Button
                                         size="sm"
                                         variant="outline"
@@ -717,16 +820,29 @@ export default function ApplicationScreening() {
                                     </p>
                                     {bid.message && <p className="text-xs text-zinc-600 mt-1.5 italic">"{bid.message}"</p>}
                                 </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                    <Button
-                                        size="sm"
-                                        className="bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold"
-                                        onClick={() => updateBidMutation.mutate({ id: bid.id, data: { status: 'accepted' } })}
-                                        disabled={bid.status === 'accepted' || updateBidMutation.isPending}
-                                    >
-                                        <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                                        Accept Bid
-                                    </Button>
+                                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                    {bid.status === 'pending' && (
+                                        <Button
+                                            size="sm"
+                                            className="bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold"
+                                            onClick={() => updateBidMutation.mutate({ id: bid.id, data: { status: 'accepted' } })}
+                                            disabled={updateBidMutation.isPending}
+                                        >
+                                            <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                                            Accept Bid
+                                        </Button>
+                                    )}
+                                    {(bid.status === 'accepted' || bid.status === 'pending') && (
+                                        <Button
+                                            size="sm"
+                                            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs flex items-center"
+                                            onClick={() => createLeaseFromBidMutation.mutate(bid)}
+                                            disabled={createLeaseFromBidMutation.isPending}
+                                        >
+                                            <FileText className="w-3.5 h-3.5 mr-1" />
+                                            Send Digital E-Lease
+                                        </Button>
+                                    )}
                                     <Button
                                         size="sm"
                                         variant="outline"

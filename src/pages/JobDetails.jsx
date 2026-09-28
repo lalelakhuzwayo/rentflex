@@ -27,6 +27,12 @@ export default function JobDetails() {
         estimated_duration_days: '',
         proposal: ''
     });
+    const [ratingDialogOpen, setRatingDialogOpen] = useState(false);
+    const [ratingForm, setRatingForm] = useState({
+        rating: 5,
+        turnaround: 'on_schedule',
+        review: ''
+    });
 
     useEffect(() => {
         appClient.auth.me().then(setUser).catch(() => {});
@@ -151,6 +157,40 @@ export default function JobDetails() {
             bidAmount: bid.bid_amount || bid.amount
         })
     };
+
+    const submitReviewMutation = useMutation({
+        mutationFn: async ({ contractorId, rating, turnaround, review }) => {
+            await appClient.entities.ContractorJob.update(id, {
+                landlord_rating: rating,
+                landlord_turnaround: turnaround,
+                landlord_review: review,
+                status: 'completed'
+            });
+
+            if (contractorId) {
+                try {
+                    const cList = await appClient.entities.Contractor.filter({ user_id: contractorId });
+                    if (cList?.[0]) {
+                        const c = cList[0];
+                        const prevCount = c.jobs_completed || 0;
+                        const prevRating = c.rating || 5.0;
+                        const newRating = Number(((prevRating * prevCount + rating) / (prevCount + 1)).toFixed(1));
+                        await appClient.entities.Contractor.update(c.id, {
+                            jobs_completed: prevCount + 1,
+                            rating: newRating
+                        });
+                    }
+                } catch (_) {}
+            }
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['job', id] });
+            queryClient.invalidateQueries({ queryKey: ['contractor'] });
+            toast.success('Contractor rated successfully! JobScore™ updated.');
+            setRatingDialogOpen(false);
+        },
+        onError: () => toast.error('Failed to submit contractor rating')
+    });
 
     const handleSubmitBid = (e) => {
         e.preventDefault();
@@ -279,15 +319,40 @@ export default function JobDetails() {
                                                      <Badge className="bg-emerald-600 text-white">Direct Paygate</Badge>
                                                  </div>
 
-                                                 <Button
-                                                     size="sm"
-                                                     className="w-full bg-zinc-900 hover:bg-zinc-800 text-white"
-                                                     onClick={() => {
-                                                         toast.success('🎉 Proof of work approved! Direct Paygate payment processed to contractor.');
-                                                     }}
-                                                 >
-                                                     Approve Proof-of-Work & Pay Contractor via Paygate
-                                                 </Button>
+                                                 <div className="flex flex-col sm:flex-row gap-2">
+                                                     <Button
+                                                         size="sm"
+                                                         className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-white"
+                                                         onClick={() => {
+                                                             toast.success('🎉 Proof of work approved! Direct Paygate payment processed to contractor.');
+                                                         }}
+                                                     >
+                                                         Approve Proof-of-Work & Pay via Paygate
+                                                     </Button>
+
+                                                     <Button
+                                                         size="sm"
+                                                         variant="outline"
+                                                         className="border-amber-300 text-amber-900 hover:bg-amber-50 font-semibold flex items-center gap-1.5"
+                                                         onClick={() => {
+                                                             setSelectedBid(bid);
+                                                             setRatingDialogOpen(true);
+                                                         }}
+                                                     >
+                                                         <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+                                                         {job.landlord_rating ? 'Update Rating' : 'Rate Work & Speed'}
+                                                     </Button>
+                                                 </div>
+
+                                                 {job.landlord_rating && (
+                                                     <div className="bg-amber-50/80 border border-amber-200/90 rounded-lg p-2.5 text-xs text-amber-900">
+                                                         <div className="flex items-center gap-1.5 font-bold mb-0.5">
+                                                             <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+                                                             <span>Rated {job.landlord_rating} / 5 Stars • Turnaround: {job.landlord_turnaround?.replace('_', ' ')}</span>
+                                                         </div>
+                                                         {job.landlord_review && <p className="italic text-zinc-600">"{job.landlord_review}"</p>}
+                                                     </div>
+                                                 )}
                                             </div>
                                         )}
                                     </div>
@@ -295,6 +360,91 @@ export default function JobDetails() {
                             </div>
                         </Card>
                     )}
+
+                    {/* Contractor Work & Speed Rating Dialog */}
+                    <Dialog open={ratingDialogOpen} onOpenChange={setRatingDialogOpen}>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Rate Contractor Work & Completion Speed</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-4 pt-2">
+                                <div>
+                                    <Label className="text-xs font-semibold text-zinc-700">Quality of Work (1 to 5 Stars)</Label>
+                                    <div className="flex items-center gap-2 mt-2">
+                                        {[1, 2, 3, 4, 5].map((star) => (
+                                            <button
+                                                key={star}
+                                                type="button"
+                                                onClick={() => setRatingForm({ ...ratingForm, rating: star })}
+                                                className="p-1 hover:scale-110 transition-transform"
+                                            >
+                                                <Star
+                                                    className={`w-6 h-6 ${
+                                                        star <= ratingForm.rating
+                                                            ? 'fill-amber-400 text-amber-400'
+                                                            : 'text-zinc-300'
+                                                    }`}
+                                                />
+                                            </button>
+                                        ))}
+                                        <span className="text-sm font-bold text-zinc-800 ml-2">{ratingForm.rating} / 5</span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <Label className="text-xs font-semibold text-zinc-700">Task Completion Turnaround</Label>
+                                    <div className="grid grid-cols-2 gap-2 mt-1.5">
+                                        {[
+                                            { id: 'ahead_of_schedule', label: '⚡ Ahead of Schedule' },
+                                            { id: 'on_schedule', label: '✓ On Schedule' },
+                                            { id: 'slight_delay', label: '⏱ Minor Delay' },
+                                            { id: 'significant_delay', label: '⚠️ Significant Delay' }
+                                        ].map((t) => (
+                                            <button
+                                                key={t.id}
+                                                type="button"
+                                                onClick={() => setRatingForm({ ...ratingForm, turnaround: t.id })}
+                                                className={`p-2.5 rounded-lg border text-xs font-medium text-left transition-colors ${
+                                                    ratingForm.turnaround === t.id
+                                                        ? 'border-zinc-950 bg-zinc-900 text-white'
+                                                        : 'border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700'
+                                                }`}
+                                            >
+                                                {t.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <Label className="text-xs font-semibold text-zinc-700">Landlord Review & Comments</Label>
+                                    <Textarea
+                                        placeholder="Share details on craftsmanship, communication, and work cleanliness..."
+                                        value={ratingForm.review}
+                                        onChange={(e) => setRatingForm({ ...ratingForm, review: e.target.value })}
+                                        rows={3}
+                                        className="mt-1"
+                                    />
+                                </div>
+
+                                <Button
+                                    className="w-full bg-zinc-950 hover:bg-zinc-900 text-white font-bold"
+                                    disabled={submitReviewMutation.isPending}
+                                    onClick={() => {
+                                        const cId = selectedBid?.contractor_id || job.contractor_id;
+                                        submitReviewMutation.mutate({
+                                            contractorId: cId,
+                                            rating: ratingForm.rating,
+                                            turnaround: ratingForm.turnaround,
+                                            review: ratingForm.review
+                                        });
+                                    }}
+                                >
+                                    {submitReviewMutation.isPending ? 'Saving...' : 'Submit Rating & Update JobScore™'}
+                                </Button>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
                 </div>
 
                 {/* Sidebar */}

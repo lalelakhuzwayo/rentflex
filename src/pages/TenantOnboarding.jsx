@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { appClient } from '@/api/appClient';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence } from 'framer-motion';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
+import { syncAndScoreTenant } from '@/utils/rentScoreEngine';
 import PersonalDetailsStep from '@/components/tenant-onboarding/PersonalDetailsStep';
 import VerificationStep from '@/components/tenant-onboarding/VerificationStep';
 import EmploymentStep from '@/components/tenant-onboarding/EmploymentStep';
@@ -16,6 +17,7 @@ const STEPS = ['personal', 'verification', 'employment', 'bank', 'complete'];
 
 export default function TenantOnboarding() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const queryClient = useQueryClient();
     const [user, setUser] = useState(null);
     const [currentStep, setCurrentStep] = useState(0);
@@ -33,6 +35,24 @@ export default function TenantOnboarding() {
         account_number: '',
         debit_order_enabled: false,
     });
+
+    useEffect(() => {
+        const stepParam = searchParams.get('step');
+        const verifyParam = searchParams.get('verify');
+
+        if (stepParam !== null) {
+            const stepNum = parseInt(stepParam, 10);
+            if (!isNaN(stepNum) && stepNum >= 0 && stepNum < STEPS.length) {
+                setCurrentStep(stepNum);
+            }
+        } else if (verifyParam === 'identity') {
+            setCurrentStep(1);
+        } else if (verifyParam === 'employment') {
+            setCurrentStep(2);
+        } else if (verifyParam === 'income' || verifyParam === 'bank') {
+            setCurrentStep(3);
+        }
+    }, [searchParams]);
 
     useEffect(() => {
         appClient.auth.me().then(u => {
@@ -137,9 +157,12 @@ export default function TenantOnboarding() {
                 last_updated: new Date().toISOString(),
             });
 
+            // Dynamically sync and score tenant
+            await syncAndScoreTenant(user?.email);
+
             queryClient.invalidateQueries();
-            toast.success('Welcome to RentFlex!');
-            navigate(createPageUrl('Dashboard'));
+            toast.success('Welcome to RentFlex! Verification details recorded.');
+            navigate(createPageUrl('RentScore'));
         } catch (error) {
             toast.error('Something went wrong. Please try again.');
         }

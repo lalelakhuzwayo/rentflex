@@ -174,10 +174,13 @@ export default function Layout({ children, currentPageName }) {
         refetchInterval: 10000,
     });
 
-    // Hide navigation chrome when user is on the Auth login/register page
+    // Hide navigation chrome when user is on the Auth login/register page or OAuth consent screen
     const isAuthPage = 
         currentPageName?.toLowerCase() === 'auth' || 
-        location.pathname.toLowerCase().includes('/auth');
+        currentPageName?.toLowerCase() === 'oauthconsent' || 
+        currentPageName?.toLowerCase() === 'oauth/consent' || 
+        location.pathname.toLowerCase().includes('/auth') ||
+        location.pathname.toLowerCase().includes('/oauth');
 
     // Scroll to top on every page mount / route change
     useEffect(() => {

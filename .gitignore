@@ -33,3 +33,8 @@ base44/.app.jsonc
 # Agent CLI and archives
 .antigravitycli/
 *.zip
+
+# Secrets and credentials
+*secret*.json
+auth-client-secret.json
+

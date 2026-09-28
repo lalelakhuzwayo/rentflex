@@ -195,14 +195,28 @@ export default function PropertyDetails() {
                 createdBid = { id: `bid-${Date.now()}`, ...data };
             }
 
-            const landlordId = property?.landlord_id || 'landlord';
+            const landlordId = property?.landlord_id || property?.owner_id || property?.created_by || 'landlord';
+            
+            // Route message into bid-specific conversation thread for Messages tab
+            if (createdBid?.id) {
+                try {
+                    await appClient.entities.Message.create({
+                        conversation_id: `bid_${createdBid.id}`,
+                        sender_id: user?.email || user?.id || 'tenant',
+                        receiver_id: landlordId,
+                        content: `🏷️ New Bid: Proposed R${(data.proposed_rent || data.bid_amount)?.toLocaleString()}/month for "${property?.title}". Move-in date: ${data.move_in_date || 'N/A'}. ${data.message ? `Note: ${data.message}` : ''}`
+                    });
+                } catch (e) {
+                    console.warn('Could not send message to bid thread:', e);
+                }
+            }
+
+            // Direct message thread
             try {
                 await appClient.entities.Message.create({
                     conversation_id: `${user?.email || 'tenant'}_${landlordId}`,
                     sender_id: user?.email || user?.id || 'tenant',
                     receiver_id: landlordId,
-                    property_id: property?.id,
-                    property_title: property?.title || 'Property',
                     content: `🏷️ New Bid Received: R${(data.proposed_rent || data.bid_amount)?.toLocaleString()} for property "${property?.title}". Proposed move-in: ${data.move_in_date || 'N/A'}. ${data.message ? `Note: ${data.message}` : ''}`
                 });
             } catch (e) {
@@ -213,6 +227,8 @@ export default function PropertyDetails() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['propertyBids', propertyId] });
+            queryClient.invalidateQueries({ queryKey: ['messages-bids'] });
+            queryClient.invalidateQueries({ queryKey: ['user-all-messages'] });
             setBidDialogOpen(false);
             setBidForm({
                 bid_amount: '',
@@ -238,14 +254,27 @@ export default function PropertyDetails() {
                 res = { id: `tour-${Date.now()}`, ...data };
             }
 
-            const landlordId = property?.landlord_id || 'landlord';
+            const landlordId = property?.landlord_id || property?.owner_id || property?.created_by || 'landlord';
+
+            // Route message into tour-specific conversation thread for Messages tab
+            if (res?.id) {
+                try {
+                    await appClient.entities.Message.create({
+                        conversation_id: `tour_${res.id}`,
+                        sender_id: user?.email || user?.id || 'tenant',
+                        receiver_id: landlordId,
+                        content: `📅 New Tour Request: Viewing requested for "${property?.title}" on ${data.requested_date} at ${data.requested_time}. ${data.notes ? `Note: ${data.notes}` : ''}`
+                    });
+                } catch (e) {
+                    console.warn('Could not send message to tour thread:', e);
+                }
+            }
+
             try {
                 await appClient.entities.Message.create({
                     conversation_id: `${user?.email || 'tenant'}_${landlordId}`,
                     sender_id: user?.email || user?.id || 'tenant',
                     receiver_id: landlordId,
-                    property_id: property?.id,
-                    property_title: property?.title || 'Property',
                     content: `📅 New Tour Request: Viewing requested for "${property?.title}" on ${data.requested_date} at ${data.requested_time}. ${data.notes ? `Note: ${data.notes}` : ''}`
                 });
             } catch (e) {
@@ -256,6 +285,8 @@ export default function PropertyDetails() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['propertyTours', propertyId] });
+            queryClient.invalidateQueries({ queryKey: ['messages-tours'] });
+            queryClient.invalidateQueries({ queryKey: ['user-all-messages'] });
             setTourDialogOpen(false);
             setTourForm({
                 requested_date: '',
@@ -281,22 +312,21 @@ export default function PropertyDetails() {
             return;
         }
 
-        const landlordId = property?.landlord_id || 'landlord';
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(propertyId);
+        const landlordId = property?.landlord_id || property?.owner_id || property?.created_by || 'landlord';
 
         const payload = {
+            property_id: property?.id || propertyId,
+            property_title: property?.title || 'Rental Property',
+            property_address: property?.address || '',
             tenant_id: user?.email || user?.id || 'guest',
             tenant_name: user?.full_name || user?.email?.split('@')[0] || 'Tenant',
+            tenant_email: user?.email || '',
             landlord_id: landlordId,
             requested_date: tourForm.requested_date,
             requested_time: tourForm.requested_time,
             notes: tourForm.notes,
             status: 'pending'
         };
-
-        if (isUuid) {
-            payload.property_id = propertyId;
-        }
 
         createTourMutation.mutate(payload);
     };
@@ -318,24 +348,27 @@ export default function PropertyDetails() {
             return;
         }
 
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(propertyId);
+        const landlordId = property?.landlord_id || property?.owner_id || property?.created_by || 'landlord';
 
         const payload = {
+            property_id: property?.id || propertyId,
+            property_title: property?.title || 'Rental Property',
+            property_address: property?.address || '',
+            property_image: property?.images?.[0] || null,
+            landlord_id: landlordId,
             tenant_id: user?.email || user?.id || 'guest',
             tenant_name: user?.full_name || user?.email?.split('@')[0] || 'Tenant',
+            tenant_email: user?.email || '',
+            tenant_phone: user?.phone || '',
             proposed_rent: numericBid,
+            bid_amount: numericBid,
             lease_duration_months: parseInt(bidForm.proposed_lease_months || '12', 10),
+            proposed_lease_months: parseInt(bidForm.proposed_lease_months || '12', 10),
             move_in_date: bidForm.move_in_date,
             status: 'pending',
             bidder_id: user?.email || user?.id,
-            bid_amount: numericBid,
-            proposed_lease_months: parseInt(bidForm.proposed_lease_months || '12', 10),
             message: bidForm.message
         };
-
-        if (isUuid) {
-            payload.property_id = propertyId;
-        }
 
         createBidMutation.mutate(payload);
     };

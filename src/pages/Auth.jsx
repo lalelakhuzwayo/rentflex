@@ -47,7 +47,22 @@ export default function Auth() {
 
     // Auto-redirect authenticated users (handles OAuth returns, persistent sessions, and active logins)
     useEffect(() => {
+        const urlReturnTo = searchParams.get('returnTo');
+        if (urlReturnTo) {
+            try { sessionStorage.setItem('auth_return_to', urlReturnTo); } catch (_) {}
+        }
+
         if (isAuthenticated && user) {
+            const returnTarget = searchParams.get('returnTo') || sessionStorage.getItem('auth_return_to');
+            if (returnTarget && (returnTarget.startsWith('/') || returnTarget.startsWith(window.location.origin))) {
+                try { sessionStorage.removeItem('auth_return_to'); } catch (_) {}
+                const targetPath = returnTarget.startsWith('http') 
+                    ? returnTarget.replace(window.location.origin, '') 
+                    : returnTarget;
+                navigate(targetPath, { replace: true });
+                return;
+            }
+
             const userRole = (user.user_type || '').toLowerCase();
             if (userRole === 'sysadmin') {
                 navigate(createPageUrl('SysAdminDashboard'), { replace: true });
@@ -59,7 +74,7 @@ export default function Auth() {
                 navigate(createPageUrl('Dashboard'), { replace: true });
             }
         }
-    }, [user, isAuthenticated, navigate]);
+    }, [user, isAuthenticated, navigate, searchParams]);
 
     // Form fields
     const [formData, setFormData] = useState({

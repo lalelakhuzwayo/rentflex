@@ -55,6 +55,11 @@ export default function PropertyCard({ property, index = 0 }) {
                         <Badge className={`${statusColors[property.status] || 'bg-zinc-100 text-zinc-700'} text-[11px] font-medium px-2 py-0.5 rounded-md`}>
                             {property.status}
                         </Badge>
+                        {property.rental_type === 'room' && (
+                            <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[11px] font-medium px-2 py-0.5 rounded-md">
+                                {property.available_rooms !== undefined ? `${property.available_rooms} rooms left` : 'Room Rental'}
+                            </Badge>
+                        )}
                         {property.accepts_bidding && (
                             <Badge className="bg-zinc-900 text-white border-zinc-800 text-[11px] font-medium px-2 py-0.5 rounded-md flex items-center gap-1">
                                 <Gavel className="w-3 h-3" />

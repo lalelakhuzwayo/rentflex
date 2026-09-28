@@ -46,6 +46,7 @@ export const PAGES = {
     "Messages": Messages,
     "MoveOutDeposit": MoveOutDeposit,
     "OAuthConsent": OAuthConsent,
+    "oauth/consent": OAuthConsent,
     "Payments": Payments,
     "PostJob": PostJob,
     "PrivacyPolicy": PrivacyPolicy,

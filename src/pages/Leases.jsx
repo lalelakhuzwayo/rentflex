@@ -15,8 +15,10 @@ import {
     XCircle,
     UserCheck,
     Building2,
-    Home
+    Home,
+    Download
 } from 'lucide-react';
+import { syncAndScoreTenant } from '@/utils/rentScoreEngine';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -68,11 +70,44 @@ export default function Leases() {
 
     const updateLeaseMutation = useMutation({
         mutationFn: (/** @type {{ id: string, data: any }} */ { id, data }) => appClient.entities.Lease.update(id, data),
-        onSuccess: (updated) => {
+        onSuccess: async (updated) => {
             queryClient.invalidateQueries({ queryKey: ['leases'] });
             queryClient.invalidateQueries({ queryKey: ['allLeases'] });
+            
             if (updated.status === 'active') {
                 toast.success('Lease agreement is now fully countersigned and ACTIVE!');
+
+                // Update property occupancy / off-market status
+                if (updated.property_id) {
+                    try {
+                        const prop = await appClient.entities.Property.get(updated.property_id);
+                        if (prop) {
+                            if (prop.rental_type === 'room') {
+                                const currentVacant = prop.available_rooms !== undefined ? prop.available_rooms : (prop.total_rooms || prop.bedrooms || 1);
+                                const newVacant = Math.max(0, currentVacant - 1);
+                                await appClient.entities.Property.update(prop.id, {
+                                    available_rooms: newVacant,
+                                    status: newVacant <= 0 ? 'rented' : 'available'
+                                });
+                            } else {
+                                // Entire unit occupied: automatically taken off the market
+                                await appClient.entities.Property.update(prop.id, {
+                                    status: 'rented'
+                                });
+                            }
+                            queryClient.invalidateQueries({ queryKey: ['properties'] });
+                            queryClient.invalidateQueries({ queryKey: ['properties-list-all'] });
+                            queryClient.invalidateQueries({ queryKey: ['properties-list'] });
+                        }
+                    } catch (e) {
+                        console.warn('Property status update notice:', e);
+                    }
+                }
+
+                // Update tenant's RentScore for active verified tenancy
+                if (updated.tenant_id) {
+                    syncAndScoreTenant(updated.tenant_id).catch(() => {});
+                }
             } else if (updated.status === 'pending_landlord_signature') {
                 toast.success('Lease signed! Landlord has been notified to countersign and finalize.');
             } else {
@@ -286,6 +321,15 @@ export default function Leases() {
                         const needsLandlordSig = !lease.landlord_signature && userIsLandlord;
                         const canSignNow = needsTenantSig || needsLandlordSig;
 
+                        const isBothSigned = lease.status === 'active' || (Boolean(lease.tenant_signature) && Boolean(lease.landlord_signature));
+                        const startDate = parseSafeDate(lease.start_date);
+                        const now = new Date();
+                        const isMoveInPassed = Boolean(startDate && startDate <= now);
+                        const isOccupying = isBothSigned && isMoveInPassed;
+                        const diffDays = (startDate && isMoveInPassed) ? Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+                        const monthsOccupied = Math.floor(diffDays / 30);
+                        const rentScoreBonus = monthsOccupied * 5;
+
                         return (
                             <motion.div
                                 key={lease.id}
@@ -299,6 +343,16 @@ export default function Leases() {
                                         <div className="flex flex-wrap items-center gap-2.5">
                                             <h3 className="text-base font-bold text-zinc-900">{lease.property_title || 'Residential Property'}</h3>
                                             {getStatusBadge(lease)}
+                                            {isOccupying && (
+                                                <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 shadow-xs">
+                                                    <Home className="w-3 h-3" /> Actively Occupying ({monthsOccupied} mo • +{rentScoreBonus} pts RentScore)
+                                                </Badge>
+                                            )}
+                                            {isBothSigned && !isMoveInPassed && (
+                                                <Badge className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1 shadow-xs">
+                                                    <Clock className="w-3 h-3" /> Upcoming Move-In ({formatDate(lease.start_date)})
+                                                </Badge>
+                                            )}
                                             {lease.tenant_signature && (
                                                 <Badge className="bg-zinc-100 text-zinc-800 text-[10px] border-zinc-300">
                                                     ✓ Tenant Signed
@@ -322,7 +376,7 @@ export default function Leases() {
                                             </span>
                                             <span className="flex items-center gap-1">
                                                 <Calendar className="w-3.5 h-3.5 text-zinc-900" />
-                                                Start: {formatDate(lease.start_date)}
+                                                Start / Move-in: {formatDate(lease.start_date)}
                                             </span>
                                             <span className="flex items-center gap-1">
                                                 <Clock className="w-3.5 h-3.5 text-amber-600" />
@@ -336,6 +390,21 @@ export default function Leases() {
                                             <span className="text-[11px] text-zinc-400 font-medium block">Monthly Rent</span>
                                             <span className="text-xl font-bold text-zinc-900">R{Number(lease.monthly_rent || 0).toLocaleString()}</span>
                                         </div>
+
+                                        {isBothSigned && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="border-zinc-200 text-zinc-800 hover:bg-zinc-50 font-medium flex items-center shadow-xs"
+                                                onClick={() => {
+                                                    setSelectedLease(lease);
+                                                    setSignatureModal(true);
+                                                }}
+                                            >
+                                                <Download className="w-3.5 h-3.5 mr-1.5 text-zinc-600" />
+                                                Signed E-Lease Copy
+                                            </Button>
+                                        )}
 
                                         {canSignNow ? (
                                             <Button

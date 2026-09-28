@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Upload, X, ArrowLeft, Building2, CheckCircle2 } from 'lucide-react';
+import { Upload, X, ArrowLeft, Building2, CheckCircle2, Home } from 'lucide-react';
 import { toast } from 'sonner';
 
 const AMENITIES_OPTIONS = [
@@ -37,6 +37,9 @@ export default function AddProperty() {
         state: '',
         zip_code: '',
         property_type: 'apartment',
+        rental_type: 'entire_unit', // 'entire_unit' or 'room'
+        total_rooms: 1,
+        available_rooms: 1,
         bedrooms: 1,
         bathrooms: 1,
         sqft: '',
@@ -73,6 +76,9 @@ export default function AddProperty() {
                 state: existingProperty.state || '',
                 zip_code: existingProperty.zip_code || '',
                 property_type: existingProperty.property_type || 'apartment',
+                rental_type: existingProperty.rental_type || 'entire_unit',
+                total_rooms: existingProperty.total_rooms || existingProperty.bedrooms || 1,
+                available_rooms: existingProperty.available_rooms !== undefined ? existingProperty.available_rooms : (existingProperty.bedrooms || 1),
                 bedrooms: existingProperty.bedrooms || 1,
                 bathrooms: existingProperty.bathrooms || 1,
                 sqft: existingProperty.sqft || '',
@@ -306,6 +312,75 @@ export default function AddProperty() {
                         <CardTitle className="text-base font-bold text-zinc-900">Property Features & Financials</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                        {/* Rental Structure: Entire Unit vs Individual Room Rental */}
+                        <div className="p-3.5 bg-zinc-50 rounded-xl border border-zinc-200/80 space-y-3">
+                            <div>
+                                <Label className="text-xs font-bold text-zinc-900">Rental Structure / Occupancy Format</Label>
+                                <p className="text-[11px] text-zinc-500">Choose whether to rent out the entire unit or individual rooms to separate tenants.</p>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData({ ...formData, rental_type: 'entire_unit' })}
+                                    className={`p-3 rounded-lg border text-left transition-all ${
+                                        formData.rental_type === 'entire_unit'
+                                            ? 'border-zinc-950 bg-white ring-2 ring-zinc-950/10 shadow-xs'
+                                            : 'border-zinc-200 bg-white/60 hover:bg-white text-zinc-600'
+                                    }`}
+                                >
+                                    <p className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
+                                        <Home className="w-3.5 h-3.5 text-zinc-700" /> Entire Property / Unit
+                                    </p>
+                                    <p className="text-[11px] text-zinc-500 mt-1 leading-relaxed">
+                                        Leased to one tenant party. Automatically moves off the marketplace when an active lease begins.
+                                    </p>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData({ ...formData, rental_type: 'room' })}
+                                    className={`p-3 rounded-lg border text-left transition-all ${
+                                        formData.rental_type === 'room'
+                                            ? 'border-zinc-950 bg-white ring-2 ring-zinc-950/10 shadow-xs'
+                                            : 'border-zinc-200 bg-white/60 hover:bg-white text-zinc-600'
+                                    }`}
+                                >
+                                    <p className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
+                                        <Building2 className="w-3.5 h-3.5 text-indigo-600" /> Individual Room Rental
+                                    </p>
+                                    <p className="text-[11px] text-zinc-500 mt-1 leading-relaxed">
+                                        Rent separate rooms in an apartment. Stays on the market until all rooms are occupied.
+                                    </p>
+                                </button>
+                            </div>
+
+                            {formData.rental_type === 'room' && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-zinc-200/60">
+                                    <div>
+                                        <Label className="text-xs font-semibold text-zinc-700">Total Rentable Rooms</Label>
+                                        <Input
+                                            type="number"
+                                            min="1"
+                                            value={formData.total_rooms}
+                                            onChange={(e) => setFormData({ ...formData, total_rooms: parseInt(e.target.value || '1', 10) })}
+                                            className="mt-1 bg-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label className="text-xs font-semibold text-zinc-700">Available Vacant Rooms</Label>
+                                        <Input
+                                            type="number"
+                                            min="0"
+                                            max={formData.total_rooms}
+                                            value={formData.available_rooms}
+                                            onChange={(e) => setFormData({ ...formData, available_rooms: parseInt(e.target.value || '0', 10) })}
+                                            className="mt-1 bg-white"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div>
                                 <Label className="text-xs font-semibold text-zinc-700">Bedrooms</Label>

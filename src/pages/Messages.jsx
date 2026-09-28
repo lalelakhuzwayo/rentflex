@@ -16,6 +16,7 @@ import {
     MessageSquare,
     Check,
     CheckCheck,
+    CheckCircle2,
     X,
     Building2,
     Search,
@@ -49,41 +50,22 @@ export default function Messages() {
     useEffect(() => {
         if (!isSupabaseConfigured) return;
 
+        const handleRealtimeUpdate = () => {
+            queryClient.invalidateQueries();
+            queryClient.refetchQueries({ queryKey: ['messages'] });
+            queryClient.refetchQueries({ queryKey: ['user-all-messages'] });
+            queryClient.refetchQueries({ queryKey: ['messages-bids'] });
+            queryClient.refetchQueries({ queryKey: ['messages-tours'] });
+            queryClient.refetchQueries({ queryKey: ['messages-applications'] });
+            queryClient.refetchQueries({ queryKey: ['layout-notifications'] });
+        };
+
         const channel = supabase
             .channel('whatsapp_realtime_messages_channel')
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'messages' },
-                () => {
-                    queryClient.invalidateQueries({ queryKey: ['messages'] });
-                    queryClient.invalidateQueries({ queryKey: ['user-all-messages'] });
-                    queryClient.invalidateQueries({ queryKey: ['layout-notifications'] });
-                }
-            )
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'bids' },
-                () => {
-                    queryClient.invalidateQueries({ queryKey: ['messages-bids'] });
-                    queryClient.invalidateQueries({ queryKey: ['layout-notifications'] });
-                }
-            )
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'tour_schedules' },
-                () => {
-                    queryClient.invalidateQueries({ queryKey: ['messages-tours'] });
-                    queryClient.invalidateQueries({ queryKey: ['layout-notifications'] });
-                }
-            )
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'applications' },
-                () => {
-                    queryClient.invalidateQueries({ queryKey: ['messages-applications'] });
-                    queryClient.invalidateQueries({ queryKey: ['layout-notifications'] });
-                }
-            )
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, handleRealtimeUpdate)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'bids' }, handleRealtimeUpdate)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'tour_schedules' }, handleRealtimeUpdate)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, handleRealtimeUpdate)
             .subscribe();
 
         return () => {
@@ -118,19 +100,56 @@ export default function Messages() {
         enabled: !!user?.email || !!user?.id,
     });
 
+    // Query Landlord's Properties to match any bids/tours submitted on their properties
+    const { data: myProperties = [] } = useQuery({
+        queryKey: ['messages-landlord-properties', user?.email, user?.id, isLandlord],
+        queryFn: async () => {
+            if (!user || (!isLandlord && !isSysAdmin)) return [];
+            try {
+                const list = await appClient.entities.Property.list();
+                if (!Array.isArray(list)) return [];
+                if (isSysAdmin) return list;
+                const myEmail = user.email?.toLowerCase().trim();
+                const myId = user.id;
+                return list.filter(p => 
+                    (p.landlord_id && (p.landlord_id.toLowerCase() === myEmail || p.landlord_id === myId)) ||
+                    (p.owner_id && (p.owner_id.toLowerCase() === myEmail || p.owner_id === myId)) ||
+                    (p.created_by && (p.created_by.toLowerCase() === myEmail || p.created_by === myId))
+                );
+            } catch (_) {
+                return [];
+            }
+        },
+        enabled: !!user && (isLandlord || isSysAdmin),
+    });
+
+    const landlordPropertyIds = useMemo(() => {
+        return new Set(myProperties.map(p => String(p.id)));
+    }, [myProperties]);
+
     // 2. Property Bids Query
     const { data: bids = [] } = useQuery({
-        queryKey: ['messages-bids', user?.email, user?.id, isLandlord],
+        queryKey: ['messages-bids', user?.email, user?.id, isLandlord, myProperties.length],
         queryFn: async () => {
             if (!user) return [];
             try {
                 const list = await appClient.entities.Bid.list();
                 if (!Array.isArray(list)) return [];
                 if (isSysAdmin) return list;
+                const myEmail = user.email?.toLowerCase().trim();
+                const myId = user.id;
+
                 if (isTenant) {
-                    return list.filter(b => b.tenant_id === user.email || b.tenant_id === user.id || b.bidder_id === user.email);
+                    return list.filter(b => 
+                        (b.tenant_id && (b.tenant_id.toLowerCase() === myEmail || b.tenant_id === myId)) || 
+                        (b.bidder_id && (b.bidder_id.toLowerCase() === myEmail || b.bidder_id === myId))
+                    );
                 }
-                return list.filter(b => b.landlord_id === user.email || b.landlord_id === user.id || true);
+                // Landlord: receive bids sent to their landlord_id or for their properties
+                return list.filter(b => 
+                    (b.landlord_id && (b.landlord_id.toLowerCase() === myEmail || b.landlord_id === myId)) ||
+                    (b.property_id && landlordPropertyIds.has(String(b.property_id)))
+                );
             } catch (e) {
                 return [];
             }
@@ -140,17 +159,26 @@ export default function Messages() {
 
     // 3. Tour Schedules Query
     const { data: tourSchedules = [] } = useQuery({
-        queryKey: ['messages-tours', user?.email, user?.id, isLandlord],
+        queryKey: ['messages-tours', user?.email, user?.id, isLandlord, myProperties.length],
         queryFn: async () => {
             if (!user) return [];
             try {
                 const list = await appClient.entities.TourSchedule.list();
                 if (!Array.isArray(list)) return [];
                 if (isSysAdmin) return list;
+                const myEmail = user.email?.toLowerCase().trim();
+                const myId = user.id;
+
                 if (isTenant) {
-                    return list.filter(t => t.tenant_id === user.email || t.tenant_id === user.id);
+                    return list.filter(t => 
+                        (t.tenant_id && (t.tenant_id.toLowerCase() === myEmail || t.tenant_id === myId))
+                    );
                 }
-                return list.filter(t => t.landlord_id === user.email || t.landlord_id === user.id || true);
+                // Landlord: receive tours sent to their landlord_id or on their properties
+                return list.filter(t => 
+                    (t.landlord_id && (t.landlord_id.toLowerCase() === myEmail || t.landlord_id === myId)) ||
+                    (t.property_id && landlordPropertyIds.has(String(t.property_id)))
+                );
             } catch (e) {
                 return [];
             }
@@ -158,19 +186,40 @@ export default function Messages() {
         enabled: !!user?.email || !!user?.id,
     });
 
+    // Helper to check if tour date/time has passed
+    const isTourPassed = (t) => {
+        if (!t?.requested_date) return false;
+        try {
+            const timeStr = t.requested_time ? t.requested_time.replace(/(AM|PM)/i, ' $1') : '23:59';
+            const dt = new Date(`${t.requested_date} ${timeStr}`);
+            return !isNaN(dt.getTime()) && dt < new Date();
+        } catch (_) {
+            return false;
+        }
+    };
+
     // 4. Applications Query
     const { data: applications = [] } = useQuery({
-        queryKey: ['messages-applications', user?.email, user?.id, isLandlord],
+        queryKey: ['messages-applications', user?.email, user?.id, isLandlord, myProperties.length],
         queryFn: async () => {
             if (!user) return [];
             try {
                 const list = await appClient.entities.Application.list();
                 if (!Array.isArray(list)) return [];
                 if (isSysAdmin) return list;
+                const myEmail = user.email?.toLowerCase().trim();
+                const myId = user.id;
+
                 if (isTenant) {
-                    return list.filter(a => a.tenant_id === user.email || a.tenant_id === user.id || a.applicant_email === user.email);
+                    return list.filter(a => 
+                        (a.tenant_id && (a.tenant_id.toLowerCase() === myEmail || a.tenant_id === myId)) || 
+                        (a.applicant_email && a.applicant_email.toLowerCase() === myEmail)
+                    );
                 }
-                return list.filter(a => a.landlord_id === user.email || a.landlord_id === user.id || true);
+                return list.filter(a => 
+                    (a.landlord_id && (a.landlord_id.toLowerCase() === myEmail || a.landlord_id === myId)) ||
+                    (a.property_id && landlordPropertyIds.has(String(a.property_id)))
+                );
             } catch (e) {
                 return [];
             }
@@ -197,6 +246,9 @@ export default function Messages() {
             }
         },
         enabled: !!user?.email || !!user?.id,
+        refetchInterval: 2000,
+        refetchIntervalInBackground: true,
+        staleTime: 0,
     });
 
     // Bid Actions Mutation
@@ -227,6 +279,60 @@ export default function Messages() {
         },
     });
 
+    // Generate E-Lease from Bid Mutation
+    const createLeaseFromBidMutation = useMutation({
+        mutationFn: async (bid) => {
+            const startDate = bid.move_in_date || new Date().toISOString().split('T')[0];
+            const leaseMonths = parseInt(bid.proposed_lease_months || bid.lease_duration_months || '12', 10);
+            const endDateObj = new Date(startDate);
+            endDateObj.setMonth(endDateObj.getMonth() + leaseMonths);
+            const endDate = endDateObj.toISOString().split('T')[0];
+            const rent = parseFloat(bid.proposed_rent || bid.bid_amount || 0);
+
+            const leasePayload = {
+                landlord_id: user?.email || user?.id,
+                landlord_name: user?.full_name || 'Landlord',
+                tenant_id: bid.tenant_id || bid.bidder_id,
+                tenant_name: bid.tenant_name || 'Tenant',
+                property_id: bid.property_id,
+                property_title: bid.property_title || 'Rental Property',
+                property_address: bid.property_address || '',
+                monthly_rent: rent,
+                deposit_amount: rent,
+                start_date: startDate,
+                end_date: endDate,
+                status: 'pending_tenant_signature',
+                signed: false,
+                created_from_bid_id: bid.id,
+                created_date: new Date().toISOString()
+            };
+
+            const createdLease = await appClient.entities.Lease.create(leasePayload);
+
+            // Update bid status to accepted
+            await appClient.entities.Bid.update(bid.id, { status: 'accepted' });
+
+            // Notify tenant in message thread
+            await appClient.entities.Message.create({
+                conversation_id: `bid_${bid.id}`,
+                sender_id: user?.email || user?.id || 'landlord',
+                receiver_id: bid.tenant_id || bid.bidder_id,
+                content: `📄 Digital E-Lease Prepared! Landlord accepted your bid of R${rent.toLocaleString()}/month and generated your official lease agreement for move-in on ${startDate}. Please review and sign in your Leases portal.`
+            });
+
+            return createdLease;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['messages-bids'] });
+            queryClient.invalidateQueries({ queryKey: ['conversations-leases'] });
+            queryClient.invalidateQueries({ queryKey: ['leases'] });
+            toast.success('Digital E-Lease sent to tenant! The signing process has begun.');
+        },
+        onError: (err) => {
+            toast.error(err.message || 'Failed to generate digital e-lease');
+        }
+    });
+
     // Tour Actions Mutation
     const updateTourMutation = useMutation({
         mutationFn: async ({ id, status, rescheduleDate, rescheduleTime }) => {
@@ -241,9 +347,11 @@ export default function Messages() {
                     receiver_id: updated.tenant_id,
                     content: status === 'confirmed'
                         ? `✅ Viewing Confirmed for ${updated.requested_date} at ${updated.requested_time}.`
-                        : status === 'reschedule_requested'
-                            ? `🔄 Reschedule Proposed for ${rescheduleDate} at ${rescheduleTime}.`
-                            : `❌ Viewing Request Declined.`
+                        : status === 'completed'
+                            ? `🏆 Viewing Completed! Landlord marked the property tour on ${updated.requested_date} as completed.`
+                            : status === 'reschedule_requested'
+                                ? `🔄 Reschedule Proposed for ${rescheduleDate} at ${rescheduleTime}.`
+                                : `❌ Viewing Request Declined.`
                 });
             } catch (e) {}
             return updated;
@@ -428,14 +536,39 @@ export default function Messages() {
         },
         enabled: !!selectedConversation,
         initialData: [],
+        refetchInterval: 2000,
+        refetchIntervalInBackground: true,
+        staleTime: 0,
     });
 
     const sendMessageMutation = useMutation({
         mutationFn: (data) => appClient.entities.Message.create(data),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['messages', selectedConversation] });
+        onMutate: async (newMsg) => {
+            await queryClient.cancelQueries({ queryKey: ['messages', selectedConversation] });
+            const previousMessages = queryClient.getQueryData(['messages', selectedConversation]) || [];
+            const tempMsg = {
+                id: `temp_${Date.now()}`,
+                conversation_id: String(selectedConversation),
+                sender_id: String(newMsg.sender_id),
+                receiver_id: String(newMsg.receiver_id),
+                content: newMsg.content,
+                file_url: newMsg.file_url || null,
+                created_date: new Date().toISOString()
+            };
+            queryClient.setQueryData(['messages', selectedConversation], (old = []) => [...old, tempMsg]);
+            return { previousMessages };
+        },
+        onError: (err, newMsg, context) => {
+            if (context?.previousMessages) {
+                queryClient.setQueryData(['messages', selectedConversation], context.previousMessages);
+            }
+            toast.error('Failed to send message');
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['messages'] });
             queryClient.invalidateQueries({ queryKey: ['user-all-messages'] });
-            setMessageInput('');
+            queryClient.refetchQueries({ queryKey: ['messages', selectedConversation] });
+            queryClient.refetchQueries({ queryKey: ['user-all-messages'] });
         },
     });
 
@@ -455,11 +588,14 @@ export default function Messages() {
             receiverId = isLandlord ? 'tenant' : 'landlord';
         }
 
+        const textToSend = messageInput.trim();
+        setMessageInput('');
+
         sendMessageMutation.mutate({
             conversation_id: String(selectedConversation),
             sender_id: String(user?.email || user?.id || 'user'),
             receiver_id: String(receiverId || 'user'),
-            content: messageInput.trim(),
+            content: textToSend,
         });
     };
 
@@ -514,7 +650,7 @@ export default function Messages() {
     return (
         <div className="max-w-7xl mx-auto space-y-4 w-full min-w-0 overflow-x-hidden">
             {/* Main WhatsApp Grid Container */}
-            <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm grid lg:grid-cols-12 h-[calc(100dvh-130px)] min-h-[500px] sm:h-[650px] lg:h-[720px] overflow-hidden">
+            <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm grid lg:grid-cols-12 h-[calc(100dvh-175px)] min-h-[500px] sm:h-[650px] lg:h-[720px] max-h-[850px] overflow-hidden">
                 
                 {/* 🟢 LEFT SIDEBAR: WhatsApp Contacts & Threads List */}
                 <div className={`lg:col-span-4 border-r border-zinc-200 flex flex-col h-full min-h-0 overflow-hidden bg-zinc-50/50 ${
@@ -547,7 +683,7 @@ export default function Messages() {
                                 placeholder="Search contacts or chats..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-9 h-9 text-xs bg-zinc-100/80 border-transparent focus-visible:bg-white focus-visible:ring-zinc-950 rounded-lg"
+                                className="pl-9 h-9 text-[16px] sm:text-xs bg-zinc-100/80 border-transparent focus-visible:bg-white focus-visible:ring-zinc-950 rounded-lg"
                             />
                         </div>
                     </div>
@@ -753,92 +889,141 @@ export default function Messages() {
                                                                 <path d="M10,0 L0,0 L10,14 Z" />
                                                             </svg>
                                                         )}
-                                                        <div className="flex items-center justify-between gap-2 mb-2">
-                                                            <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${
-                                                                isOwnRequest ? 'bg-blue-900/60 text-blue-200 border-blue-800' : 'text-blue-700 bg-blue-50 border-blue-100'
-                                                            }`}>
-                                                                VIEWING REQUEST {isOwnRequest ? 'SENT' : 'RECEIVED'}
-                                                            </span>
-                                                        </div>
-                                                        <p className={`text-xs sm:text-sm font-bold ${isOwnRequest ? 'text-white' : 'text-zinc-900'}`}>
-                                                            Viewing: <span className="text-blue-400 font-extrabold">{d.requested_date} @ {d.requested_time}</span>
-                                                        </p>
-                                                        {!isOwnRequest && d.status === 'pending' && (
-                                                            <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-zinc-100">
-                                                                <Button
-                                                                    size="sm"
-                                                                    className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs"
-                                                                    onClick={() => updateTourMutation.mutate({ id: activeConv.rawId, status: 'confirmed' })}
-                                                                    disabled={updateTourMutation.isPending}
-                                                                >
-                                                                    <Check className="w-3.5 h-3.5 mr-1" /> Confirm
-                                                                </Button>
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    className="border-rose-200 text-rose-700 hover:bg-rose-50 font-bold text-xs h-7.5 px-3 rounded-lg"
-                                                                    onClick={() => updateTourMutation.mutate({ id: activeConv.rawId, status: 'declined' })}
-                                                                    disabled={updateTourMutation.isPending}
-                                                                >
-                                                                    <X className="w-3.5 h-3.5 mr-1" /> Decline
-                                                                </Button>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    }
+                                                         <div className="flex items-center justify-between gap-2 mb-2">
+                                                             <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${
+                                                                 isOwnRequest ? 'bg-blue-900/60 text-blue-200 border-blue-800' : 'text-blue-700 bg-blue-50 border-blue-100'
+                                                             }`}>
+                                                                 VIEWING REQUEST {isOwnRequest ? 'SENT' : 'RECEIVED'}
+                                                             </span>
+                                                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                                                                 d.status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
+                                                                 d.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
+                                                                 d.status === 'declined' ? 'bg-rose-100 text-rose-800' :
+                                                                 'bg-amber-100 text-amber-800'
+                                                             }`}>
+                                                                 {d.status || 'pending'}
+                                                             </span>
+                                                         </div>
+                                                         <p className={`text-xs sm:text-sm font-bold ${isOwnRequest ? 'text-white' : 'text-zinc-900'}`}>
+                                                             Viewing: <span className="text-blue-400 font-extrabold">{d.requested_date} @ {d.requested_time}</span>
+                                                         </p>
 
-                                    if (activeConv.type === 'bid') {
-                                        return (
-                                            <div className={`flex ${isOwnRequest ? 'justify-end' : 'justify-start'} relative z-10 my-1`}>
-                                                <div className="w-[270px] sm:w-[350px] md:w-[400px] max-w-[88vw] shrink-0 min-w-0">
-                                                    <div className={`p-3.5 sm:p-4 text-xs sm:text-[13.5px] relative shadow-md rounded-2xl ${
-                                                        isOwnRequest
-                                                            ? 'bg-gradient-to-br from-slate-900 via-zinc-900 to-slate-950 text-white rounded-tr-none border border-zinc-800/90'
-                                                            : 'bg-white text-zinc-900 border border-zinc-200/90 rounded-tl-none'
-                                                    }`}>
-                                                        {isOwnRequest ? (
-                                                            <svg className="absolute -right-2 top-0 w-2.5 h-3.5 text-slate-950 fill-current pointer-events-none" viewBox="0 0 10 14">
-                                                                <path d="M0,0 L10,0 L0,14 Z" />
-                                                            </svg>
-                                                        ) : (
-                                                            <svg className="absolute -left-2 top-0 w-2.5 h-3.5 text-white fill-current pointer-events-none" viewBox="0 0 10 14">
-                                                                <path d="M10,0 L0,0 L10,14 Z" />
-                                                            </svg>
-                                                        )}
-                                                        <div className="flex items-center justify-between gap-2 mb-2">
-                                                            <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${
-                                                                isOwnRequest ? 'bg-rose-900/60 text-rose-200 border-rose-800' : 'text-rose-700 bg-rose-50 border-rose-100'
-                                                            }`}>
-                                                                PROPERTY BID OFFER {isOwnRequest ? 'SENT' : 'RECEIVED'}
-                                                            </span>
-                                                        </div>
-                                                        <p className={`text-xs sm:text-sm font-bold ${isOwnRequest ? 'text-white' : 'text-zinc-900'}`}>
-                                                            Proposed Rent: <span className="text-rose-400 font-extrabold">R{(d.proposed_rent || d.bid_amount || 0).toLocaleString()}</span>
-                                                        </p>
-                                                        {!isOwnRequest && d.status === 'pending' && (
-                                                            <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-zinc-100">
-                                                                <Button
-                                                                    size="sm"
-                                                                    className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs"
-                                                                    onClick={() => updateBidMutation.mutate({ id: activeConv.rawId, status: 'accepted' })}
-                                                                    disabled={updateBidMutation.isPending}
-                                                                >
-                                                                    <Check className="w-3.5 h-3.5 mr-1" /> Accept Bid
-                                                                </Button>
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    className="border-rose-200 text-rose-700 hover:bg-rose-50 font-bold text-xs h-7.5 px-3 rounded-lg"
-                                                                    onClick={() => updateBidMutation.mutate({ id: activeConv.rawId, status: 'rejected' })}
-                                                                    disabled={updateBidMutation.isPending}
-                                                                >
-                                                                    <X className="w-3.5 h-3.5 mr-1" /> Decline
-                                                                </Button>
-                                                            </div>
-                                                        )}
+                                                         {!isOwnRequest && (
+                                                             <div className="flex flex-wrap items-center gap-2 mt-3 pt-2.5 border-t border-zinc-100">
+                                                                 {d.status === 'pending' && (
+                                                                     <>
+                                                                         <Button
+                                                                             size="sm"
+                                                                             className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs"
+                                                                             onClick={() => updateTourMutation.mutate({ id: activeConv.rawId, status: 'confirmed' })}
+                                                                             disabled={updateTourMutation.isPending}
+                                                                         >
+                                                                             <Check className="w-3.5 h-3.5 mr-1" /> Confirm
+                                                                         </Button>
+                                                                         <Button
+                                                                             size="sm"
+                                                                             variant="outline"
+                                                                             className="border-rose-200 text-rose-700 hover:bg-rose-50 font-bold text-xs h-7.5 px-3 rounded-lg"
+                                                                             onClick={() => updateTourMutation.mutate({ id: activeConv.rawId, status: 'declined' })}
+                                                                             disabled={updateTourMutation.isPending}
+                                                                         >
+                                                                             <X className="w-3.5 h-3.5 mr-1" /> Decline
+                                                                         </Button>
+                                                                     </>
+                                                                 )}
+                                                                 {(d.status === 'confirmed' || (isTourPassed(d) && d.status !== 'completed' && d.status !== 'declined')) && (
+                                                                     <Button
+                                                                         size="sm"
+                                                                         className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs flex items-center"
+                                                                         onClick={() => updateTourMutation.mutate({ id: activeConv.rawId, status: 'completed' })}
+                                                                         disabled={updateTourMutation.isPending}
+                                                                     >
+                                                                         <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Mark Tour as Complete
+                                                                     </Button>
+                                                                 )}
+                                                             </div>
+                                                         )}
+                                                     </div>
+                                                 </div>
+                                             </div>
+                                         );
+                                     }
+
+                                     if (activeConv.type === 'bid') {
+                                         return (
+                                             <div className={`flex ${isOwnRequest ? 'justify-end' : 'justify-start'} relative z-10 my-1`}>
+                                                 <div className="w-[270px] sm:w-[350px] md:w-[400px] max-w-[88vw] shrink-0 min-w-0">
+                                                     <div className={`p-3.5 sm:p-4 text-xs sm:text-[13.5px] relative shadow-md rounded-2xl ${
+                                                         isOwnRequest
+                                                             ? 'bg-gradient-to-br from-slate-900 via-zinc-900 to-slate-950 text-white rounded-tr-none border border-zinc-800/90'
+                                                             : 'bg-white text-zinc-900 border border-zinc-200/90 rounded-tl-none'
+                                                     }`}>
+                                                         {isOwnRequest ? (
+                                                             <svg className="absolute -right-2 top-0 w-2.5 h-3.5 text-slate-950 fill-current pointer-events-none" viewBox="0 0 10 14">
+                                                                 <path d="M0,0 L10,0 L0,14 Z" />
+                                                             </svg>
+                                                         ) : (
+                                                             <svg className="absolute -left-2 top-0 w-2.5 h-3.5 text-white fill-current pointer-events-none" viewBox="0 0 10 14">
+                                                                 <path d="M10,0 L0,0 L10,14 Z" />
+                                                             </svg>
+                                                         )}
+                                                         <div className="flex items-center justify-between gap-2 mb-2">
+                                                             <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${
+                                                                 isOwnRequest ? 'bg-rose-900/60 text-rose-200 border-rose-800' : 'text-rose-700 bg-rose-50 border-rose-100'
+                                                             }`}>
+                                                                 PROPERTY BID OFFER {isOwnRequest ? 'SENT' : 'RECEIVED'}
+                                                             </span>
+                                                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                                                                 d.status === 'accepted' ? 'bg-emerald-100 text-emerald-800' :
+                                                                 d.status === 'rejected' ? 'bg-rose-100 text-rose-800' :
+                                                                 'bg-amber-100 text-amber-800'
+                                                             }`}>
+                                                                 {d.status || 'pending'}
+                                                             </span>
+                                                         </div>
+                                                         <p className={`text-xs sm:text-sm font-bold ${isOwnRequest ? 'text-white' : 'text-zinc-900'}`}>
+                                                             Proposed Rent: <span className="text-rose-400 font-extrabold">R{(d.proposed_rent || d.bid_amount || 0).toLocaleString()}</span>
+                                                         </p>
+                                                         {d.proposed_lease_months && (
+                                                             <p className={`text-xs mt-0.5 ${isOwnRequest ? 'text-zinc-300' : 'text-zinc-500'}`}>
+                                                                 Duration: {d.proposed_lease_months} months
+                                                             </p>
+                                                         )}
+                                                         {!isOwnRequest && (
+                                                             <div className="flex flex-wrap items-center gap-2 mt-3 pt-2.5 border-t border-zinc-100">
+                                                                 {d.status === 'pending' && (
+                                                                     <>
+                                                                         <Button
+                                                                             size="sm"
+                                                                             className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs"
+                                                                             onClick={() => updateBidMutation.mutate({ id: activeConv.rawId, status: 'accepted' })}
+                                                                             disabled={updateBidMutation.isPending}
+                                                                         >
+                                                                             <Check className="w-3.5 h-3.5 mr-1" /> Accept Bid
+                                                                         </Button>
+                                                                         <Button
+                                                                             size="sm"
+                                                                             variant="outline"
+                                                                             className="border-rose-200 text-rose-700 hover:bg-rose-50 font-bold text-xs h-7.5 px-3 rounded-lg"
+                                                                             onClick={() => updateBidMutation.mutate({ id: activeConv.rawId, status: 'rejected' })}
+                                                                             disabled={updateBidMutation.isPending}
+                                                                         >
+                                                                             <X className="w-3.5 h-3.5 mr-1" /> Decline
+                                                                         </Button>
+                                                                     </>
+                                                                 )}
+                                                                 {(d.status === 'accepted' || d.status === 'pending') && (
+                                                                     <Button
+                                                                         size="sm"
+                                                                         className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs flex items-center"
+                                                                         onClick={() => createLeaseFromBidMutation.mutate(d)}
+                                                                         disabled={createLeaseFromBidMutation.isPending}
+                                                                     >
+                                                                         <FileText className="w-3.5 h-3.5 mr-1" /> Send Digital E-Lease
+                                                                     </Button>
+                                                                 )}
+                                                             </div>
+                                                         )}
                                                     </div>
                                                 </div>
                                             </div>
@@ -1016,7 +1201,7 @@ export default function Messages() {
                                         value={messageInput}
                                         onChange={(e) => setMessageInput(e.target.value)}
                                         onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                                        className="flex-1 h-10 text-xs sm:text-sm bg-zinc-100/80 hover:bg-zinc-100 focus-visible:bg-white text-zinc-900 font-medium border border-zinc-200/80 focus-visible:border-zinc-900 rounded-full px-4 min-w-0 transition-colors"
+                                        className="flex-1 h-10 text-[16px] sm:text-sm bg-zinc-100/80 hover:bg-zinc-100 focus-visible:bg-white text-zinc-900 font-medium border border-zinc-200/80 focus-visible:border-zinc-900 rounded-full px-4 min-w-0 transition-colors"
                                     />
 
                                     <Button
