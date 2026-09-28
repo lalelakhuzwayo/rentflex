@@ -108,6 +108,29 @@ export default function Leases() {
                 if (updated.tenant_id) {
                     syncAndScoreTenant(updated.tenant_id).catch(() => {});
                 }
+            } else if (updated.status === 'terminated') {
+                toast.info('Lease agreement marked as terminated.');
+                if (updated.property_id) {
+                    try {
+                        const prop = await appClient.entities.Property.get(updated.property_id);
+                        if (prop) {
+                            if (prop.rental_type === 'room') {
+                                const currentVacant = prop.available_rooms !== undefined ? prop.available_rooms : 0;
+                                const newVacant = currentVacant + 1;
+                                await appClient.entities.Property.update(prop.id, {
+                                    available_rooms: newVacant,
+                                    status: 'available'
+                                });
+                            } else {
+                                await appClient.entities.Property.update(prop.id, {
+                                    status: 'available'
+                                });
+                            }
+                            queryClient.invalidateQueries({ queryKey: ['properties'] });
+                            queryClient.invalidateQueries({ queryKey: ['properties-list'] });
+                        }
+                    } catch (_) {}
+                }
             } else if (updated.status === 'pending_landlord_signature') {
                 toast.success('Lease signed! Landlord has been notified to countersign and finalize.');
             } else {

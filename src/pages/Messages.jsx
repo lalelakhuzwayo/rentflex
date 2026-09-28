@@ -24,13 +24,16 @@ import {
     User,
     ShieldCheck,
     Sparkles,
-    Circle
+    Circle,
+    Volume2,
+    VolumeX
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
+import { getReadMessageIds, markMessagesAsRead, playWhatsAppChime } from '@/utils/realtimeNotificationManager';
 
 export default function Messages() {
     const queryClient = useQueryClient();
@@ -541,6 +544,45 @@ export default function Messages() {
         staleTime: 0,
     });
 
+    const myEmail = user?.email?.toLowerCase()?.trim();
+    const myId = user?.id ? String(user.id) : null;
+
+    // Auto mark conversation messages as read when viewing conversation
+    useEffect(() => {
+        if (!user || !selectedConversation || !Array.isArray(messages) || messages.length === 0) return;
+        const incomingUnreadIds = messages
+            .filter(m => {
+                const rId = m.receiver_id?.toLowerCase()?.trim();
+                const sId = m.sender_id?.toLowerCase()?.trim();
+                return (rId === myEmail || rId === myId) && sId !== myEmail && sId !== myId;
+            })
+            .map(m => m.id);
+
+        if (incomingUnreadIds.length > 0) {
+            markMessagesAsRead(myEmail || myId, incomingUnreadIds);
+        }
+    }, [user, selectedConversation, messages, myEmail, myId]);
+
+    // Fast O(1) Map of unread message counts per conversation
+    const convUnreadMap = useMemo(() => {
+        const map = new Map();
+        if (!myEmail && !myId) return map;
+        const readSet = getReadMessageIds(myEmail || myId);
+
+        allUserMessages.forEach(m => {
+            const rId = m.receiver_id?.toLowerCase()?.trim();
+            const sId = m.sender_id?.toLowerCase()?.trim();
+            const isToMe = (rId === myEmail || rId === myId) && sId !== myEmail && sId !== myId;
+            if (isToMe && !readSet.has(String(m.id))) {
+                const cid = m.conversation_id;
+                if (cid) {
+                    map.set(cid, (map.get(cid) || 0) + 1);
+                }
+            }
+        });
+        return map;
+    }, [allUserMessages, myEmail, myId, messages.length]);
+
     const sendMessageMutation = useMutation({
         mutationFn: (data) => appClient.entities.Message.create(data),
         onMutate: async (newMsg) => {
@@ -731,6 +773,7 @@ export default function Messages() {
                     <div className="flex-1 overflow-y-auto custom-scrollbar overscroll-contain min-h-0 divide-y divide-zinc-100">
                         {filteredConversations.map(conv => {
                             const isSelected = selectedConversation === conv.id;
+                            const unreadCount = convUnreadMap.get(conv.id) || convUnreadMap.get(conv.rawId) || (conv.isNew ? 1 : 0);
                             return (
                                 <button
                                     key={conv.id}
@@ -781,12 +824,16 @@ export default function Messages() {
                                         </p>
 
                                         <div className="flex items-center justify-between gap-2">
-                                            <p className="text-xs text-zinc-500 truncate">
+                                            <p className={`text-xs truncate ${unreadCount > 0 ? 'text-zinc-900 font-bold' : 'text-zinc-500'}`}>
                                                 {conv.subtitle}
                                             </p>
-                                            {conv.isNew && (
+                                            {unreadCount > 0 ? (
+                                                <span className="h-5 min-w-[20px] px-1.5 bg-emerald-600 text-white text-[10px] font-extrabold rounded-full flex items-center justify-center shrink-0 shadow-xs animate-in zoom-in-50">
+                                                    {unreadCount > 99 ? '99+' : unreadCount}
+                                                </span>
+                                            ) : conv.isNew ? (
                                                 <span className="w-2.5 h-2.5 bg-rose-500 rounded-full shrink-0 animate-pulse" title="New notification" />
-                                            )}
+                                            ) : null}
                                         </div>
                                     </div>
                                 </button>
@@ -846,9 +893,22 @@ export default function Messages() {
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-1 shrink-0">
-                                    <Badge className="bg-zinc-100 text-zinc-800 border-zinc-200 capitalize text-[10px] px-2 py-0.5 font-semibold">
-                                        {activeConv.category}
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            playWhatsAppChime();
+                                            toast.success('🔊 WhatsApp chime notification sound played!');
+                                        }}
+                                        title="Test WhatsApp notification chime"
+                                        className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-colors border border-zinc-200/80"
+                                    >
+                                        <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
+                                        <span>Alert Chime</span>
+                                    </button>
+                                    <Badge className="bg-emerald-50 text-emerald-800 border-emerald-200 capitalize text-[10px] px-2 py-0.5 font-semibold flex items-center gap-1">
+                                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                                        Instant Sync
                                     </Badge>
                                 </div>
                             </div>
@@ -1158,7 +1218,18 @@ export default function Messages() {
                                                                 {formatDate(msg.created_date || msg.created_at, 'h:mm a')}
                                                             </span>
                                                             {isOwn && (
-                                                                <CheckCheck className="w-4 h-4 text-emerald-400 drop-shadow-[0_0_4px_rgba(52,211,153,0.4)] shrink-0" />
+                                                                msg.id && String(msg.id).startsWith('temp_') ? (
+                                                                    <Check className="w-3.5 h-3.5 text-slate-400 shrink-0" title="Sent" />
+                                                                ) : (
+                                                                    <CheckCheck 
+                                                                        className={`w-3.5 h-3.5 shrink-0 ${
+                                                                            msg.read || msg.is_read || getReadMessageIds(msg.receiver_id).has(String(msg.id))
+                                                                                ? 'text-sky-400 drop-shadow-[0_0_3px_rgba(56,189,248,0.6)]'
+                                                                                : 'text-slate-400'
+                                                                        }`} 
+                                                                        title={msg.read || msg.is_read || getReadMessageIds(msg.receiver_id).has(String(msg.id)) ? 'Read' : 'Delivered'} 
+                                                                    />
+                                                                )
                                                             )}
                                                         </div>
                                                     </div>

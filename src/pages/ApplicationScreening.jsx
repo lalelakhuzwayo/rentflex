@@ -356,14 +356,28 @@ export default function ApplicationScreening() {
                         property_id: appToApprove.property_id,
                         property_title: appToApprove.property_title || 'Leased Property',
                         landlord_id: appToApprove.landlord_id || user?.email,
+                        landlord_name: user?.full_name || 'Landlord',
                         tenant_id: appToApprove.tenant_id,
+                        tenant_name: appToApprove.tenant_name || 'Tenant',
                         monthly_rent: Number(appToApprove.monthly_rent || 0),
                         deposit_amount: Number(appToApprove.deposit_amount || 0),
                         start_date: new Date().toISOString().split('T')[0],
                         end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                        status: 'active'
+                        status: 'pending_tenant_signature',
+                        signed: false,
+                        landlord_signature: user?.full_name || 'Landlord',
+                        landlord_signed_at: new Date().toISOString()
                     });
-                    toast.success('🎉 Application approved & Active Lease automatically generated!');
+
+                    // Send instant message to tenant
+                    await appClient.entities.Message.create({
+                        conversation_id: `app_${appToApprove.id}`,
+                        sender_id: user?.email || user?.id || 'landlord',
+                        receiver_id: appToApprove.tenant_id,
+                        content: `📄 Application Approved! Your digital e-lease for "${appToApprove.property_title || 'Property'}" has been prepared and sent for your signature. The signing process has begun — please review and sign in your Leases portal.`
+                    }).catch(() => {});
+
+                    toast.success('🎉 Application approved & Digital E-Lease sent to tenant for signature!');
                 } catch (e) {
                     console.error('Lease generation error:', e);
                 }
@@ -383,31 +397,34 @@ export default function ApplicationScreening() {
             }
         });
 
-        // 2. Automatically generate active Lease contract in database
+        // 2. Automatically generate digital E-Lease contract in database for signing
         try {
             await appClient.entities.Lease.create({
                 property_id: selectedApplication.property_id,
                 property_title: selectedApplication.property_title || 'Leased Property',
                 landlord_id: selectedApplication.landlord_id || user?.email,
+                landlord_name: user?.full_name || 'Landlord',
                 tenant_id: selectedApplication.tenant_id,
+                tenant_name: selectedApplication.tenant_name || 'Tenant',
                 monthly_rent: Number(selectedApplication.monthly_rent || 0),
                 deposit_amount: Number(selectedApplication.deposit_amount || 0),
                 start_date: new Date().toISOString().split('T')[0],
                 end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                status: 'active'
+                status: 'pending_tenant_signature',
+                signed: false,
+                landlord_signature: user?.full_name || 'Landlord',
+                landlord_signed_at: new Date().toISOString()
             });
 
-            // 3. Create initial rent payment record
-            await appClient.entities.Payment.create({
-                tenant_id: selectedApplication.tenant_id,
-                landlord_id: selectedApplication.landlord_id || user?.email,
-                amount: Number(selectedApplication.monthly_rent || 0),
-                due_date: new Date().toISOString().split('T')[0],
-                status: 'pending',
-                type: 'rent'
-            });
+            // 3. Send instant message to tenant
+            await appClient.entities.Message.create({
+                conversation_id: `app_${selectedApplication.id}`,
+                sender_id: user?.email || user?.id || 'landlord',
+                receiver_id: selectedApplication.tenant_id,
+                content: `📄 Application Approved! Your digital e-lease for "${selectedApplication.property_title || 'Property'}" has been prepared and sent for your signature. The signing process has begun — please review and sign in your Leases portal.`
+            }).catch(() => {});
 
-            toast.success('🎉 Application approved & Active Lease automatically generated!');
+            toast.success('🎉 Application approved & Digital E-Lease issued for tenant signature!');
         } catch (e) {
             console.error('Lease generation error:', e);
         }
@@ -568,7 +585,7 @@ export default function ApplicationScreening() {
             {/* Tabs */}
             <Tabs defaultValue="pending">
                 <div className="flex items-center justify-between mb-6">
-                    <TabsList className="bg-transparent p-0 border-none gap-2">
+                    <TabsList className="bg-transparent p-0 border-none gap-2 flex-wrap">
                         <TabsTrigger value="pending" className="flex items-center gap-2">
                             <Clock className="w-4 h-4" />
                             Pending
@@ -587,6 +604,15 @@ export default function ApplicationScreening() {
                                 </span>
                             )}
                         </TabsTrigger>
+                        <TabsTrigger value="approved" className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4" />
+                            Approved
+                            {approvedApplications.length > 0 && (
+                                <span className="ml-1 px-1.5 py-0.5 bg-emerald-600 text-white text-xs rounded-full font-bold">
+                                    {approvedApplications.length}
+                                </span>
+                            )}
+                        </TabsTrigger>
                         <TabsTrigger value="tours" className="flex items-center gap-2">
                             <Calendar className="w-4 h-4" />
                             Tour Schedules
@@ -602,6 +628,15 @@ export default function ApplicationScreening() {
                             {bids.length > 0 && (
                                 <span className="ml-1 px-1.5 py-0.5 bg-zinc-900 text-white text-xs rounded-full font-bold">
                                     {bids.length}
+                                </span>
+                            )}
+                        </TabsTrigger>
+                        <TabsTrigger value="rejected" className="flex items-center gap-2">
+                            <XCircle className="w-4 h-4" />
+                            Declined
+                            {rejectedApplications.length > 0 && (
+                                <span className="ml-1 px-1.5 py-0.5 bg-rose-600 text-white text-xs rounded-full font-bold">
+                                    {rejectedApplications.length}
                                 </span>
                             )}
                         </TabsTrigger>

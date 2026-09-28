@@ -203,7 +203,7 @@ export default function ApplicationCard({ application, index = 0, onView, onQuic
                     <Eye className="w-4 h-4 mr-2" />
                     View Details
                 </Button>
-                {application.status === 'pending' && (
+                {(application.status === 'pending' || application.status === 'under_review') && (
                     <>
                         <Button
                             onClick={() => onQuickAction(application.id, 'approved')}

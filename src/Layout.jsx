@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { createPageUrl } from './utils';
 import { useAuth } from '@/lib/AuthContext';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { appClient } from '@/api/appClient';
+import { toast } from 'sonner';
+import { getReadMessageIds, subscribeToRealtimeNotifications } from '@/utils/realtimeNotificationManager';
 import {
     Home,
     Building2,
@@ -146,6 +148,82 @@ export default function Layout({ children, currentPageName }) {
         securityStatus 
     } = useAuth();
     const [drawerOpen, setDrawerOpen] = useState(false);
+    const queryClient = useQueryClient();
+
+    // 1. WhatsApp-Style Instant Unread Messages Counter (Exact count of unread incoming messages)
+    const { data: unreadMessagesCount = 0 } = useQuery({
+        queryKey: ['layout-messages-unread', user?.email, user?.id],
+        queryFn: async () => {
+            if (!user) return 0;
+            try {
+                const myEmail = user.email?.toLowerCase().trim();
+                const myId = user.id ? String(user.id) : null;
+                const readSet = getReadMessageIds(myEmail || myId);
+
+                // Fetch messages received by user
+                const list1 = myEmail ? await appClient.entities.Message.filter({ receiver_id: myEmail }) : [];
+                const list2 = myId && myId !== myEmail ? await appClient.entities.Message.filter({ receiver_id: myId }) : [];
+                const allReceived = [...list1, ...list2];
+                const deduped = Array.from(new Map(allReceived.map(m => [m.id, m])).values());
+
+                // Filter for unread messages sent by someone else
+                const unread = deduped.filter(m => {
+                    const sId = m.sender_id?.toLowerCase()?.trim();
+                    if (sId === myEmail || sId === myId) return false;
+                    return !readSet.has(String(m.id));
+                });
+
+                return unread.length;
+            } catch (_) {
+                return 0;
+            }
+        },
+        enabled: !!user?.email || !!user?.id,
+        staleTime: 0,
+    });
+
+    // 2. Sync unread messages across tabs & local mark-as-read events
+    useEffect(() => {
+        const handleReadSync = () => {
+            queryClient.invalidateQueries({ queryKey: ['layout-messages-unread'] });
+        };
+        window.addEventListener('rentflex:messages-read', handleReadSync);
+        return () => window.removeEventListener('rentflex:messages-read', handleReadSync);
+    }, [queryClient]);
+
+    // 3. Global Supabase Realtime Channel: Instant messaging, WhatsApp audio pop chime, and instant state refresh
+    useEffect(() => {
+        if (!user) return;
+
+        const unsubscribe = subscribeToRealtimeNotifications(
+            user,
+            (newMsg) => {
+                const senderDisplay = newMsg.sender_name || newMsg.sender_id || 'Someone';
+                toast(`💬 Message from ${senderDisplay}`, {
+                    description: newMsg.content || 'Sent an attachment',
+                    action: {
+                        label: 'Open',
+                        onClick: () => navigate(createPageUrl('Messages')),
+                    },
+                    duration: 5000,
+                });
+            },
+            () => {
+                queryClient.invalidateQueries({ queryKey: ['layout-messages-unread'] });
+                queryClient.invalidateQueries({ queryKey: ['layout-notifications'] });
+                queryClient.invalidateQueries({ queryKey: ['user-all-messages'] });
+                queryClient.invalidateQueries({ queryKey: ['messages'] });
+                queryClient.invalidateQueries({ queryKey: ['messages-bids'] });
+                queryClient.invalidateQueries({ queryKey: ['messages-tours'] });
+                queryClient.invalidateQueries({ queryKey: ['propertyBids'] });
+                queryClient.invalidateQueries({ queryKey: ['tourSchedules'] });
+                queryClient.invalidateQueries({ queryKey: ['applications'] });
+                queryClient.invalidateQueries({ queryKey: ['leases'] });
+            }
+        );
+
+        return () => unsubscribe();
+    }, [user, queryClient, navigate]);
 
     const { data: pendingNotificationCount = 0 } = useQuery({
         queryKey: ['layout-notifications', user?.email, user?.id],
@@ -378,6 +456,10 @@ export default function Layout({ children, currentPageName }) {
                                                 <nav className="space-y-1">
                                                     {mainNavigation.map((item) => {
                                                         const isActive = currentPageName === item.name || (item.name === 'Jobs Board' && currentPageName === 'Jobs');
+                                                        const isMessages = item.name.toLowerCase().includes('message');
+                                                        const displayBadge = isMessages && unreadMessagesCount > 0 
+                                                            ? `${unreadMessagesCount} new` 
+                                                            : item.badge;
                                                         return (
                                                             <Link
                                                                 key={item.name}
@@ -393,9 +475,13 @@ export default function Layout({ children, currentPageName }) {
                                                                     <item.icon className="w-4 h-4" />
                                                                     <span>{item.name}</span>
                                                                 </div>
-                                                                {item.badge && (
-                                                                    <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-zinc-900 text-white">
-                                                                        {item.badge}
+                                                                {displayBadge && (
+                                                                    <span className={`text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded ${
+                                                                        isMessages && unreadMessagesCount > 0
+                                                                            ? 'bg-emerald-600 text-white animate-pulse'
+                                                                            : 'bg-zinc-900 text-white'
+                                                                    }`}>
+                                                                        {displayBadge}
                                                                     </span>
                                                                 )}
                                                             </Link>
@@ -518,9 +604,13 @@ export default function Layout({ children, currentPageName }) {
                                 <Button asChild variant="ghost" size="sm" className="h-8 w-8 sm:h-9 sm:w-9 p-0 rounded-lg text-zinc-700 hover:bg-zinc-100 flex items-center justify-center relative" title="Messages & Notifications">
                                     <Link to={createPageUrl('Messages')}>
                                         <MessageSquare className="w-4 h-4 text-zinc-800" />
-                                        {pendingNotificationCount > 0 && (
-                                            <span className="absolute -top-1 -right-1 h-4 min-w-[16px] px-1 bg-rose-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-white animate-pulse">
-                                                {pendingNotificationCount > 9 ? '9+' : pendingNotificationCount}
+                                        {(unreadMessagesCount > 0 || pendingNotificationCount > 0) && (
+                                            <span className={`absolute -top-1 -right-1 h-4 min-w-[16px] px-1 text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-white shadow-xs animate-in zoom-in-50 ${
+                                                unreadMessagesCount > 0 ? 'bg-emerald-600 animate-pulse' : 'bg-rose-600'
+                                            }`}>
+                                                {unreadMessagesCount > 0 
+                                                    ? (unreadMessagesCount > 99 ? '99+' : unreadMessagesCount)
+                                                    : (pendingNotificationCount > 9 ? '9+' : pendingNotificationCount)}
                                             </span>
                                         )}
                                     </Link>
@@ -610,8 +700,14 @@ export default function Layout({ children, currentPageName }) {
                                 >
                                     <div className={`p-1 rounded-md transition-colors relative ${isActive ? 'bg-zinc-100 text-zinc-950 font-bold' : ''}`}>
                                         <item.icon className="w-4 h-4" />
-                                        {item.page === 'Messages' && pendingNotificationCount > 0 && (
-                                            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-rose-600 rounded-full border border-white animate-pulse" />
+                                        {item.page === 'Messages' && (unreadMessagesCount > 0 || pendingNotificationCount > 0) && (
+                                            <span className={`absolute -top-1.5 -right-2 h-4 min-w-[16px] px-1 text-white text-[9px] font-extrabold rounded-full flex items-center justify-center border border-white shadow-xs ${
+                                                unreadMessagesCount > 0 ? 'bg-emerald-600 animate-pulse' : 'bg-rose-600'
+                                            }`}>
+                                                {unreadMessagesCount > 0 
+                                                    ? (unreadMessagesCount > 99 ? '99+' : unreadMessagesCount)
+                                                    : (pendingNotificationCount > 9 ? '9+' : pendingNotificationCount)}
+                                            </span>
                                         )}
                                     </div>
                                     <span className="text-[10px] tracking-tight leading-tight mt-0.5">{item.name}</span>
