@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { appClient } from '@/api/appClient';
 import { toast } from 'sonner';
-import { getReadMessageIds, subscribeToRealtimeNotifications } from '@/utils/realtimeNotificationManager';
+import { getReadMessageIds, getViewedItemIds, subscribeToRealtimeNotifications } from '@/utils/realtimeNotificationManager';
 import {
     Home,
     Building2,
@@ -182,13 +182,20 @@ export default function Layout({ children, currentPageName }) {
         staleTime: 30000,
     });
 
-    // 2. Sync unread messages across tabs & local mark-as-read events
+    // 2. Sync unread messages & viewed items across tabs & local mark-as-read events
     useEffect(() => {
         const handleReadSync = () => {
             queryClient.invalidateQueries({ queryKey: ['layout-messages-unread'] });
         };
+        const handleItemsViewed = () => {
+            queryClient.invalidateQueries({ queryKey: ['layout-notifications'] });
+        };
         window.addEventListener('rentflex:messages-read', handleReadSync);
-        return () => window.removeEventListener('rentflex:messages-read', handleReadSync);
+        window.addEventListener('rentflex:items-viewed', handleItemsViewed);
+        return () => {
+            window.removeEventListener('rentflex:messages-read', handleReadSync);
+            window.removeEventListener('rentflex:items-viewed', handleItemsViewed);
+        };
     }, [queryClient]);
 
     // 3. Global Supabase Realtime Channel: Instant messaging, WhatsApp audio pop chime, and instant state refresh
@@ -230,18 +237,19 @@ export default function Layout({ children, currentPageName }) {
         queryFn: async () => {
             if (!user) return 0;
             try {
+                const viewedSet = getViewedItemIds(user.email || user.id);
                 let count = 0;
                 const bids = await appClient.entities.Bid.list();
                 if (Array.isArray(bids)) {
-                    count += bids.filter(b => b.status === 'pending').length;
+                    count += bids.filter(b => b.status === 'pending' && !viewedSet.has(`bid_${b.id}`) && !viewedSet.has(String(b.id))).length;
                 }
                 const tours = await appClient.entities.TourSchedule.list();
                 if (Array.isArray(tours)) {
-                    count += tours.filter(t => t.status === 'pending').length;
+                    count += tours.filter(t => (t.status === 'pending' || t.status === 'reschedule_requested') && !viewedSet.has(`tour_${t.id}`) && !viewedSet.has(String(t.id))).length;
                 }
                 const apps = await appClient.entities.Application.list();
                 if (Array.isArray(apps)) {
-                    count += apps.filter(a => a.status === 'pending' || a.status === 'under_review').length;
+                    count += apps.filter(a => (a.status === 'pending' || a.status === 'under_review') && !viewedSet.has(`app_${a.id}`) && !viewedSet.has(String(a.id))).length;
                 }
                 return count;
             } catch (err) {

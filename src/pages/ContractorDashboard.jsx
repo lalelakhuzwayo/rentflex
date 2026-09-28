@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { appClient } from '@/api/appClient';
 import { Link } from 'react-router-dom';
-import { createPageUrl, formatDate } from '@/utils';
+import { createPageUrl } from '@/utils';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import StatsCard from '@/components/dashboard/StatsCard';
-import { Briefcase, DollarSign, Star, Clock, MapPin, AlertCircle, CheckCircle2, XCircle, ShieldCheck, ShieldAlert, FileText, ChevronRight } from 'lucide-react';
+import { Briefcase, DollarSign, Star, Clock, MapPin, AlertCircle, CheckCircle2, XCircle, ShieldCheck, ChevronRight } from 'lucide-react';
 import BlockLoader from '@/components/ui/BlockLoader';
 import { validateSouthAfricanID } from '@/utils/contractorVerificationEngine';
 

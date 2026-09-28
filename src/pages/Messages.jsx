@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { appClient } from '@/api/appClient';
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { formatDate } from '@/utils';
 import {
     Send,
@@ -12,28 +12,20 @@ import {
     Gavel,
     Calendar,
     FileText,
-    Users,
     MessageSquare,
     Check,
     CheckCheck,
     CheckCircle2,
     X,
     Building2,
-    Search,
-    Paperclip,
-    User,
-    ShieldCheck,
-    Sparkles,
-    Circle,
-    Volume2,
-    VolumeX
+    Search
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
-import { getReadMessageIds, markMessagesAsRead, playWhatsAppChime } from '@/utils/realtimeNotificationManager';
+import { getReadMessageIds, markMessagesAsRead, getViewedItemIds, markItemsAsViewed } from '@/utils/realtimeNotificationManager';
 
 export default function Messages() {
     const queryClient = useQueryClient();
@@ -433,6 +425,21 @@ export default function Messages() {
         }
     });
 
+    // Track viewed state locally & sync with global window events
+    const [viewedVersion, setViewedVersion] = useState(0);
+
+    useEffect(() => {
+        const handleItemsViewed = () => {
+            setViewedVersion(v => v + 1);
+        };
+        window.addEventListener('rentflex:items-viewed', handleItemsViewed);
+        return () => window.removeEventListener('rentflex:items-viewed', handleItemsViewed);
+    }, []);
+
+    const viewedSet = React.useMemo(() => {
+        return getViewedItemIds(user?.email || user?.id);
+    }, [user, viewedVersion]);
+
     // Structured Contact Conversations (WhatsApp Contact Cards Format)
     const conversations = React.useMemo(() => {
         const list = [];
@@ -448,6 +455,7 @@ export default function Messages() {
         // 1. Add Bids
         bids.forEach(b => {
             const contactName = isLandlord ? (b.tenant_name || b.tenant_id || 'Tenant Bidder') : (b.landlord_name || 'Property Owner');
+            const isViewed = viewedSet.has(`bid_${b.id}`) || viewedSet.has(String(b.id));
             list.push({
                 id: `bid_${b.id}`,
                 rawId: b.id,
@@ -457,7 +465,7 @@ export default function Messages() {
                 type: 'bid',
                 title: `Bid: R${(b.proposed_rent || b.bid_amount || 0).toLocaleString()}/mo`,
                 subtitle: `Move-in: ${b.move_in_date || 'Flexible'} • Status: ${String(b.status || 'pending').toUpperCase()}`,
-                isNew: b.status === 'pending',
+                isNew: b.status === 'pending' && !isViewed,
                 data: b,
                 updatedAt: b.created_at || b.created_date || new Date().toISOString()
             });
@@ -466,6 +474,7 @@ export default function Messages() {
         // 2. Add Tour Schedules
         tourSchedules.forEach(t => {
             const contactName = isLandlord ? (t.tenant_name || t.tenant_id || 'Viewing Visitor') : (t.landlord_name || 'Property Owner');
+            const isViewed = viewedSet.has(`tour_${t.id}`) || viewedSet.has(String(t.id));
             list.push({
                 id: `tour_${t.id}`,
                 rawId: t.id,
@@ -475,7 +484,7 @@ export default function Messages() {
                 type: 'tour',
                 title: `Viewing: ${t.requested_date} @ ${t.requested_time}`,
                 subtitle: `Visitor: ${t.tenant_name || t.tenant_id || 'Tenant'} • Status: ${String(t.status || 'pending').toUpperCase()}`,
-                isNew: t.status === 'pending',
+                isNew: (t.status === 'pending' || t.status === 'reschedule_requested') && !isViewed,
                 data: t,
                 updatedAt: t.created_at || t.created_date || new Date().toISOString()
             });
@@ -484,6 +493,7 @@ export default function Messages() {
         // 3. Add Applications
         applications.forEach(a => {
             const contactName = isLandlord ? (a.applicant_name || a.tenant_id || 'Applicant') : (a.landlord_name || 'Property Owner');
+            const isViewed = viewedSet.has(`app_${a.id}`) || viewedSet.has(String(a.id));
             list.push({
                 id: `app_${a.id}`,
                 rawId: a.id,
@@ -493,7 +503,7 @@ export default function Messages() {
                 type: 'application',
                 title: `Application: ${a.property_title || 'Listing'}`,
                 subtitle: `By ${a.applicant_name || a.tenant_id || 'Tenant'} • ${String(a.status || 'pending').toUpperCase()}`,
-                isNew: a.status === 'pending' || a.status === 'under_review',
+                isNew: (a.status === 'pending' || a.status === 'under_review') && !isViewed,
                 data: a,
                 updatedAt: a.created_at || a.created_date || new Date().toISOString()
             });
@@ -542,9 +552,9 @@ export default function Messages() {
 
         // Sort latest first
         return list.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-    }, [bids, tourSchedules, applications, leases, allUserMessages, isLandlord]);
+    }, [bids, tourSchedules, applications, leases, allUserMessages, isLandlord, viewedSet]);
 
-    // Counts for WhatsApp Category Filters
+    // Counts for WhatsApp Category Filters (Accurately reflects unviewed new bids, tours, applications)
     const counts = React.useMemo(() => {
         return {
             all: conversations.length,
@@ -554,6 +564,24 @@ export default function Messages() {
             chats: conversations.filter(c => c.category === 'chats').length,
         };
     }, [conversations]);
+
+    // Mark current conversation as viewed whenever selected
+    const handleSelectConversation = (conv) => {
+        setSelectedConversation(conv.id);
+        if (user) {
+            const idsToMark = [conv.id];
+            if (conv.rawId) idsToMark.push(String(conv.rawId));
+            markItemsAsViewed(user.email || user.id, idsToMark);
+        }
+    };
+
+    useEffect(() => {
+        if (!selectedConversation || !user) return;
+        const targetConv = conversations.find(c => c.id === selectedConversation);
+        const idsToMark = [selectedConversation];
+        if (targetConv?.rawId) idsToMark.push(String(targetConv.rawId));
+        markItemsAsViewed(user.email || user.id, idsToMark);
+    }, [selectedConversation, user, conversations]);
 
     // Filter conversations by active tab and search query
     const filteredConversations = React.useMemo(() => {
@@ -808,30 +836,42 @@ export default function Messages() {
                         </button>
                         <button
                             onClick={() => setActiveTab('bids')}
-                            className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors flex items-center gap-1 shrink-0 ${
+                            className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors flex items-center gap-1.5 shrink-0 ${
                                 activeTab === 'bids' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-200/70'
                             }`}
                         >
                             Bids
-                            {counts.bids > 0 && <span className="w-2 h-2 bg-rose-500 rounded-full" />}
+                            {counts.bids > 0 && (
+                                <span className="px-1.5 py-0.2 bg-rose-600 text-white text-[10px] font-bold rounded-full min-w-[18px] text-center">
+                                    {counts.bids}
+                                </span>
+                            )}
                         </button>
                         <button
                             onClick={() => setActiveTab('tours')}
-                            className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors flex items-center gap-1 shrink-0 ${
+                            className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors flex items-center gap-1.5 shrink-0 ${
                                 activeTab === 'tours' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-200/70'
                             }`}
                         >
                             Tours
-                            {counts.tours > 0 && <span className="w-2 h-2 bg-rose-500 rounded-full" />}
+                            {counts.tours > 0 && (
+                                <span className="px-1.5 py-0.2 bg-rose-600 text-white text-[10px] font-bold rounded-full min-w-[18px] text-center">
+                                    {counts.tours}
+                                </span>
+                            )}
                         </button>
                         <button
                             onClick={() => setActiveTab('applications')}
-                            className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors flex items-center gap-1 shrink-0 ${
+                            className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors flex items-center gap-1.5 shrink-0 ${
                                 activeTab === 'applications' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-200/70'
                             }`}
                         >
                             Apps
-                            {counts.applications > 0 && <span className="w-2 h-2 bg-rose-500 rounded-full" />}
+                            {counts.applications > 0 && (
+                                <span className="px-1.5 py-0.2 bg-rose-600 text-white text-[10px] font-bold rounded-full min-w-[18px] text-center">
+                                    {counts.applications}
+                                </span>
+                            )}
                         </button>
                     </div>
 
@@ -843,7 +883,7 @@ export default function Messages() {
                             return (
                                 <button
                                     key={conv.id}
-                                    onClick={() => setSelectedConversation(conv.id)}
+                                    onClick={() => handleSelectConversation(conv)}
                                     className={`w-full text-left p-3 sm:p-3.5 transition-all flex items-start gap-3 relative ${
                                         isSelected
                                             ? 'bg-zinc-200/80 border-l-4 border-zinc-900'

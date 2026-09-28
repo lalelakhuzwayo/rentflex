@@ -31,6 +31,7 @@ import { toast } from 'sonner';
 import ApplicationCard from '@/components/screening/ApplicationCard';
 import ApplicationDetailsModal from '@/components/screening/ApplicationDetailsModal';
 import StatsCard from '@/components/dashboard/StatsCard';
+import { getViewedItemIds, markItemsAsViewed } from '@/utils/realtimeNotificationManager';
 
 export default function ApplicationScreening() {
     const [user, setUser] = useState(null);
@@ -41,10 +42,19 @@ export default function ApplicationScreening() {
     const [selectedApplication, setSelectedApplication] = useState(null);
     const [detailsModalOpen, setDetailsModalOpen] = useState(false);
     const [landlordNotes, setLandlordNotes] = useState('');
+    const [viewedVersion, setViewedVersion] = useState(0);
     const queryClient = useQueryClient();
 
     useEffect(() => {
         appClient.auth.me().then(setUser).catch(() => { });
+    }, []);
+
+    useEffect(() => {
+        const handleItemsViewed = () => {
+            setViewedVersion(v => v + 1);
+        };
+        window.addEventListener('rentflex:items-viewed', handleItemsViewed);
+        return () => window.removeEventListener('rentflex:items-viewed', handleItemsViewed);
     }, []);
 
     const isSysAdmin = user?.user_type === 'sysAdmin';
@@ -336,10 +346,43 @@ export default function ApplicationScreening() {
         onError: () => toast.error('Failed to update bid')
     });
 
+    const viewedSet = React.useMemo(() => {
+        return getViewedItemIds(user?.email || user?.id);
+    }, [user, viewedVersion]);
+
+    const unviewedTours = React.useMemo(() => {
+        return tourSchedules.filter(t => 
+            (t.status === 'pending' || t.status === 'reschedule_requested') &&
+            !viewedSet.has(`tour_${t.id}`) &&
+            !viewedSet.has(String(t.id))
+        );
+    }, [tourSchedules, viewedSet]);
+
+    const unviewedBids = React.useMemo(() => {
+        return bids.filter(b => 
+            b.status === 'pending' &&
+            !viewedSet.has(`bid_${b.id}`) &&
+            !viewedSet.has(String(b.id))
+        );
+    }, [bids, viewedSet]);
+
+    const handleTabChange = (val) => {
+        if (val === 'tours' && tourSchedules.length > 0) {
+            const ids = tourSchedules.flatMap(t => [t.id, `tour_${t.id}`]);
+            markItemsAsViewed(user?.email || user?.id, ids);
+        } else if (val === 'bids' && bids.length > 0) {
+            const ids = bids.flatMap(b => [b.id, `bid_${b.id}`]);
+            markItemsAsViewed(user?.email || user?.id, ids);
+        }
+    };
+
     const handleViewDetails = (application) => {
         setSelectedApplication(application);
         setLandlordNotes(application.landlord_notes || '');
         setDetailsModalOpen(true);
+        if (user && application?.id) {
+            markItemsAsViewed(user.email || user.id, [application.id, `app_${application.id}`]);
+        }
     };
 
     const handleQuickAction = async (applicationId, status) => {
@@ -583,7 +626,7 @@ export default function ApplicationScreening() {
             </div>
 
             {/* Tabs */}
-            <Tabs defaultValue="pending">
+            <Tabs defaultValue="pending" onValueChange={handleTabChange}>
                 <div className="flex items-center justify-between mb-6">
                     <TabsList className="bg-transparent p-0 border-none gap-2 flex-wrap">
                         <TabsTrigger value="pending" className="flex items-center gap-2">
@@ -616,18 +659,18 @@ export default function ApplicationScreening() {
                         <TabsTrigger value="tours" className="flex items-center gap-2">
                             <Calendar className="w-4 h-4" />
                             Tour Schedules
-                            {tourSchedules.length > 0 && (
+                            {unviewedTours.length > 0 && (
                                 <span className="ml-1 px-1.5 py-0.5 bg-emerald-700 text-white text-xs rounded-full font-bold">
-                                    {tourSchedules.length}
+                                    {unviewedTours.length}
                                 </span>
                             )}
                         </TabsTrigger>
                         <TabsTrigger value="bids" className="flex items-center gap-2">
                             <Gavel className="w-4 h-4" />
                             Property Bids
-                            {bids.length > 0 && (
+                            {unviewedBids.length > 0 && (
                                 <span className="ml-1 px-1.5 py-0.5 bg-zinc-900 text-white text-xs rounded-full font-bold">
-                                    {bids.length}
+                                    {unviewedBids.length}
                                 </span>
                             )}
                         </TabsTrigger>

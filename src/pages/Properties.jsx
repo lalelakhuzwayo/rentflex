@@ -16,8 +16,6 @@ import {
     ChevronsLeft,
     ChevronsRight,
     Plus,
-    ShieldCheck,
-    Filter,
     Layers
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';

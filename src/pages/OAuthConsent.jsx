@@ -5,7 +5,6 @@ import { useAuth } from '@/lib/AuthContext';
 import { createPageUrl } from '@/utils';
 import {
     ShieldCheck,
-    ShieldAlert,
     Lock,
     CheckCircle2,
     XCircle,
@@ -22,15 +21,12 @@ import {
     Layers,
     ArrowRight,
     RefreshCw,
-    SlidersHorizontal,
-    Eye,
-    Shield
+    Eye
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Separator } from '@/components/ui/separator';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import BlockLoader from '@/components/ui/BlockLoader';
 import { toast } from 'sonner';
 

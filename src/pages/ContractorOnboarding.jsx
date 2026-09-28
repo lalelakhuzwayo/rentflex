@@ -11,7 +11,7 @@ import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { ShieldCheck, Upload, FileText, CheckCircle2, AlertTriangle, Info, Lock } from 'lucide-react';
+import { ShieldCheck, Upload, FileText, CheckCircle2, AlertTriangle, Lock } from 'lucide-react';
 import { validateSouthAfricanID, validateTaxNumber, runAutomatedContractorVerification } from '@/utils/contractorVerificationEngine';
 
 export default function ContractorOnboarding() {

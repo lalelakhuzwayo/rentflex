@@ -42,16 +42,48 @@ const normalizeItemNumbers = (data) => {
 };
 
 const ALLOWED_COLUMNS_MAP = {
-    Message: ['id', 'conversation_id', 'sender_id', 'receiver_id', 'content', 'file_url', 'created_at', 'status', 'read_at']
+    Message: ['id', 'conversation_id', 'sender_id', 'receiver_id', 'content', 'file_url', 'created_at', 'status', 'read_at'],
+    Bid: [
+        'id', 'property_id', 'tenant_id', 'tenant_name', 'tenant_email', 'tenant_phone', 
+        'landlord_id', 'proposed_rent', 'move_in_date', 'lease_duration_months', 'status', 
+        'message', 'counter_rent', 'landlord_notes', 'response_notes', 'responded_at', 
+        'created_at', 'updated_at', 'property_title', 'property_address', 'property_image'
+    ],
+    TourSchedule: [
+        'id', 'property_id', 'tenant_id', 'tenant_name', 'tenant_email', 'tenant_phone', 
+        'landlord_id', 'requested_date', 'requested_time', 'status', 'reschedule_date', 
+        'reschedule_time', 'rescheduled_by', 'notes', 'tenant_response', 'tenant_notes', 
+        'tenant_confirmed_at', 'completed_at', 'declined_reason', 'created_at', 'updated_at', 
+        'property_title', 'property_address'
+    ],
+    Application: [
+        'id', 'property_id', 'tenant_id', 'landlord_id', 'rent_score', 'status', 
+        'landlord_notes', 'created_at', 'property_title', 'property_address', 'tenant_email', 
+        'tenant_name', 'tenant_phone', 'move_in_date', 'monthly_income', 'employment_status', 
+        'employer', 'credit_score', 'documents', 'reviewed_at', 'reviewed_by', 'updated_at'
+    ]
 };
 
 const sanitizeEntityData = (entityName, data) => {
+    if (!data || typeof data !== 'object') return data;
+    const prepData = { ...data };
+
+    if (entityName === 'Bid') {
+        if (prepData.bid_amount !== undefined && prepData.proposed_rent === undefined) {
+            prepData.proposed_rent = Number(prepData.bid_amount);
+        }
+        if (prepData.proposed_lease_months !== undefined && prepData.lease_duration_months === undefined) {
+            prepData.lease_duration_months = parseInt(prepData.proposed_lease_months, 10);
+        }
+    }
+
     const allowed = ALLOWED_COLUMNS_MAP[entityName];
-    if (!allowed || !data || typeof data !== 'object') return data;
+    if (!allowed) return prepData;
+
     const cleanData = {};
-    Object.keys(data).forEach(key => {
+    Object.keys(prepData).forEach(key => {
         if (allowed.includes(key)) {
-            cleanData[key] = data[key];
+            cleanData[key] = prepData[key];
         }
     });
     return cleanData;

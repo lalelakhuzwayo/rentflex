@@ -91,6 +91,63 @@ export function markMessagesAsRead(userId, messageIds) {
 }
 
 /**
+ * Retrieves the set of entity IDs (bids, tours, applications) marked as viewed by the user.
+ */
+export function getViewedItemIds(userId) {
+    if (!userId) return new Set();
+    try {
+        const cleanId = String(userId).toLowerCase().trim();
+        const key = `rentflex_viewed_items_${cleanId}`;
+        const raw = localStorage.getItem(key);
+        return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch (_) {
+        return new Set();
+    }
+}
+
+/**
+ * Marks one or more entity IDs as viewed by the user, persists to localStorage,
+ * and broadcasts an event to sync tab counts across all active components.
+ */
+export function markItemsAsViewed(userId, itemIds) {
+    if (!userId) return;
+    const ids = Array.isArray(itemIds) ? itemIds : [itemIds];
+    if (ids.length === 0) return;
+    try {
+        const cleanId = String(userId).toLowerCase().trim();
+        const key = `rentflex_viewed_items_${cleanId}`;
+        const current = getViewedItemIds(cleanId);
+        let changed = false;
+
+        ids.forEach(id => {
+            if (id !== undefined && id !== null) {
+                const strId = String(id);
+                if (!current.has(strId)) {
+                    current.add(strId);
+                    changed = true;
+                }
+            }
+        });
+
+        if (changed) {
+            localStorage.setItem(key, JSON.stringify(Array.from(current)));
+            window.dispatchEvent(new CustomEvent('rentflex:items-viewed', {
+                detail: { userId: cleanId, viewedIds: Array.from(current) }
+            }));
+        }
+    } catch (_) {}
+}
+
+/**
+ * Checks whether a specific entity item has been marked as viewed by the user.
+ */
+export function isItemViewed(userId, itemId) {
+    if (!itemId) return false;
+    const viewedSet = getViewedItemIds(userId);
+    return viewedSet.has(String(itemId));
+}
+
+/**
  * Checks whether a specific message has been marked as read by the recipient.
  */
 export function isMessageRead(userId, message) {

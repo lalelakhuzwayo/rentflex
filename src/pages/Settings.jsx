@@ -21,8 +21,7 @@ import {
     PlusSquare,
     Camera,
     Upload,
-    X,
-    User
+    X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

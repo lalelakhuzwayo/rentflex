@@ -1,16 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { appClient } from '@/api/appClient';
 import { useAuth } from '@/lib/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
 import { formatDate } from '@/utils';
 import {
     Wrench,
     Plus,
-    Clock,
-    CheckCircle2,
-    Calendar,
-    X,
     Droplets,
     Zap,
     Wind,
@@ -18,10 +13,7 @@ import {
     Home,
     Bug,
     Upload,
-    Briefcase,
-    User,
-    Shield,
-    ChevronRight
+    Briefcase
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -43,6 +35,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Card } from "@/components/ui/card";
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';

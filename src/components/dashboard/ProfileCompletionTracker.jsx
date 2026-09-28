@@ -7,14 +7,12 @@ import {
     CheckCircle2,
     AlertCircle,
     ArrowRight,
-    UserCheck,
     ChevronDown,
     ChevronUp,
     Sparkles,
     X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 
 export default function ProfileCompletionTracker({ user }) {
     const [isExpanded, setIsExpanded] = useState(false);
