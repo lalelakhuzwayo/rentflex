@@ -42,7 +42,7 @@ const normalizeItemNumbers = (data) => {
 };
 
 const ALLOWED_COLUMNS_MAP = {
-    Message: ['id', 'conversation_id', 'sender_id', 'receiver_id', 'content', 'file_url', 'created_at']
+    Message: ['id', 'conversation_id', 'sender_id', 'receiver_id', 'content', 'file_url', 'created_at', 'status', 'read_at']
 };
 
 const sanitizeEntityData = (entityName, data) => {

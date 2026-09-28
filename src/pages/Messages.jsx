@@ -258,28 +258,51 @@ export default function Messages() {
     const updateBidMutation = useMutation({
         mutationFn: async ({ id, status, counterRent }) => {
             const payload = { status };
-            if (counterRent) payload.proposed_rent = counterRent;
+            if (counterRent) {
+                payload.counter_rent = counterRent;
+                payload.proposed_rent = counterRent;
+                payload.bid_amount = counterRent;
+            }
+            payload.responded_at = new Date().toISOString();
+            payload.updated_at = new Date().toISOString();
             const updated = await appClient.entities.Bid.update(id, payload);
             try {
-                await appClient.entities.Message.create({
-                    conversation_id: `bid_${id}`,
-                    sender_id: user?.email || 'user',
-                    receiver_id: updated.tenant_id || updated.bidder_id,
-                    content: status === 'accepted'
-                        ? `🎉 Bid Accepted! Landlord approved your bid of R${(updated.proposed_rent || updated.bid_amount)?.toLocaleString()}/month.`
-                        : status === 'countered'
-                            ? `💬 Counter Offer: Landlord proposed R${counterRent?.toLocaleString()}/month.`
-                            : `❌ Bid Declined.`
-                });
-            } catch (e) {}
+                const myEmail = user?.email?.toLowerCase()?.trim();
+                const receiverId = (myEmail === updated.tenant_id?.toLowerCase() || myEmail === updated.bidder_id?.toLowerCase() || myEmail === updated.tenant_email?.toLowerCase())
+                    ? (updated.landlord_id || 'landlord')
+                    : (updated.tenant_id || updated.bidder_id || updated.tenant_email || 'tenant');
+
+                const msgContent = status === 'accepted'
+                    ? `🎉 Bid Accepted! Landlord approved the bid of R${(updated.proposed_rent || updated.bid_amount)?.toLocaleString()}/month.`
+                    : status === 'countered'
+                        ? `💬 Counter Offer: Landlord proposed R${counterRent?.toLocaleString()}/month.`
+                        : status === 'rejected'
+                            ? `❌ Property Bid Declined.`
+                            : `Bid status updated to ${status}.`;
+
+                if (receiverId) {
+                    await appClient.entities.Message.create({
+                        conversation_id: `bid_${id}`,
+                        sender_id: user?.email || 'user',
+                        receiver_id: receiverId,
+                        content: msgContent
+                    });
+                }
+            } catch (e) {
+                console.warn('Bid message notify error:', e);
+            }
             return updated;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries(['messages-bids']);
-            queryClient.invalidateQueries(['messages']);
-            queryClient.invalidateQueries(['layout-notifications']);
+            queryClient.invalidateQueries({ queryKey: ['messages-bids'] });
+            queryClient.invalidateQueries({ queryKey: ['propertyBids'] });
+            queryClient.invalidateQueries({ queryKey: ['messages'] });
+            queryClient.invalidateQueries({ queryKey: ['layout-notifications'] });
             toast.success('Bid status updated!');
         },
+        onError: (err) => {
+            toast.error(err.message || 'Failed to update bid status');
+        }
     });
 
     // Generate E-Lease from Bid Mutation
@@ -295,7 +318,7 @@ export default function Messages() {
             const leasePayload = {
                 landlord_id: user?.email || user?.id,
                 landlord_name: user?.full_name || 'Landlord',
-                tenant_id: bid.tenant_id || bid.bidder_id,
+                tenant_id: bid.tenant_id || bid.bidder_id || bid.tenant_email,
                 tenant_name: bid.tenant_name || 'Tenant',
                 property_id: bid.property_id,
                 property_title: bid.property_title || 'Rental Property',
@@ -313,20 +336,27 @@ export default function Messages() {
             const createdLease = await appClient.entities.Lease.create(leasePayload);
 
             // Update bid status to accepted
-            await appClient.entities.Bid.update(bid.id, { status: 'accepted' });
+            await appClient.entities.Bid.update(bid.id, { 
+                status: 'accepted',
+                responded_at: new Date().toISOString()
+            });
 
             // Notify tenant in message thread
-            await appClient.entities.Message.create({
-                conversation_id: `bid_${bid.id}`,
-                sender_id: user?.email || user?.id || 'landlord',
-                receiver_id: bid.tenant_id || bid.bidder_id,
-                content: `📄 Digital E-Lease Prepared! Landlord accepted your bid of R${rent.toLocaleString()}/month and generated your official lease agreement for move-in on ${startDate}. Please review and sign in your Leases portal.`
-            });
+            const targetTenant = bid.tenant_id || bid.bidder_id || bid.tenant_email;
+            if (targetTenant) {
+                await appClient.entities.Message.create({
+                    conversation_id: `bid_${bid.id}`,
+                    sender_id: user?.email || user?.id || 'landlord',
+                    receiver_id: targetTenant,
+                    content: `📄 Digital E-Lease Prepared! Landlord accepted your bid of R${rent.toLocaleString()}/month and generated your official lease agreement for move-in on ${startDate}. Please review and sign in your Leases portal.`
+                }).catch(() => {});
+            }
 
             return createdLease;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['messages-bids'] });
+            queryClient.invalidateQueries({ queryKey: ['propertyBids'] });
             queryClient.invalidateQueries({ queryKey: ['conversations-leases'] });
             queryClient.invalidateQueries({ queryKey: ['leases'] });
             toast.success('Digital E-Lease sent to tenant! The signing process has begun.');
@@ -338,33 +368,69 @@ export default function Messages() {
 
     // Tour Actions Mutation
     const updateTourMutation = useMutation({
-        mutationFn: async ({ id, status, rescheduleDate, rescheduleTime }) => {
+        mutationFn: async ({ id, status, rescheduleDate, rescheduleTime, isAcceptingReschedule, rescheduledBy }) => {
             const payload = { status };
-            if (rescheduleDate) payload.requested_date = rescheduleDate;
-            if (rescheduleTime) payload.requested_time = rescheduleTime;
+            if (rescheduleDate) {
+                payload.requested_date = rescheduleDate;
+                payload.reschedule_date = rescheduleDate;
+            }
+            if (rescheduleTime) {
+                payload.requested_time = rescheduleTime;
+                payload.reschedule_time = rescheduleTime;
+            }
+            if (rescheduledBy) {
+                payload.rescheduled_by = rescheduledBy;
+            }
+            if (status === 'completed') {
+                payload.completed_at = new Date().toISOString();
+            }
+            if (isAcceptingReschedule) {
+                payload.tenant_confirmed_at = new Date().toISOString();
+                payload.tenant_response = 'accepted';
+            }
+
             const updated = await appClient.entities.TourSchedule.update(id, payload);
             try {
-                await appClient.entities.Message.create({
-                    conversation_id: `tour_${id}`,
-                    sender_id: user?.email || 'user',
-                    receiver_id: updated.tenant_id,
-                    content: status === 'confirmed'
+                const myEmail = user?.email?.toLowerCase()?.trim();
+                const receiverId = (myEmail === updated.tenant_id?.toLowerCase() || myEmail === updated.tenant_email?.toLowerCase())
+                    ? updated.landlord_id
+                    : (updated.tenant_id || updated.tenant_email);
+
+                const msgContent = isAcceptingReschedule
+                    ? `✅ Rescheduled Viewing Accepted! Viewing agreed for ${updated.requested_date} at ${updated.requested_time}.`
+                    : status === 'confirmed'
                         ? `✅ Viewing Confirmed for ${updated.requested_date} at ${updated.requested_time}.`
                         : status === 'completed'
                             ? `🏆 Viewing Completed! Landlord marked the property tour on ${updated.requested_date} as completed.`
-                            : status === 'reschedule_requested'
-                                ? `🔄 Reschedule Proposed for ${rescheduleDate} at ${rescheduleTime}.`
-                                : `❌ Viewing Request Declined.`
-                });
-            } catch (e) {}
+                            : status === 'reschedule_requested' || status === 'rescheduled'
+                                ? `🔄 Reschedule Proposed for ${rescheduleDate || updated.requested_date} at ${rescheduleTime || updated.requested_time}.`
+                                : status === 'declined'
+                                    ? `❌ Viewing Request Declined.`
+                                    : `Tour viewing status: ${status}.`;
+
+                if (receiverId) {
+                    await appClient.entities.Message.create({
+                        conversation_id: `tour_${id}`,
+                        sender_id: user?.email || 'user',
+                        receiver_id: receiverId,
+                        content: msgContent
+                    });
+                }
+            } catch (e) {
+                console.warn('Tour message notify error:', e);
+            }
             return updated;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries(['messages-tours']);
-            queryClient.invalidateQueries(['messages']);
-            queryClient.invalidateQueries(['layout-notifications']);
+            queryClient.invalidateQueries({ queryKey: ['messages-tours'] });
+            queryClient.invalidateQueries({ queryKey: ['tourSchedules'] });
+            queryClient.invalidateQueries({ queryKey: ['messages'] });
+            queryClient.invalidateQueries({ queryKey: ['layout-notifications'] });
             toast.success('Tour schedule updated!');
         },
+        onError: (err) => {
+            toast.error(err.message || 'Failed to update tour');
+        }
     });
 
     // Structured Contact Conversations (WhatsApp Contact Cards Format)
@@ -894,21 +960,8 @@ export default function Messages() {
                                 </div>
 
                                 <div className="flex items-center gap-2 shrink-0">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            playWhatsAppChime();
-                                            toast.success('🔊 WhatsApp chime notification sound played!');
-                                        }}
-                                        title="Test WhatsApp notification chime"
-                                        className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-colors border border-zinc-200/80"
-                                    >
-                                        <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
-                                        <span>Alert Chime</span>
-                                    </button>
-                                    <Badge className="bg-emerald-50 text-emerald-800 border-emerald-200 capitalize text-[10px] px-2 py-0.5 font-semibold flex items-center gap-1">
-                                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                                        Instant Sync
+                                    <Badge variant="outline" className="text-zinc-600 border-zinc-200 capitalize text-[10px] px-2 py-0.5 font-medium">
+                                        {activeConv.category}
                                     </Badge>
                                 </div>
                             </div>
@@ -932,9 +985,24 @@ export default function Messages() {
                                     );
 
                                     if (activeConv.type === 'tour') {
+                                        const isTenantParty = Boolean(
+                                            (myEmail && (d.tenant_id?.toLowerCase() === myEmail || d.tenant_email?.toLowerCase() === myEmail)) ||
+                                            (myId && d.tenant_id === myId)
+                                        );
+                                        const isLandlordParty = Boolean(
+                                            (myEmail && d.landlord_id?.toLowerCase() === myEmail) ||
+                                            (myId && d.landlord_id === myId) ||
+                                            (d.property_id && landlordPropertyIds.has(String(d.property_id))) ||
+                                            (!isTenantParty && (isLandlord || isSysAdmin))
+                                        );
+                                        const isRescheduler = Boolean(myEmail && d.rescheduled_by?.toLowerCase() === myEmail);
+                                        const isReschedulePending = d.status === 'reschedule_requested' || d.status === 'rescheduled';
+                                        const isRecipientOfReschedule = isReschedulePending && !isRescheduler;
+                                        const isOwnRequest = isTenantParty;
+
                                         return (
                                             <div className={`flex ${isOwnRequest ? 'justify-end' : 'justify-start'} relative z-10 my-1`}>
-                                                <div className="w-[270px] sm:w-[350px] md:w-[400px] max-w-[88vw] shrink-0 min-w-0">
+                                                <div className="w-[280px] sm:w-[370px] md:w-[420px] max-w-[88vw] shrink-0 min-w-0">
                                                     <div className={`p-3.5 sm:p-4 text-xs sm:text-[13.5px] relative shadow-md rounded-2xl ${
                                                         isOwnRequest
                                                             ? 'bg-gradient-to-br from-slate-900 via-zinc-900 to-slate-950 text-white rounded-tr-none border border-zinc-800/90'
@@ -949,141 +1017,336 @@ export default function Messages() {
                                                                 <path d="M10,0 L0,0 L10,14 Z" />
                                                             </svg>
                                                         )}
-                                                         <div className="flex items-center justify-between gap-2 mb-2">
-                                                             <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${
-                                                                 isOwnRequest ? 'bg-blue-900/60 text-blue-200 border-blue-800' : 'text-blue-700 bg-blue-50 border-blue-100'
-                                                             }`}>
-                                                                 VIEWING REQUEST {isOwnRequest ? 'SENT' : 'RECEIVED'}
-                                                             </span>
-                                                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
-                                                                 d.status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
-                                                                 d.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
-                                                                 d.status === 'declined' ? 'bg-rose-100 text-rose-800' :
-                                                                 'bg-amber-100 text-amber-800'
-                                                             }`}>
-                                                                 {d.status || 'pending'}
-                                                             </span>
-                                                         </div>
-                                                         <p className={`text-xs sm:text-sm font-bold ${isOwnRequest ? 'text-white' : 'text-zinc-900'}`}>
-                                                             Viewing: <span className="text-blue-400 font-extrabold">{d.requested_date} @ {d.requested_time}</span>
-                                                         </p>
+                                                        <div className="flex items-center justify-between gap-2 mb-2">
+                                                            <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${
+                                                                isOwnRequest ? 'bg-blue-900/60 text-blue-200 border-blue-800' : 'text-blue-700 bg-blue-50 border-blue-100'
+                                                            }`}>
+                                                                VIEWING REQUEST {isOwnRequest ? '(TENANT)' : '(LANDLORD)'}
+                                                            </span>
+                                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                                                                d.status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
+                                                                d.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
+                                                                isReschedulePending ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                                                                d.status === 'declined' ? 'bg-rose-100 text-rose-800' :
+                                                                'bg-zinc-100 text-zinc-800'
+                                                            }`}>
+                                                                {isReschedulePending ? 'Reschedule Proposed' : (d.status || 'pending')}
+                                                            </span>
+                                                        </div>
 
-                                                         {!isOwnRequest && (
-                                                             <div className="flex flex-wrap items-center gap-2 mt-3 pt-2.5 border-t border-zinc-100">
-                                                                 {d.status === 'pending' && (
-                                                                     <>
-                                                                         <Button
-                                                                             size="sm"
-                                                                             className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs"
-                                                                             onClick={() => updateTourMutation.mutate({ id: activeConv.rawId, status: 'confirmed' })}
-                                                                             disabled={updateTourMutation.isPending}
-                                                                         >
-                                                                             <Check className="w-3.5 h-3.5 mr-1" /> Confirm
-                                                                         </Button>
-                                                                         <Button
-                                                                             size="sm"
-                                                                             variant="outline"
-                                                                             className="border-rose-200 text-rose-700 hover:bg-rose-50 font-bold text-xs h-7.5 px-3 rounded-lg"
-                                                                             onClick={() => updateTourMutation.mutate({ id: activeConv.rawId, status: 'declined' })}
-                                                                             disabled={updateTourMutation.isPending}
-                                                                         >
-                                                                             <X className="w-3.5 h-3.5 mr-1" /> Decline
-                                                                         </Button>
-                                                                     </>
-                                                                 )}
-                                                                 {(d.status === 'confirmed' || (isTourPassed(d) && d.status !== 'completed' && d.status !== 'declined')) && (
-                                                                     <Button
-                                                                         size="sm"
-                                                                         className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs flex items-center"
-                                                                         onClick={() => updateTourMutation.mutate({ id: activeConv.rawId, status: 'completed' })}
-                                                                         disabled={updateTourMutation.isPending}
-                                                                     >
-                                                                         <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Mark Tour as Complete
-                                                                     </Button>
-                                                                 )}
-                                                             </div>
-                                                         )}
-                                                     </div>
-                                                 </div>
-                                             </div>
-                                         );
-                                     }
+                                                        <p className={`text-xs sm:text-sm font-bold ${isOwnRequest ? 'text-white' : 'text-zinc-900'}`}>
+                                                            Viewing: <span className="text-blue-400 font-extrabold">{d.requested_date} @ {d.requested_time}</span>
+                                                        </p>
 
-                                     if (activeConv.type === 'bid') {
-                                         return (
-                                             <div className={`flex ${isOwnRequest ? 'justify-end' : 'justify-start'} relative z-10 my-1`}>
-                                                 <div className="w-[270px] sm:w-[350px] md:w-[400px] max-w-[88vw] shrink-0 min-w-0">
-                                                     <div className={`p-3.5 sm:p-4 text-xs sm:text-[13.5px] relative shadow-md rounded-2xl ${
-                                                         isOwnRequest
-                                                             ? 'bg-gradient-to-br from-slate-900 via-zinc-900 to-slate-950 text-white rounded-tr-none border border-zinc-800/90'
-                                                             : 'bg-white text-zinc-900 border border-zinc-200/90 rounded-tl-none'
-                                                     }`}>
-                                                         {isOwnRequest ? (
-                                                             <svg className="absolute -right-2 top-0 w-2.5 h-3.5 text-slate-950 fill-current pointer-events-none" viewBox="0 0 10 14">
-                                                                 <path d="M0,0 L10,0 L0,14 Z" />
-                                                             </svg>
-                                                         ) : (
-                                                             <svg className="absolute -left-2 top-0 w-2.5 h-3.5 text-white fill-current pointer-events-none" viewBox="0 0 10 14">
-                                                                 <path d="M10,0 L0,0 L10,14 Z" />
-                                                             </svg>
-                                                         )}
-                                                         <div className="flex items-center justify-between gap-2 mb-2">
-                                                             <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${
-                                                                 isOwnRequest ? 'bg-rose-900/60 text-rose-200 border-rose-800' : 'text-rose-700 bg-rose-50 border-rose-100'
-                                                             }`}>
-                                                                 PROPERTY BID OFFER {isOwnRequest ? 'SENT' : 'RECEIVED'}
-                                                             </span>
-                                                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
-                                                                 d.status === 'accepted' ? 'bg-emerald-100 text-emerald-800' :
-                                                                 d.status === 'rejected' ? 'bg-rose-100 text-rose-800' :
-                                                                 'bg-amber-100 text-amber-800'
-                                                             }`}>
-                                                                 {d.status || 'pending'}
-                                                             </span>
-                                                         </div>
-                                                         <p className={`text-xs sm:text-sm font-bold ${isOwnRequest ? 'text-white' : 'text-zinc-900'}`}>
-                                                             Proposed Rent: <span className="text-rose-400 font-extrabold">R{(d.proposed_rent || d.bid_amount || 0).toLocaleString()}</span>
-                                                         </p>
-                                                         {d.proposed_lease_months && (
-                                                             <p className={`text-xs mt-0.5 ${isOwnRequest ? 'text-zinc-300' : 'text-zinc-500'}`}>
-                                                                 Duration: {d.proposed_lease_months} months
-                                                             </p>
-                                                         )}
-                                                         {!isOwnRequest && (
-                                                             <div className="flex flex-wrap items-center gap-2 mt-3 pt-2.5 border-t border-zinc-100">
-                                                                 {d.status === 'pending' && (
-                                                                     <>
-                                                                         <Button
-                                                                             size="sm"
-                                                                             className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs"
-                                                                             onClick={() => updateBidMutation.mutate({ id: activeConv.rawId, status: 'accepted' })}
-                                                                             disabled={updateBidMutation.isPending}
-                                                                         >
-                                                                             <Check className="w-3.5 h-3.5 mr-1" /> Accept Bid
-                                                                         </Button>
-                                                                         <Button
-                                                                             size="sm"
-                                                                             variant="outline"
-                                                                             className="border-rose-200 text-rose-700 hover:bg-rose-50 font-bold text-xs h-7.5 px-3 rounded-lg"
-                                                                             onClick={() => updateBidMutation.mutate({ id: activeConv.rawId, status: 'rejected' })}
-                                                                             disabled={updateBidMutation.isPending}
-                                                                         >
-                                                                             <X className="w-3.5 h-3.5 mr-1" /> Decline
-                                                                         </Button>
-                                                                     </>
-                                                                 )}
-                                                                 {(d.status === 'accepted' || d.status === 'pending') && (
-                                                                     <Button
-                                                                         size="sm"
-                                                                         className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs flex items-center"
-                                                                         onClick={() => createLeaseFromBidMutation.mutate(d)}
-                                                                         disabled={createLeaseFromBidMutation.isPending}
-                                                                     >
-                                                                         <FileText className="w-3.5 h-3.5 mr-1" /> Send Digital E-Lease
-                                                                     </Button>
-                                                                 )}
-                                                             </div>
-                                                         )}
+                                                        {/* Reschedule Callout Banner */}
+                                                        {isReschedulePending && (
+                                                            <div className="mt-2.5 p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200">
+                                                                <p className="text-[11px] font-bold flex items-center gap-1.5 text-amber-700 dark:text-amber-300">
+                                                                    <RefreshCw className="w-3.5 h-3.5" />
+                                                                    Proposed Reschedule:
+                                                                </p>
+                                                                <p className="text-xs font-extrabold mt-0.5 text-zinc-900 dark:text-white">
+                                                                    {d.reschedule_date || d.requested_date} at {d.reschedule_time || d.requested_time}
+                                                                </p>
+                                                                <p className="text-[10px] opacity-75 mt-0.5">
+                                                                    Initiated by {isRescheduler ? 'you' : (d.rescheduled_by || 'Organizer')}
+                                                                </p>
+                                                            </div>
+                                                        )}
+
+                                                        {d.notes && (
+                                                            <p className={`text-xs mt-1.5 italic ${isOwnRequest ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                                                                "{d.notes}"
+                                                            </p>
+                                                        )}
+
+                                                        {/* Interactive Action Controls */}
+                                                        <div className="flex flex-wrap items-center gap-2 mt-3 pt-2.5 border-t border-zinc-200/40">
+                                                            {/* Recipient of Reschedule (Tenant or Landlord) CAN RESPOND */}
+                                                            {isRecipientOfReschedule && (
+                                                                <>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs"
+                                                                        onClick={() => updateTourMutation.mutate({
+                                                                            id: d.id || activeConv.rawId,
+                                                                            status: 'confirmed',
+                                                                            rescheduleDate: d.reschedule_date || d.requested_date,
+                                                                            rescheduleTime: d.reschedule_time || d.requested_time,
+                                                                            isAcceptingReschedule: true
+                                                                        })}
+                                                                        disabled={updateTourMutation.isPending}
+                                                                    >
+                                                                        <Check className="w-3.5 h-3.5 mr-1" /> Accept Rescheduled Time
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="border-zinc-300 text-zinc-800 hover:bg-zinc-100 font-bold text-xs h-7.5 px-3 rounded-lg"
+                                                                        onClick={() => {
+                                                                            const newDate = prompt('Enter your proposed date (YYYY-MM-DD):', d.reschedule_date || d.requested_date);
+                                                                            const newTime = prompt('Enter your proposed time slot (e.g. 11:00 AM):', d.reschedule_time || d.requested_time);
+                                                                            if (newDate && newTime) {
+                                                                                updateTourMutation.mutate({
+                                                                                    id: d.id || activeConv.rawId,
+                                                                                    status: 'reschedule_requested',
+                                                                                    rescheduleDate: newDate,
+                                                                                    rescheduleTime: newTime,
+                                                                                    rescheduledBy: user?.email || user?.id
+                                                                                });
+                                                                            }
+                                                                        }}
+                                                                        disabled={updateTourMutation.isPending}
+                                                                    >
+                                                                        <RefreshCw className="w-3.5 h-3.5 mr-1" /> Suggest Another Time
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="border-rose-200 text-rose-700 hover:bg-rose-50 font-bold text-xs h-7.5 px-3 rounded-lg"
+                                                                        onClick={() => updateTourMutation.mutate({
+                                                                            id: d.id || activeConv.rawId,
+                                                                            status: 'declined'
+                                                                        })}
+                                                                        disabled={updateTourMutation.isPending}
+                                                                    >
+                                                                        <X className="w-3.5 h-3.5 mr-1" /> Decline
+                                                                    </Button>
+                                                                </>
+                                                            )}
+
+                                                            {/* Standard Pending Landlord Controls */}
+                                                            {isLandlordParty && d.status === 'pending' && (
+                                                                <>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs"
+                                                                        onClick={() => updateTourMutation.mutate({ id: d.id || activeConv.rawId, status: 'confirmed' })}
+                                                                        disabled={updateTourMutation.isPending}
+                                                                    >
+                                                                        <Check className="w-3.5 h-3.5 mr-1" /> Confirm
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="border-zinc-300 text-zinc-800 hover:bg-zinc-100 font-bold text-xs h-7.5 px-3 rounded-lg"
+                                                                        onClick={() => {
+                                                                            const newDate = prompt('Enter proposed reschedule date (YYYY-MM-DD):', d.requested_date);
+                                                                            const newTime = prompt('Enter proposed reschedule time slot:', '11:00 AM');
+                                                                            if (newDate && newTime) {
+                                                                                updateTourMutation.mutate({
+                                                                                    id: d.id || activeConv.rawId,
+                                                                                    status: 'reschedule_requested',
+                                                                                    rescheduleDate: newDate,
+                                                                                    rescheduleTime: newTime,
+                                                                                    rescheduledBy: user?.email || user?.id
+                                                                                });
+                                                                            }
+                                                                        }}
+                                                                        disabled={updateTourMutation.isPending}
+                                                                    >
+                                                                        <RefreshCw className="w-3.5 h-3.5 mr-1" /> Reschedule
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="border-rose-200 text-rose-700 hover:bg-rose-50 font-bold text-xs h-7.5 px-3 rounded-lg"
+                                                                        onClick={() => updateTourMutation.mutate({ id: d.id || activeConv.rawId, status: 'declined' })}
+                                                                        disabled={updateTourMutation.isPending}
+                                                                    >
+                                                                        <X className="w-3.5 h-3.5 mr-1" /> Decline
+                                                                    </Button>
+                                                                </>
+                                                            )}
+
+                                                            {/* Confirmed Tour / Completion Controls */}
+                                                            {isLandlordParty && (d.status === 'confirmed' || (isTourPassed(d) && d.status !== 'completed' && d.status !== 'declined')) && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs flex items-center"
+                                                                    onClick={() => updateTourMutation.mutate({ id: d.id || activeConv.rawId, status: 'completed' })}
+                                                                    disabled={updateTourMutation.isPending}
+                                                                >
+                                                                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Mark Tour as Complete
+                                                                </Button>
+                                                            )}
+
+                                                            {/* Tenant options when pending */}
+                                                            {isTenantParty && d.status === 'pending' && !isReschedulePending && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="border-zinc-300 text-zinc-700 hover:bg-zinc-100 font-semibold text-xs h-7.5 px-2.5 rounded-lg"
+                                                                    onClick={() => {
+                                                                        const newDate = prompt('Enter your preferred date (YYYY-MM-DD):', d.requested_date);
+                                                                        const newTime = prompt('Enter your preferred time:', d.requested_time);
+                                                                        if (newDate && newTime) {
+                                                                            updateTourMutation.mutate({
+                                                                                id: d.id || activeConv.rawId,
+                                                                                status: 'reschedule_requested',
+                                                                                rescheduleDate: newDate,
+                                                                                rescheduleTime: newTime,
+                                                                                rescheduledBy: user?.email || user?.id
+                                                                            });
+                                                                        }
+                                                                    }}
+                                                                    disabled={updateTourMutation.isPending}
+                                                                >
+                                                                    <RefreshCw className="w-3.5 h-3.5 mr-1" /> Change Time
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+
+                                    if (activeConv.type === 'bid') {
+                                        const isBidderParty = Boolean(
+                                            (myEmail && (d.tenant_id?.toLowerCase() === myEmail || d.bidder_id?.toLowerCase() === myEmail || d.tenant_email?.toLowerCase() === myEmail)) ||
+                                            (myId && (d.tenant_id === myId || d.bidder_id === myId))
+                                        );
+                                        const isLandlordParty = Boolean(
+                                            (myEmail && d.landlord_id?.toLowerCase() === myEmail) ||
+                                            (myId && d.landlord_id === myId) ||
+                                            (d.property_id && landlordPropertyIds.has(String(d.property_id))) ||
+                                            (!isBidderParty && (isLandlord || isSysAdmin))
+                                        );
+                                        const isOwnRequest = isBidderParty;
+
+                                        return (
+                                            <div className={`flex ${isOwnRequest ? 'justify-end' : 'justify-start'} relative z-10 my-1`}>
+                                                <div className="w-[280px] sm:w-[370px] md:w-[420px] max-w-[88vw] shrink-0 min-w-0">
+                                                    <div className={`p-3.5 sm:p-4 text-xs sm:text-[13.5px] relative shadow-md rounded-2xl ${
+                                                        isOwnRequest
+                                                            ? 'bg-gradient-to-br from-slate-900 via-zinc-900 to-slate-950 text-white rounded-tr-none border border-zinc-800/90'
+                                                            : 'bg-white text-zinc-900 border border-zinc-200/90 rounded-tl-none'
+                                                    }`}>
+                                                        {isOwnRequest ? (
+                                                            <svg className="absolute -right-2 top-0 w-2.5 h-3.5 text-slate-950 fill-current pointer-events-none" viewBox="0 0 10 14">
+                                                                <path d="M0,0 L10,0 L0,14 Z" />
+                                                            </svg>
+                                                        ) : (
+                                                            <svg className="absolute -left-2 top-0 w-2.5 h-3.5 text-white fill-current pointer-events-none" viewBox="0 0 10 14">
+                                                                <path d="M10,0 L0,0 L10,14 Z" />
+                                                            </svg>
+                                                        )}
+                                                        <div className="flex items-center justify-between gap-2 mb-2">
+                                                            <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${
+                                                                isOwnRequest ? 'bg-rose-900/60 text-rose-200 border-rose-800' : 'text-rose-700 bg-rose-50 border-rose-100'
+                                                            }`}>
+                                                                PROPERTY BID OFFER {isOwnRequest ? '(BIDDER)' : '(LANDLORD)'}
+                                                            </span>
+                                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                                                                d.status === 'accepted' ? 'bg-emerald-100 text-emerald-800' :
+                                                                d.status === 'countered' ? 'bg-amber-100 text-amber-800' :
+                                                                d.status === 'rejected' ? 'bg-rose-100 text-rose-800' :
+                                                                'bg-amber-100 text-amber-800'
+                                                            }`}>
+                                                                {d.status || 'pending'}
+                                                            </span>
+                                                        </div>
+
+                                                        <p className={`text-xs sm:text-sm font-bold ${isOwnRequest ? 'text-white' : 'text-zinc-900'}`}>
+                                                            Proposed Rent: <span className="text-rose-400 font-extrabold">R{(d.proposed_rent || d.bid_amount || 0).toLocaleString()}/month</span>
+                                                        </p>
+
+                                                        {d.proposed_lease_months && (
+                                                            <p className={`text-xs mt-0.5 ${isOwnRequest ? 'text-zinc-300' : 'text-zinc-500'}`}>
+                                                                Duration: {d.proposed_lease_months} months • Move-in: {d.move_in_date || 'Flexible'}
+                                                            </p>
+                                                        )}
+
+                                                        {d.counter_rent && (
+                                                            <div className="mt-2 p-2 rounded-lg bg-amber-500/15 border border-amber-500/30 text-xs font-semibold text-amber-800 dark:text-amber-200">
+                                                                💬 Landlord Counter Offer: R{Number(d.counter_rent).toLocaleString()}/month
+                                                            </div>
+                                                        )}
+
+                                                        {d.message && (
+                                                            <p className={`text-xs mt-1.5 italic ${isOwnRequest ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                                                                "{d.message}"
+                                                            </p>
+                                                        )}
+
+                                                        {/* Landlord Action Controls */}
+                                                        {isLandlordParty && (
+                                                            <div className="flex flex-wrap items-center gap-2 mt-3 pt-2.5 border-t border-zinc-100">
+                                                                {d.status === 'pending' && (
+                                                                    <>
+                                                                        <Button
+                                                                            size="sm"
+                                                                            className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs"
+                                                                            onClick={() => updateBidMutation.mutate({ id: d.id || activeConv.rawId, status: 'accepted' })}
+                                                                            disabled={updateBidMutation.isPending}
+                                                                        >
+                                                                            <Check className="w-3.5 h-3.5 mr-1" /> Accept Bid
+                                                                        </Button>
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="outline"
+                                                                            className="border-zinc-300 text-zinc-800 hover:bg-zinc-100 font-bold text-xs h-7.5 px-3 rounded-lg"
+                                                                            onClick={() => {
+                                                                                const counterVal = prompt('Enter counter proposed rent amount (R):', String(d.proposed_rent || d.bid_amount || ''));
+                                                                                if (counterVal && !isNaN(parseFloat(counterVal))) {
+                                                                                    updateBidMutation.mutate({
+                                                                                        id: d.id || activeConv.rawId,
+                                                                                        status: 'countered',
+                                                                                        counterRent: parseFloat(counterVal)
+                                                                                    });
+                                                                                }
+                                                                            }}
+                                                                            disabled={updateBidMutation.isPending}
+                                                                        >
+                                                                            Counter Offer
+                                                                        </Button>
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="outline"
+                                                                            className="border-rose-200 text-rose-700 hover:bg-rose-50 font-bold text-xs h-7.5 px-3 rounded-lg"
+                                                                            onClick={() => updateBidMutation.mutate({ id: d.id || activeConv.rawId, status: 'rejected' })}
+                                                                            disabled={updateBidMutation.isPending}
+                                                                        >
+                                                                            <X className="w-3.5 h-3.5 mr-1" /> Decline
+                                                                        </Button>
+                                                                    </>
+                                                                )}
+                                                                {(d.status === 'accepted' || d.status === 'pending' || d.status === 'countered') && (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs flex items-center"
+                                                                        onClick={() => createLeaseFromBidMutation.mutate(d)}
+                                                                        disabled={createLeaseFromBidMutation.isPending}
+                                                                    >
+                                                                        <FileText className="w-3.5 h-3.5 mr-1" /> Send Digital E-Lease
+                                                                    </Button>
+                                                                )}
+                                                            </div>
+                                                        )}
+
+                                                        {/* Tenant Action Controls (when countered) */}
+                                                        {isBidderParty && d.status === 'countered' && (
+                                                            <div className="flex flex-wrap items-center gap-2 mt-3 pt-2.5 border-t border-zinc-800">
+                                                                <Button
+                                                                    size="sm"
+                                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs"
+                                                                    onClick={() => updateBidMutation.mutate({ id: d.id || activeConv.rawId, status: 'accepted' })}
+                                                                    disabled={updateBidMutation.isPending}
+                                                                >
+                                                                    <Check className="w-3.5 h-3.5 mr-1" /> Accept Counter Offer
+                                                                </Button>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="border-rose-400 text-rose-200 hover:bg-rose-900/40 font-bold text-xs h-7.5 px-3 rounded-lg"
+                                                                    onClick={() => updateBidMutation.mutate({ id: d.id || activeConv.rawId, status: 'rejected' })}
+                                                                    disabled={updateBidMutation.isPending}
+                                                                >
+                                                                    <X className="w-3.5 h-3.5 mr-1" /> Decline
+                                                                </Button>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
