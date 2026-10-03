@@ -22,6 +22,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { isPropertyOffMarket, syncPropertyMarketAvailability } from '@/utils/leaseManager';
+
 import {
     Select,
     SelectContent,
@@ -77,6 +79,24 @@ export default function Properties() {
             }
         },
     });
+
+    // Fetch all active leases to compute date-based off-market availability
+    const { data: allLeases = [] } = useQuery({
+        queryKey: ['leases-all'],
+        queryFn: async () => {
+            try {
+                return await appClient.entities.Lease.list();
+            } catch (err) {
+                return [];
+            }
+        }
+    });
+
+    useEffect(() => {
+        if (allProperties.length > 0 && allLeases.length > 0) {
+            syncPropertyMarketAvailability(allProperties, allLeases);
+        }
+    }, [allProperties, allLeases]);
 
     const sampleFeaturedProperties = [
         {
@@ -139,10 +159,14 @@ export default function Properties() {
             return rawList;
         }
 
-        // Marketplace view: filter out unlisted
-        const activeOnly = rawList.filter(p => !p.status || String(p.status).toLowerCase() !== 'unlisted');
-        return activeOnly.length > 0 ? activeOnly : rawList;
-    }, [allProperties, isLandlord, isSysAdmin, viewTab, user]);
+        // Marketplace view: filter out unlisted and off-market/rented properties
+        const activeOnly = rawList.filter(p => {
+            const s = String(p.status || 'available').toLowerCase();
+            if (s === 'unlisted' || s === 'rented') return false;
+            return !isPropertyOffMarket(p, allLeases);
+        });
+        return activeOnly;
+    }, [allProperties, allLeases, isLandlord, isSysAdmin, viewTab, user]);
 
     const displayPropertiesList = targetProperties || [];
 

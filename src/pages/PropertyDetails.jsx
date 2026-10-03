@@ -4,6 +4,8 @@ import { createPageUrl, formatDate, formatDateTime } from '@/utils';
 import { appClient } from '@/api/appClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
+import { isPropertyOffMarket } from '@/utils/leaseManager';
+
 import {
     ArrowLeft,
     MapPin,
@@ -85,6 +87,22 @@ export default function PropertyDetails() {
         },
         enabled: !!propertyId,
     });
+
+    const { data: propLeases = [] } = useQuery({
+        queryKey: ['propertyLeases', propertyId],
+        queryFn: async () => {
+            if (!propertyId) return [];
+            try {
+                return await appClient.entities.Lease.filter({ property_id: propertyId });
+            } catch (err) {
+                return [];
+            }
+        },
+        enabled: !!propertyId,
+    });
+
+    const isOffMarket = isPropertyOffMarket(property, propLeases);
+
 
     const { data: myFavorites = [] } = useQuery({
         queryKey: ['myFavorites', user?.email],
@@ -694,7 +712,16 @@ export default function PropertyDetails() {
 
                         {/* Actions */}
                         <div className="space-y-3">
-                            {property.accepts_bidding ? (
+                            {isOffMarket ? (
+                                <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-4 text-center space-y-1">
+                                    <Badge className="bg-amber-100 text-amber-900 border-amber-300 font-bold text-xs">
+                                        🔒 Off Market / Leased
+                                    </Badge>
+                                    <p className="text-xs text-amber-800 leading-relaxed font-medium">
+                                        This property is currently leased and taken off the market for an active tenancy.
+                                    </p>
+                                </div>
+                            ) : property.accepts_bidding ? (
                                 <Dialog open={bidDialogOpen} onOpenChange={setBidDialogOpen}>
                                     <DialogTrigger asChild>
                                         <Button className="w-full bg-zinc-900 hover:bg-zinc-800 text-white">
@@ -702,6 +729,7 @@ export default function PropertyDetails() {
                                             Place a Bid
                                         </Button>
                                     </DialogTrigger>
+
                                     <DialogContent className="border-zinc-200">
                                         <DialogHeader>
                                             <DialogTitle className="text-base font-bold text-zinc-900">Place Your Bid</DialogTitle>

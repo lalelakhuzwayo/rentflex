@@ -32,8 +32,10 @@ import ApplicationCard from '@/components/screening/ApplicationCard';
 import ApplicationDetailsModal from '@/components/screening/ApplicationDetailsModal';
 import StatsCard from '@/components/dashboard/StatsCard';
 import { getViewedItemIds, markItemsAsViewed } from '@/utils/realtimeNotificationManager';
+import { initiateLeaseFromAcceptedBid } from '@/utils/leaseManager';
 
 const isValidUuid = (id) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
 
 export default function ApplicationScreening() {
     const [user, setUser] = useState(null);
@@ -255,56 +257,15 @@ export default function ApplicationScreening() {
     // Create E-Lease from Bid Mutation
     const createLeaseFromBidMutation = useMutation({
         mutationFn: async (bid) => {
-            const startDate = bid.move_in_date || new Date().toISOString().split('T')[0];
-            const leaseMonths = parseInt(bid.proposed_lease_months || bid.lease_duration_months || '12', 10);
-            const endDateObj = new Date(startDate);
-            endDateObj.setMonth(endDateObj.getMonth() + leaseMonths);
-            const endDate = endDateObj.toISOString().split('T')[0];
-            const rent = parseFloat(bid.proposed_rent || bid.bid_amount || 0);
-
-            const leasePayload = {
-                landlord_id: user?.email || user?.id,
-                landlord_name: user?.full_name || 'Landlord',
-                tenant_id: bid.tenant_id || bid.bidder_id,
-                tenant_name: bid.tenant_name || 'Tenant',
-                property_id: isValidUuid(bid.property_id) ? bid.property_id : null,
-                property_title: bid.property_title || 'Rental Property',
-                property_address: bid.property_address || '',
-                monthly_rent: rent,
-                deposit_amount: rent,
-                start_date: startDate,
-                end_date: endDate,
-                status: 'pending_tenant_signature',
-                signed: false,
-                tenant_signature: null,
-                tenant_signed_at: null,
-                landlord_signature: null,
-                landlord_signed_at: null,
-                created_from_bid_id: isValidUuid(bid.id) ? bid.id : null,
-                created_date: new Date().toISOString()
-            };
-
-            const createdLease = await appClient.entities.Lease.create(leasePayload);
-
-            // Update bid status to accepted
-            await appClient.entities.Bid.update(bid.id, { status: 'accepted' });
-
-            // Notify tenant in message thread
-            const targetTenant = bid.tenant_id || bid.bidder_id;
-            await appClient.entities.Message.create({
-                conversation_id: `bid_${bid.id}`,
-                sender_id: user?.email || user?.id || 'landlord',
-                receiver_id: targetTenant,
-                content: `📄 Digital E-Lease Prepared! Landlord accepted your bid of R${rent.toLocaleString()}/month and generated your official lease agreement for move-in on ${startDate}. Please review and sign in your Leases portal.`
-            }).catch(() => {});
-
-            return createdLease;
+            const res = await initiateLeaseFromAcceptedBid({
+                bid,
+                landlordUser: user,
+                queryClient
+            });
+            return res.lease;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['propertyBids'] });
-            queryClient.invalidateQueries({ queryKey: ['messages-bids'] });
-            queryClient.invalidateQueries({ queryKey: ['leases'] });
-            toast.success('Digital E-Lease sent to tenant! The signing process has begun.');
+            toast.success('🎉 Bid Accepted & E-Lease Initiated! Property is now reserved & off the market.');
         },
         onError: (err) => {
             toast.error(err.message || 'Failed to generate digital e-lease');
@@ -313,14 +274,22 @@ export default function ApplicationScreening() {
 
     const updateBidMutation = useMutation({
         mutationFn: async ({ id, data }) => {
+            if (data.status === 'accepted') {
+                const targetBid = bids.find(b => String(b.id) === String(id)) || { id, ...data };
+                const res = await initiateLeaseFromAcceptedBid({
+                    bid: { ...targetBid, ...data },
+                    landlordUser: user,
+                    queryClient
+                });
+                return res.bid;
+            }
+
             const updated = await appClient.entities.Bid.update(id, data);
-            const msgContent = data.status === 'accepted'
-                ? `🎉 Congratulations! Your bid of R${(data.proposed_rent || updated.proposed_rent || updated.bid_amount)?.toLocaleString()} for property listing has been ACCEPTED!`
-                : data.status === 'countered'
-                    ? `💬 Counter Bid Offered: Landlord proposed R${data.proposed_rent?.toLocaleString()}/month.`
-                    : data.status === 'rejected'
-                        ? `❌ Property Bid Declined for "${updated.property_title || 'listing'}".`
-                        : null;
+            const msgContent = data.status === 'countered'
+                ? `💬 Counter Bid Offered: Landlord proposed R${data.proposed_rent?.toLocaleString()}/month.`
+                : data.status === 'rejected'
+                    ? `❌ Property Bid Declined for "${updated.property_title || 'listing'}".`
+                    : null;
 
             if (msgContent) {
                 const targetTenant = updated.tenant_id || updated.bidder_id;
@@ -347,10 +316,13 @@ export default function ApplicationScreening() {
             queryClient.invalidateQueries({ queryKey: ['messages-bids'] });
             queryClient.invalidateQueries({ queryKey: ['messages'] });
             queryClient.invalidateQueries({ queryKey: ['user-all-messages'] });
+            queryClient.invalidateQueries({ queryKey: ['leases'] });
+            queryClient.invalidateQueries({ queryKey: ['properties'] });
             toast.success('Bid status updated!');
         },
         onError: () => toast.error('Failed to update bid')
     });
+
 
     const viewedSet = React.useMemo(() => {
         return getViewedItemIds(user?.email || user?.id);

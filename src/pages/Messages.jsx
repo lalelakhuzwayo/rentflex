@@ -18,7 +18,9 @@ import {
     CheckCircle2,
     X,
     Building2,
-    Search
+    Search,
+    RefreshCw,
+    Paperclip
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,41 +28,59 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { getReadMessageIds, markMessagesAsRead, getViewedItemIds, markItemsAsViewed } from '@/utils/realtimeNotificationManager';
+import { initiateLeaseFromAcceptedBid } from '@/utils/leaseManager';
+
+const normalizeStr = (val) => String(val || '').toLowerCase().trim();
+
+const getContactPairKey = (idA, idB) => {
+    const a = normalizeStr(idA);
+    const b = normalizeStr(idB);
+    if (!a || !b) return a || b || 'unknown_contact';
+    return [a, b].sort().join('__');
+};
+
+const getInitials = (name) => {
+    if (!name) return 'U';
+    const parts = name.split(' ').filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return name.substring(0, 2).toUpperCase();
+};
 
 export default function Messages() {
     const queryClient = useQueryClient();
     const [user, setUser] = useState(null);
-    const [selectedConversation, setSelectedConversation] = useState(null);
+    const [selectedConversationKey, setSelectedConversationKey] = useState(null);
     const [activeTab, setActiveTab] = useState('all'); // 'all', 'bids', 'tours', 'applications', 'chats'
     const [searchQuery, setSearchQuery] = useState('');
     const [messageInput, setMessageInput] = useState('');
     const [uploading, setUploading] = useState(false);
-    const messagesEndRef = useRef(null);
+    
+    // Dedicated internal chat scroll container ref (NEVER scrolls the window page!)
+    const chatContainerRef = useRef(null);
 
     useEffect(() => {
         appClient.auth.me().then(setUser).catch(() => { });
     }, []);
 
-    // ⚡ Supabase Realtime WebSocket Listener for Instant Zero-Reload Updates
+    // ⚡ Supabase Realtime WebSocket Listener for Instant Updates
     useEffect(() => {
         if (!isSupabaseConfigured) return;
 
         const handleRealtimeUpdate = () => {
-            queryClient.invalidateQueries();
-            queryClient.refetchQueries({ queryKey: ['messages'] });
-            queryClient.refetchQueries({ queryKey: ['user-all-messages'] });
-            queryClient.refetchQueries({ queryKey: ['messages-bids'] });
-            queryClient.refetchQueries({ queryKey: ['messages-tours'] });
-            queryClient.refetchQueries({ queryKey: ['messages-applications'] });
-            queryClient.refetchQueries({ queryKey: ['layout-notifications'] });
+            queryClient.invalidateQueries({ queryKey: ['user-all-messages'] });
+            queryClient.invalidateQueries({ queryKey: ['messages-bids'] });
+            queryClient.invalidateQueries({ queryKey: ['messages-tours'] });
+            queryClient.invalidateQueries({ queryKey: ['messages-applications'] });
+            queryClient.invalidateQueries({ queryKey: ['conversations-leases'] });
         };
 
         const channel = supabase
-            .channel('whatsapp_realtime_messages_channel')
+            .channel('whatsapp_realtime_messages_unified')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, handleRealtimeUpdate)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'bids' }, handleRealtimeUpdate)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'tour_schedules' }, handleRealtimeUpdate)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, handleRealtimeUpdate)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'leases' }, handleRealtimeUpdate)
             .subscribe();
 
         return () => {
@@ -72,7 +92,10 @@ export default function Messages() {
     const isSysAdmin = user?.user_type === 'sysAdmin';
     const isTenant = !isLandlord && !isSysAdmin;
 
-    // 1. Leases Query
+    const myEmail = normalizeStr(user?.email);
+    const myId = user?.id ? String(user.id) : null;
+
+    // 1. Fetch Leases
     const { data: leases = [] } = useQuery({
         queryKey: ['conversations-leases', user?.email, user?.id, user?.user_type],
         queryFn: async () => {
@@ -82,8 +105,7 @@ export default function Messages() {
                 if (isLandlord) {
                     const list1 = await appClient.entities.Lease.filter({ landlord_id: user.email });
                     const list2 = user.id ? await appClient.entities.Lease.filter({ landlord_id: user.id }) : [];
-                    const merged = [...list1, ...list2];
-                    return Array.from(new Map(merged.map(item => [item.id, item])).values());
+                    return Array.from(new Map([...list1, ...list2].map(item => [item.id, item])).values());
                 }
                 const list1 = await appClient.entities.Lease.filter({ tenant_id: user.email });
                 const list2 = user.id ? await appClient.entities.Lease.filter({ tenant_id: user.id }) : [];
@@ -95,7 +117,7 @@ export default function Messages() {
         enabled: !!user?.email || !!user?.id,
     });
 
-    // Query Landlord's Properties to match any bids/tours submitted on their properties
+    // 2. Fetch Landlord Properties
     const { data: myProperties = [] } = useQuery({
         queryKey: ['messages-landlord-properties', user?.email, user?.id, isLandlord],
         queryFn: async () => {
@@ -104,12 +126,10 @@ export default function Messages() {
                 const list = await appClient.entities.Property.list();
                 if (!Array.isArray(list)) return [];
                 if (isSysAdmin) return list;
-                const myEmail = user.email?.toLowerCase().trim();
-                const myId = user.id;
                 return list.filter(p => 
-                    (p.landlord_id && (p.landlord_id.toLowerCase() === myEmail || p.landlord_id === myId)) ||
-                    (p.owner_id && (p.owner_id.toLowerCase() === myEmail || p.owner_id === myId)) ||
-                    (p.created_by && (p.created_by.toLowerCase() === myEmail || p.created_by === myId))
+                    (p.landlord_id && (normalizeStr(p.landlord_id) === myEmail || p.landlord_id === myId)) ||
+                    (p.owner_id && (normalizeStr(p.owner_id) === myEmail || p.owner_id === myId)) ||
+                    (p.created_by && (normalizeStr(p.created_by) === myEmail || p.created_by === myId))
                 );
             } catch (_) {
                 return [];
@@ -122,7 +142,7 @@ export default function Messages() {
         return new Set((myProperties || []).map(p => String(p.id)));
     }, [myProperties]);
 
-    // 2. Property Bids Query
+    // 3. Fetch Bids
     const { data: bids = [] } = useQuery({
         queryKey: ['messages-bids', user?.email, user?.id, isLandlord, myProperties?.length || 0],
         queryFn: async () => {
@@ -131,18 +151,15 @@ export default function Messages() {
                 const list = await appClient.entities.Bid.list();
                 if (!Array.isArray(list)) return [];
                 if (isSysAdmin) return list;
-                const myEmail = user.email?.toLowerCase().trim();
-                const myId = user.id;
 
                 if (isTenant) {
                     return list.filter(b => 
-                        (b.tenant_id && (b.tenant_id.toLowerCase() === myEmail || b.tenant_id === myId)) || 
-                        (b.bidder_id && (b.bidder_id.toLowerCase() === myEmail || b.bidder_id === myId))
+                        (b.tenant_id && (normalizeStr(b.tenant_id) === myEmail || b.tenant_id === myId)) || 
+                        (b.bidder_id && (normalizeStr(b.bidder_id) === myEmail || b.bidder_id === myId))
                     );
                 }
-                // Landlord: receive bids sent to their landlord_id or for their properties
                 return list.filter(b => 
-                    (b.landlord_id && (b.landlord_id.toLowerCase() === myEmail || b.landlord_id === myId)) ||
+                    (b.landlord_id && (normalizeStr(b.landlord_id) === myEmail || b.landlord_id === myId)) ||
                     (b.property_id && landlordPropertyIds.has(String(b.property_id)))
                 );
             } catch (e) {
@@ -152,7 +169,7 @@ export default function Messages() {
         enabled: !!user?.email || !!user?.id,
     });
 
-    // 3. Tour Schedules Query
+    // 4. Fetch Tours
     const { data: tourSchedules = [] } = useQuery({
         queryKey: ['messages-tours', user?.email, user?.id, isLandlord, myProperties?.length || 0],
         queryFn: async () => {
@@ -161,17 +178,14 @@ export default function Messages() {
                 const list = await appClient.entities.TourSchedule.list();
                 if (!Array.isArray(list)) return [];
                 if (isSysAdmin) return list;
-                const myEmail = user.email?.toLowerCase().trim();
-                const myId = user.id;
 
                 if (isTenant) {
                     return list.filter(t => 
-                        (t.tenant_id && (t.tenant_id.toLowerCase() === myEmail || t.tenant_id === myId))
+                        (t.tenant_id && (normalizeStr(t.tenant_id) === myEmail || t.tenant_id === myId))
                     );
                 }
-                // Landlord: receive tours sent to their landlord_id or on their properties
                 return list.filter(t => 
-                    (t.landlord_id && (t.landlord_id.toLowerCase() === myEmail || t.landlord_id === myId)) ||
+                    (t.landlord_id && (normalizeStr(t.landlord_id) === myEmail || t.landlord_id === myId)) ||
                     (t.property_id && landlordPropertyIds.has(String(t.property_id)))
                 );
             } catch (e) {
@@ -181,19 +195,7 @@ export default function Messages() {
         enabled: !!user?.email || !!user?.id,
     });
 
-    // Helper to check if tour date/time has passed
-    const isTourPassed = (t) => {
-        if (!t?.requested_date) return false;
-        try {
-            const timeStr = t.requested_time ? t.requested_time.replace(/(AM|PM)/i, ' $1') : '23:59';
-            const dt = new Date(`${t.requested_date} ${timeStr}`);
-            return !isNaN(dt.getTime()) && dt < new Date();
-        } catch (_) {
-            return false;
-        }
-    };
-
-    // 4. Applications Query
+    // 5. Fetch Applications
     const { data: applications = [] } = useQuery({
         queryKey: ['messages-applications', user?.email, user?.id, isLandlord, myProperties?.length || 0],
         queryFn: async () => {
@@ -202,17 +204,15 @@ export default function Messages() {
                 const list = await appClient.entities.Application.list();
                 if (!Array.isArray(list)) return [];
                 if (isSysAdmin) return list;
-                const myEmail = user.email?.toLowerCase().trim();
-                const myId = user.id;
 
                 if (isTenant) {
                     return list.filter(a => 
-                        (a.tenant_id && (a.tenant_id.toLowerCase() === myEmail || a.tenant_id === myId)) || 
-                        (a.applicant_email && a.applicant_email.toLowerCase() === myEmail)
+                        (a.tenant_id && (normalizeStr(a.tenant_id) === myEmail || a.tenant_id === myId)) || 
+                        (a.applicant_email && normalizeStr(a.applicant_email) === myEmail)
                     );
                 }
                 return list.filter(a => 
-                    (a.landlord_id && (a.landlord_id.toLowerCase() === myEmail || a.landlord_id === myId)) ||
+                    (a.landlord_id && (normalizeStr(a.landlord_id) === myEmail || a.landlord_id === myId)) ||
                     (a.property_id && landlordPropertyIds.has(String(a.property_id)))
                 );
             } catch (e) {
@@ -222,7 +222,7 @@ export default function Messages() {
         enabled: !!user?.email || !!user?.id,
     });
 
-    // 5. Direct Messages Query
+    // 6. Fetch All Direct Messages
     const { data: allUserMessages = [] } = useQuery({
         queryKey: ['user-all-messages', user?.email, user?.id],
         queryFn: async () => {
@@ -241,14 +241,35 @@ export default function Messages() {
             }
         },
         enabled: !!user?.email || !!user?.id,
-        refetchInterval: 2000,
-        refetchIntervalInBackground: true,
+        refetchInterval: 3000,
         staleTime: 0,
     });
+
+    // Helper to check if tour date/time has passed
+    const isTourPassed = (t) => {
+        if (!t?.requested_date) return false;
+        try {
+            const timeStr = t.requested_time ? t.requested_time.replace(/(AM|PM)/i, ' $1') : '23:59';
+            const dt = new Date(`${t.requested_date} ${timeStr}`);
+            return !isNaN(dt.getTime()) && dt < new Date();
+        } catch (_) {
+            return false;
+        }
+    };
 
     // Bid Actions Mutation
     const updateBidMutation = useMutation({
         mutationFn: async ({ id, status, counterRent }) => {
+            if (status === 'accepted') {
+                const targetBid = bids.find(b => String(b.id) === String(id)) || { id, status: 'accepted' };
+                const res = await initiateLeaseFromAcceptedBid({
+                    bid: { ...targetBid, status: 'accepted' },
+                    landlordUser: user,
+                    queryClient
+                });
+                return res.bid;
+            }
+
             const payload = { status };
             if (counterRent) {
                 payload.counter_rent = counterRent;
@@ -259,22 +280,19 @@ export default function Messages() {
             payload.updated_at = new Date().toISOString();
             const updated = await appClient.entities.Bid.update(id, payload);
             try {
-                const myEmail = user?.email?.toLowerCase()?.trim();
-                const receiverId = (myEmail === updated.tenant_id?.toLowerCase() || myEmail === updated.bidder_id?.toLowerCase() || myEmail === updated.tenant_email?.toLowerCase())
+                const receiverId = (myEmail === normalizeStr(updated.tenant_id) || myEmail === normalizeStr(updated.bidder_id) || myEmail === normalizeStr(updated.tenant_email))
                     ? (updated.landlord_id || 'landlord')
                     : (updated.tenant_id || updated.bidder_id || updated.tenant_email || 'tenant');
 
-                const msgContent = status === 'accepted'
-                    ? `🎉 Bid Accepted! Landlord approved the bid of R${(updated.proposed_rent || updated.bid_amount)?.toLocaleString()}/month.`
-                    : status === 'countered'
-                        ? `💬 Counter Offer: Landlord proposed R${counterRent?.toLocaleString()}/month.`
-                        : status === 'rejected'
-                            ? `❌ Property Bid Declined.`
-                            : `Bid status updated to ${status}.`;
+                const msgContent = status === 'countered'
+                    ? `💬 Counter Offer: Landlord proposed R${counterRent?.toLocaleString()}/month.`
+                    : status === 'rejected'
+                        ? `❌ Property Bid Declined.`
+                        : `Bid status updated to ${status}.`;
 
                 if (receiverId) {
                     await appClient.entities.Message.create({
-                        conversation_id: `bid_${id}`,
+                        conversation_id: getContactPairKey(myEmail || myId, receiverId),
                         sender_id: user?.email || 'user',
                         receiver_id: receiverId,
                         content: msgContent
@@ -288,8 +306,9 @@ export default function Messages() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['messages-bids'] });
             queryClient.invalidateQueries({ queryKey: ['propertyBids'] });
-            queryClient.invalidateQueries({ queryKey: ['messages'] });
-            queryClient.invalidateQueries({ queryKey: ['layout-notifications'] });
+            queryClient.invalidateQueries({ queryKey: ['user-all-messages'] });
+            queryClient.invalidateQueries({ queryKey: ['leases'] });
+            queryClient.invalidateQueries({ queryKey: ['properties'] });
             toast.success('Bid status updated!');
         },
         onError: (err) => {
@@ -300,60 +319,20 @@ export default function Messages() {
     // Generate E-Lease from Bid Mutation
     const createLeaseFromBidMutation = useMutation({
         mutationFn: async (bid) => {
-            const startDate = bid.move_in_date || new Date().toISOString().split('T')[0];
-            const leaseMonths = parseInt(bid.proposed_lease_months || bid.lease_duration_months || '12', 10);
-            const endDateObj = new Date(startDate);
-            endDateObj.setMonth(endDateObj.getMonth() + leaseMonths);
-            const endDate = endDateObj.toISOString().split('T')[0];
-            const rent = parseFloat(bid.proposed_rent || bid.bid_amount || 0);
-
-            const isUuid = (val) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(val));
-
-            const leasePayload = {
-                landlord_id: user?.email || user?.id,
-                landlord_name: user?.full_name || 'Landlord',
-                tenant_id: bid.tenant_id || bid.bidder_id || bid.tenant_email,
-                tenant_name: bid.tenant_name || 'Tenant',
-                property_id: isUuid(bid.property_id) ? bid.property_id : null,
-                property_title: bid.property_title || 'Rental Property',
-                property_address: bid.property_address || '',
-                monthly_rent: rent,
-                deposit_amount: rent,
-                start_date: startDate,
-                end_date: endDate,
-                status: 'pending_tenant_signature',
-                signed: false,
-                created_from_bid_id: isUuid(bid.id) ? bid.id : null,
-                terms: 'Standard South African Residential Lease Agreement (Rental Housing Act compliant).'
-            };
-
-            const createdLease = await appClient.entities.Lease.create(leasePayload);
-
-            // Update bid status to accepted
-            await appClient.entities.Bid.update(bid.id, { 
-                status: 'accepted',
-                responded_at: new Date().toISOString()
+            const res = await initiateLeaseFromAcceptedBid({
+                bid,
+                landlordUser: user,
+                queryClient
             });
-
-            // Notify tenant in message thread
-            const targetTenant = bid.tenant_id || bid.bidder_id || bid.tenant_email;
-            if (targetTenant) {
-                await appClient.entities.Message.create({
-                    conversation_id: `bid_${bid.id}`,
-                    sender_id: user?.email || user?.id || 'landlord',
-                    receiver_id: targetTenant,
-                    content: `📄 Digital E-Lease Prepared! Landlord accepted your bid of R${rent.toLocaleString()}/month and generated your official lease agreement for move-in on ${startDate}. Please review and sign in your Leases portal.`
-                }).catch(() => {});
-            }
-
-            return createdLease;
+            return res.lease;
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['messages-bids'] });
             queryClient.invalidateQueries({ queryKey: ['propertyBids'] });
-            queryClient.invalidateQueries({ queryKey: ['conversations-leases'] });
+            queryClient.invalidateQueries({ queryKey: ['user-all-messages'] });
             queryClient.invalidateQueries({ queryKey: ['leases'] });
-            toast.success('Digital E-Lease sent to tenant! The signing process has begun.');
+            queryClient.invalidateQueries({ queryKey: ['properties'] });
+            toast.success('🎉 Bid Accepted & E-Lease Initiated! Property is now reserved & off the market.');
         },
         onError: (err) => {
             toast.error(err.message || 'Failed to generate digital e-lease');
@@ -385,8 +364,7 @@ export default function Messages() {
 
             const updated = await appClient.entities.TourSchedule.update(id, payload);
             try {
-                const myEmail = user?.email?.toLowerCase()?.trim();
-                const receiverId = (myEmail === updated.tenant_id?.toLowerCase() || myEmail === updated.tenant_email?.toLowerCase())
+                const receiverId = (myEmail === normalizeStr(updated.tenant_id) || myEmail === normalizeStr(updated.tenant_email))
                     ? updated.landlord_id
                     : (updated.tenant_id || updated.tenant_email);
 
@@ -404,7 +382,7 @@ export default function Messages() {
 
                 if (receiverId) {
                     await appClient.entities.Message.create({
-                        conversation_id: `tour_${id}`,
+                        conversation_id: getContactPairKey(myEmail || myId, receiverId),
                         sender_id: user?.email || 'user',
                         receiver_id: receiverId,
                         content: msgContent
@@ -418,8 +396,7 @@ export default function Messages() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['messages-tours'] });
             queryClient.invalidateQueries({ queryKey: ['tourSchedules'] });
-            queryClient.invalidateQueries({ queryKey: ['messages'] });
-            queryClient.invalidateQueries({ queryKey: ['layout-notifications'] });
+            queryClient.invalidateQueries({ queryKey: ['user-all-messages'] });
             toast.success('Tour schedule updated!');
         },
         onError: (err) => {
@@ -427,7 +404,7 @@ export default function Messages() {
         }
     });
 
-    // Track viewed state locally & sync with global window events
+    // Track viewed state locally
     const [viewedVersion, setViewedVersion] = useState(0);
 
     useEffect(() => {
@@ -438,301 +415,337 @@ export default function Messages() {
         return () => window.removeEventListener('rentflex:items-viewed', handleItemsViewed);
     }, []);
 
-    const viewedSet = React.useMemo(() => {
+    const viewedSet = useMemo(() => {
         return getViewedItemIds(user?.email || user?.id);
     }, [user, viewedVersion]);
 
-    // Structured Contact Conversations (WhatsApp Contact Cards Format)
-    const conversations = React.useMemo(() => {
-        const list = [];
+    // 🟢 UNIFIED WHATSAPP CONTACT CONVERSATIONS GROUPING
+    // Merges all interactions (bids, tours, apps, leases, direct messages) between the SAME TWO USERS into ONE clean contact entry!
+    const unifiedConversations = useMemo(() => {
+        if (!user) return [];
 
-        // Helper to extract initials
-        const getInitials = (name) => {
-            if (!name) return 'U';
-            const parts = name.split(' ').filter(Boolean);
-            if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-            return name.substring(0, 2).toUpperCase();
-        };
+        const contactMap = new Map();
 
-        // 1. Add Bids
-        bids.forEach(b => {
-            const contactName = isLandlord ? (b.tenant_name || b.tenant_id || 'Tenant Bidder') : (b.landlord_name || 'Property Owner');
-            const isViewed = viewedSet.has(`bid_${b.id}`) || viewedSet.has(String(b.id));
-            list.push({
-                id: `bid_${b.id}`,
-                rawId: b.id,
-                contactName,
-                initials: getInitials(contactName),
-                category: 'bids',
-                type: 'bid',
-                title: `Bid: R${(b.proposed_rent || b.bid_amount || 0).toLocaleString()}/mo`,
-                subtitle: `Move-in: ${b.move_in_date || 'Flexible'} • Status: ${String(b.status || 'pending').toUpperCase()}`,
-                isNew: b.status === 'pending' && !isViewed,
-                data: b,
-                updatedAt: b.created_at || b.created_date || new Date().toISOString()
-            });
-        });
+        const getOrCreateContact = (otherId, otherName, roleHint) => {
+            const cleanOtherId = normalizeStr(otherId) || 'unknown_contact';
+            const pairKey = getContactPairKey(myEmail || myId, cleanOtherId);
 
-        // 2. Add Tour Schedules
-        tourSchedules.forEach(t => {
-            const contactName = isLandlord ? (t.tenant_name || t.tenant_id || 'Viewing Visitor') : (t.landlord_name || 'Property Owner');
-            const isViewed = viewedSet.has(`tour_${t.id}`) || viewedSet.has(String(t.id));
-            list.push({
-                id: `tour_${t.id}`,
-                rawId: t.id,
-                contactName,
-                initials: getInitials(contactName),
-                category: 'tours',
-                type: 'tour',
-                title: `Viewing: ${t.requested_date} @ ${t.requested_time}`,
-                subtitle: `Visitor: ${t.tenant_name || t.tenant_id || 'Tenant'} • Status: ${String(t.status || 'pending').toUpperCase()}`,
-                isNew: (t.status === 'pending' || t.status === 'reschedule_requested') && !isViewed,
-                data: t,
-                updatedAt: t.created_at || t.created_date || new Date().toISOString()
-            });
-        });
-
-        // 3. Add Applications
-        applications.forEach(a => {
-            const contactName = isLandlord ? (a.applicant_name || a.tenant_id || 'Applicant') : (a.landlord_name || 'Property Owner');
-            const isViewed = viewedSet.has(`app_${a.id}`) || viewedSet.has(String(a.id));
-            list.push({
-                id: `app_${a.id}`,
-                rawId: a.id,
-                contactName,
-                initials: getInitials(contactName),
-                category: 'applications',
-                type: 'application',
-                title: `Application: ${a.property_title || 'Listing'}`,
-                subtitle: `By ${a.applicant_name || a.tenant_id || 'Tenant'} • ${String(a.status || 'pending').toUpperCase()}`,
-                isNew: (a.status === 'pending' || a.status === 'under_review') && !isViewed,
-                data: a,
-                updatedAt: a.created_at || a.created_date || new Date().toISOString()
-            });
-        });
-
-        // 4. Add Leases
-        leases.forEach(l => {
-            const contactName = isLandlord ? (l.tenant_name || l.tenant_id || 'Lease Tenant') : (l.landlord_name || 'Landlord');
-            list.push({
-                id: `lease_${l.id}`,
-                rawId: l.id,
-                contactName,
-                initials: getInitials(contactName),
-                category: 'chats',
-                type: 'lease',
-                title: `Lease: ${l.property_title || 'Rental Unit'}`,
-                subtitle: l.property_address || 'Lease Agreement',
-                isNew: false,
-                data: l,
-                updatedAt: l.created_date || new Date().toISOString()
-            });
-        });
-
-        // 5. Add Direct Messages
-        const msgMap = new Map();
-        allUserMessages.forEach(m => {
-            const cid = m.conversation_id || m.lease_id || m.id;
-            if (!msgMap.has(cid) && !list.some(item => item.id === cid)) {
-                const contactName = isLandlord ? (m.sender_name || m.sender_id || 'Tenant Contact') : (m.receiver_name || m.receiver_id || 'Landlord Contact');
-                msgMap.set(cid, {
-                    id: cid,
-                    rawId: cid,
-                    contactName,
-                    initials: getInitials(contactName),
-                    category: 'chats',
-                    type: 'chat',
-                    title: m.property_title || contactName || 'Direct Message',
-                    subtitle: m.content || 'Chat history',
-                    isNew: false,
-                    lastMessage: m,
-                    updatedAt: m.created_date || new Date().toISOString()
+            if (!contactMap.has(pairKey)) {
+                const displayName = otherName && otherName !== cleanOtherId ? otherName : (cleanOtherId || 'Contact User');
+                contactMap.set(pairKey, {
+                    id: pairKey,
+                    otherId: cleanOtherId,
+                    contactName: displayName,
+                    initials: getInitials(displayName),
+                    roleHint: roleHint || 'User',
+                    latestTimestamp: '1970-01-01T00:00:00.000Z',
+                    lastMessageText: '',
+                    unreadCount: 0,
+                    bids: [],
+                    tours: [],
+                    applications: [],
+                    leases: [],
+                    directMessageIds: new Set(),
+                    relatedConvIds: new Set([pairKey]),
+                    hasNewBid: false,
+                    hasNewTour: false,
+                    hasNewApp: false,
                 });
             }
-        });
-        msgMap.forEach(v => list.push(v));
 
-        // Sort latest first
-        return list.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-    }, [bids, tourSchedules, applications, leases, allUserMessages, isLandlord, viewedSet]);
-
-    // Counts for WhatsApp Category Filters (Accurately reflects unviewed new bids, tours, applications)
-    const counts = React.useMemo(() => {
-        return {
-            all: conversations.length,
-            bids: conversations.filter(c => c.category === 'bids' && c.isNew).length,
-            tours: conversations.filter(c => c.category === 'tours' && c.isNew).length,
-            applications: conversations.filter(c => c.category === 'applications' && c.isNew).length,
-            chats: conversations.filter(c => c.category === 'chats').length,
+            const existing = contactMap.get(pairKey);
+            if (otherName && (!existing.contactName || existing.contactName === cleanOtherId)) {
+                existing.contactName = otherName;
+                existing.initials = getInitials(otherName);
+            }
+            return existing;
         };
-    }, [conversations]);
 
-    // Mark current conversation as viewed whenever selected
-    const handleSelectConversation = (conv) => {
-        setSelectedConversation(conv.id);
-        if (user) {
-            const idsToMark = [conv.id];
-            if (conv.rawId) idsToMark.push(String(conv.rawId));
-            markItemsAsViewed(user.email || user.id, idsToMark);
+        // 1. Process Bids
+        bids.forEach(b => {
+            const isMeTenant = (normalizeStr(b.tenant_id) === myEmail || b.tenant_id === myId || normalizeStr(b.bidder_id) === myEmail || b.bidder_id === myId);
+            const otherId = isMeTenant ? b.landlord_id : (b.tenant_id || b.bidder_id || b.tenant_email);
+            const otherName = isMeTenant ? (b.landlord_name || 'Landlord') : (b.tenant_name || 'Tenant Bidder');
+
+            const contact = getOrCreateContact(otherId, otherName, isMeTenant ? 'Landlord' : 'Tenant');
+            contact.bids.push(b);
+            if (b.id) contact.relatedConvIds.add(`bid_${b.id}`);
+
+            const time = b.updated_at || b.created_at || new Date().toISOString();
+            if (new Date(time) > new Date(contact.latestTimestamp)) {
+                contact.latestTimestamp = time;
+                contact.lastMessageText = `🏷️ Bid: R${(b.proposed_rent || b.bid_amount || 0).toLocaleString()}/mo (${String(b.status || 'pending').toUpperCase()})`;
+            }
+            if (b.status === 'pending' && !viewedSet.has(`bid_${b.id}`) && !viewedSet.has(String(b.id))) {
+                contact.hasNewBid = true;
+            }
+        });
+
+        // 2. Process Tour Schedules
+        tourSchedules.forEach(t => {
+            const isMeTenant = (normalizeStr(t.tenant_id) === myEmail || t.tenant_id === myId || normalizeStr(t.tenant_email) === myEmail);
+            const otherId = isMeTenant ? t.landlord_id : (t.tenant_id || t.tenant_email);
+            const otherName = isMeTenant ? (t.landlord_name || 'Landlord') : (t.tenant_name || 'Viewing Visitor');
+
+            const contact = getOrCreateContact(otherId, otherName, isMeTenant ? 'Landlord' : 'Tenant');
+            contact.tours.push(t);
+            if (t.id) contact.relatedConvIds.add(`tour_${t.id}`);
+
+            const time = t.updated_at || t.created_at || new Date().toISOString();
+            if (new Date(time) > new Date(contact.latestTimestamp)) {
+                contact.latestTimestamp = time;
+                contact.lastMessageText = `📅 Viewing: ${t.requested_date} @ ${t.requested_time} (${String(t.status || 'pending').toUpperCase()})`;
+            }
+            if ((t.status === 'pending' || t.status === 'reschedule_requested') && !viewedSet.has(`tour_${t.id}`) && !viewedSet.has(String(t.id))) {
+                contact.hasNewTour = true;
+            }
+        });
+
+        // 3. Process Applications
+        applications.forEach(a => {
+            const isMeTenant = (normalizeStr(a.tenant_id) === myEmail || a.tenant_id === myId || normalizeStr(a.applicant_email) === myEmail);
+            const otherId = isMeTenant ? a.landlord_id : (a.tenant_id || a.applicant_email);
+            const otherName = isMeTenant ? (a.landlord_name || 'Landlord') : (a.applicant_name || a.tenant_name || 'Applicant');
+
+            const contact = getOrCreateContact(otherId, otherName, isMeTenant ? 'Landlord' : 'Tenant');
+            contact.applications.push(a);
+            if (a.id) contact.relatedConvIds.add(`app_${a.id}`);
+
+            const time = a.updated_at || a.created_at || new Date().toISOString();
+            if (new Date(time) > new Date(contact.latestTimestamp)) {
+                contact.latestTimestamp = time;
+                contact.lastMessageText = `📄 Application for "${a.property_title || 'Listing'}" (${String(a.status || 'pending').toUpperCase()})`;
+            }
+            if ((a.status === 'pending' || a.status === 'under_review') && !viewedSet.has(`app_${a.id}`) && !viewedSet.has(String(a.id))) {
+                contact.hasNewApp = true;
+            }
+        });
+
+        // 4. Process Leases
+        leases.forEach(l => {
+            const isMeTenant = (normalizeStr(l.tenant_id) === myEmail || l.tenant_id === myId);
+            const otherId = isMeTenant ? l.landlord_id : l.tenant_id;
+            const otherName = isMeTenant ? (l.landlord_name || 'Landlord') : (l.tenant_name || 'Tenant');
+
+            const contact = getOrCreateContact(otherId, otherName, isMeTenant ? 'Landlord' : 'Tenant');
+            contact.leases.push(l);
+            if (l.id) contact.relatedConvIds.add(`lease_${l.id}`);
+
+            const time = l.created_at || l.created_date || new Date().toISOString();
+            if (new Date(time) > new Date(contact.latestTimestamp)) {
+                contact.latestTimestamp = time;
+                contact.lastMessageText = `🏢 Active Lease: ${l.property_title || 'Rental Unit'}`;
+            }
+        });
+
+        // 5. Process Direct Messages
+        const readSet = getReadMessageIds(myEmail || myId);
+
+        allUserMessages.forEach(m => {
+            const sId = normalizeStr(m.sender_id);
+            const rId = normalizeStr(m.receiver_id);
+            const isMeSender = sId === myEmail || sId === myId;
+            const otherId = isMeSender ? (m.receiver_id || 'user') : (m.sender_id || 'user');
+            const otherName = isMeSender ? (m.receiver_name || m.receiver_id) : (m.sender_name || m.sender_id);
+
+            const contact = getOrCreateContact(otherId, otherName);
+            if (m.id) contact.directMessageIds.add(m.id);
+            if (m.conversation_id) contact.relatedConvIds.add(m.conversation_id);
+
+            const time = m.created_date || m.created_at || new Date().toISOString();
+            if (new Date(time) > new Date(contact.latestTimestamp)) {
+                contact.latestTimestamp = time;
+                contact.lastMessageText = m.content || 'Attachment';
+            }
+
+            const isToMe = (rId === myEmail || rId === myId) && !isMeSender;
+            if (isToMe && !readSet.has(String(m.id))) {
+                contact.unreadCount += 1;
+            }
+        });
+
+        const resultList = Array.from(contactMap.values());
+        // Sort contacts by latest interaction timestamp DESC
+        return resultList.sort((a, b) => new Date(b.latestTimestamp) - new Date(a.latestTimestamp));
+    }, [bids, tourSchedules, applications, leases, allUserMessages, user, myEmail, myId, viewedSet]);
+
+    // Auto-select first contact if none is selected
+    useEffect(() => {
+        if (!selectedConversationKey && unifiedConversations.length > 0) {
+            setSelectedConversationKey(unifiedConversations[0].id);
+        }
+    }, [unifiedConversations, selectedConversationKey]);
+
+    const activeContact = useMemo(() => {
+        return unifiedConversations.find(c => c.id === selectedConversationKey) || null;
+    }, [unifiedConversations, selectedConversationKey]);
+
+    // Filter contacts based on Category tabs & Search Query
+    const filteredContacts = useMemo(() => {
+        let list = unifiedConversations;
+
+        if (activeTab === 'bids') {
+            list = list.filter(c => c.bids.length > 0);
+        } else if (activeTab === 'tours') {
+            list = list.filter(c => c.tours.length > 0);
+        } else if (activeTab === 'applications') {
+            list = list.filter(c => c.applications.length > 0);
+        } else if (activeTab === 'chats') {
+            list = list.filter(c => c.directMessageIds.size > 0 || c.leases.length > 0);
+        }
+
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+            list = list.filter(c =>
+                c.contactName?.toLowerCase().includes(q) ||
+                c.otherId?.toLowerCase().includes(q) ||
+                c.lastMessageText?.toLowerCase().includes(q)
+            );
+        }
+
+        return list;
+    }, [unifiedConversations, activeTab, searchQuery]);
+
+    // Counts for Category Pills
+    const counts = useMemo(() => {
+        return {
+            all: unifiedConversations.length,
+            bids: unifiedConversations.filter(c => c.hasNewBid || c.bids.length > 0).length,
+            tours: unifiedConversations.filter(c => c.hasNewTour || c.tours.length > 0).length,
+            applications: unifiedConversations.filter(c => c.hasNewApp || c.applications.length > 0).length,
+            chats: unifiedConversations.filter(c => c.directMessageIds.size > 0 || c.leases.length > 0).length,
+        };
+    }, [unifiedConversations]);
+
+    // 🟢 Query & Gather ALL Messages for Selected Contact into ONE Continuous WhatsApp Stream
+    const { data: messages = [] } = useQuery({
+        queryKey: ['messages-stream', activeContact?.id, activeContact?.otherId],
+        queryFn: async () => {
+            if (!activeContact) return [];
+
+            const relatedIds = Array.from(activeContact.relatedConvIds || []);
+            const fetchedMessagePromises = relatedIds.map(cid =>
+                appClient.entities.Message.filter({ conversation_id: cid }).catch(() => [])
+            );
+
+            // Also fetch direct messages between my email/id & contact email/id
+            const oId = activeContact.otherId;
+            if (oId) {
+                if (myEmail) {
+                    fetchedMessagePromises.push(appClient.entities.Message.filter({ sender_id: myEmail, receiver_id: oId }).catch(() => []));
+                    fetchedMessagePromises.push(appClient.entities.Message.filter({ sender_id: oId, receiver_id: myEmail }).catch(() => []));
+                }
+                if (myId && myId !== myEmail) {
+                    fetchedMessagePromises.push(appClient.entities.Message.filter({ sender_id: myId, receiver_id: oId }).catch(() => []));
+                    fetchedMessagePromises.push(appClient.entities.Message.filter({ sender_id: oId, receiver_id: myId }).catch(() => []));
+                }
+            }
+
+            const results = await Promise.all(fetchedMessagePromises);
+            const flat = results.flat();
+
+            // Deduplicate by message ID
+            const msgMap = new Map();
+            flat.forEach(m => {
+                if (m && m.id) {
+                    msgMap.set(String(m.id), m);
+                }
+            });
+
+            return Array.from(msgMap.values());
+        },
+        enabled: !!activeContact,
+        refetchInterval: 3000,
+        staleTime: 0,
+    });
+
+    // 🟢 SORT MESSAGES CHRONOLOGICALLY (WhatsApp style: Oldest at TOP, Newest at BOTTOM)
+    const sortedMessages = useMemo(() => {
+        return [...messages].sort((a, b) => {
+            const timeA = new Date(a.created_date || a.created_at || 0).getTime();
+            const timeB = new Date(b.created_date || b.created_at || 0).getTime();
+            return timeA - timeB;
+        });
+    }, [messages]);
+
+    // Internal Chat Scroll ONLY (Prevents scrolling the main window/page down on load)
+    const scrollToBottom = (instant = false) => {
+        if (chatContainerRef.current) {
+            chatContainerRef.current.scrollTo({
+                top: chatContainerRef.current.scrollHeight,
+                behavior: instant ? 'auto' : 'smooth'
+            });
         }
     };
 
     useEffect(() => {
-        if (!selectedConversation || !user) return;
-        const targetConv = conversations.find(c => c.id === selectedConversation);
-        const idsToMark = [selectedConversation];
-        if (targetConv?.rawId) idsToMark.push(String(targetConv.rawId));
-        markItemsAsViewed(user.email || user.id, idsToMark);
-    }, [selectedConversation, user, conversations]);
-
-    // Filter conversations by active tab and search query
-    const filteredConversations = React.useMemo(() => {
-        let result = conversations;
-        if (activeTab !== 'all') {
-            result = result.filter(c => c.category === activeTab);
+        if (activeContact) {
+            // Scroll ONLY the chat container element, keep window scrollTop intact!
+            setTimeout(() => scrollToBottom(true), 60);
         }
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
-            result = result.filter(c => 
-                c.contactName?.toLowerCase().includes(q) ||
-                c.title?.toLowerCase().includes(q) ||
-                c.subtitle?.toLowerCase().includes(q)
-            );
-        }
-        return result;
-    }, [conversations, activeTab, searchQuery]);
+    }, [activeContact?.id, sortedMessages.length]);
 
-    // Auto select first contact if none is active on desktop
+    // Mark unread messages as read when viewing conversation
     useEffect(() => {
-        if (!selectedConversation && filteredConversations.length > 0 && window.innerWidth >= 1024) {
-            setSelectedConversation(filteredConversations[0].id);
-        }
-    }, [filteredConversations, selectedConversation]);
+        if (!user || !activeContact || sortedMessages.length === 0) return;
 
-    const activeConv = conversations.find(c => c.id === selectedConversation);
-
-    // Strictly isolated query for active conversation messages
-    const { data: messages = [] } = useQuery({
-        queryKey: ['messages', selectedConversation],
-        queryFn: async () => {
-            if (!selectedConversation) return [];
-            try {
-                const list1 = await appClient.entities.Message.filter({ conversation_id: String(selectedConversation) });
-                if (activeConv) {
-                    const u1 = activeConv.data?.tenant_id || activeConv.data?.bidder_id || activeConv.data?.applicant_email || activeConv.data?.created_by;
-                    const u2 = activeConv.data?.landlord_id || activeConv.data?.owner_id || activeConv.data?.posted_by_id;
-                    if (u1 && u2) {
-                        const list2 = await appClient.entities.Message.filter({ conversation_id: `${u1}_${u2}` });
-                        const list3 = await appClient.entities.Message.filter({ conversation_id: `${u2}_${u1}` });
-                        const merged = [...list1, ...list2, ...list3];
-                        return Array.from(new Map(merged.map(item => [item.id, item])).values());
-                    }
-                }
-                return list1;
-            } catch (err) {
-                return [];
-            }
-        },
-        enabled: !!selectedConversation,
-        initialData: [],
-        refetchInterval: 2000,
-        refetchIntervalInBackground: true,
-        staleTime: 0,
-    });
-
-    const myEmail = user?.email?.toLowerCase()?.trim();
-    const myId = user?.id ? String(user.id) : null;
-
-    // Auto mark conversation messages as read when viewing conversation
-    useEffect(() => {
-        if (!user || !selectedConversation || !Array.isArray(messages) || messages.length === 0) return;
-        const incomingUnreadIds = messages
+        const unreadIds = sortedMessages
             .filter(m => {
-                const rId = m.receiver_id?.toLowerCase()?.trim();
-                const sId = m.sender_id?.toLowerCase()?.trim();
+                const rId = normalizeStr(m.receiver_id);
+                const sId = normalizeStr(m.sender_id);
                 return (rId === myEmail || rId === myId) && sId !== myEmail && sId !== myId;
             })
             .map(m => m.id);
 
-        if (incomingUnreadIds.length > 0) {
-            markMessagesAsRead(myEmail || myId, incomingUnreadIds);
+        if (unreadIds.length > 0) {
+            markMessagesAsRead(myEmail || myId, unreadIds);
         }
-    }, [user, selectedConversation, messages, myEmail, myId]);
 
-    // Fast O(1) Map of unread message counts per conversation
-    const convUnreadMap = useMemo(() => {
-        const map = new Map();
-        if (!myEmail && !myId) return map;
-        const readSet = getReadMessageIds(myEmail || myId);
+        // Also mark related bid/tour/app IDs as viewed
+        const itemsToMark = Array.from(activeContact.relatedConvIds || []);
+        markItemsAsViewed(myEmail || myId, itemsToMark);
+    }, [user, activeContact, sortedMessages, myEmail, myId]);
 
-        allUserMessages.forEach(m => {
-            const rId = m.receiver_id?.toLowerCase()?.trim();
-            const sId = m.sender_id?.toLowerCase()?.trim();
-            const isToMe = (rId === myEmail || rId === myId) && sId !== myEmail && sId !== myId;
-            if (isToMe && !readSet.has(String(m.id))) {
-                const cid = m.conversation_id;
-                if (cid) {
-                    map.set(cid, (map.get(cid) || 0) + 1);
-                }
-            }
-        });
-        return map;
-    }, [allUserMessages, myEmail, myId, messages.length]);
-
+    // Handle Sending Message
     const sendMessageMutation = useMutation({
         mutationFn: (data) => appClient.entities.Message.create(data),
         onMutate: async (newMsg) => {
-            await queryClient.cancelQueries({ queryKey: ['messages', selectedConversation] });
-            const previousMessages = queryClient.getQueryData(['messages', selectedConversation]) || [];
+            await queryClient.cancelQueries({ queryKey: ['messages-stream', activeContact?.id] });
+            const previous = queryClient.getQueryData(['messages-stream', activeContact?.id]) || [];
             const tempMsg = {
                 id: `temp_${Date.now()}`,
-                conversation_id: String(selectedConversation),
+                conversation_id: newMsg.conversation_id,
                 sender_id: String(newMsg.sender_id),
                 receiver_id: String(newMsg.receiver_id),
                 content: newMsg.content,
                 file_url: newMsg.file_url || null,
                 created_date: new Date().toISOString()
             };
-            queryClient.setQueryData(['messages', selectedConversation], (old = []) => [...old, tempMsg]);
-            return { previousMessages };
+            queryClient.setQueryData(['messages-stream', activeContact?.id], (old = []) => [...old, tempMsg]);
+            return { previous };
         },
         onError: (err, newMsg, context) => {
-            if (context?.previousMessages) {
-                queryClient.setQueryData(['messages', selectedConversation], context.previousMessages);
+            if (context?.previous) {
+                queryClient.setQueryData(['messages-stream', activeContact?.id], context.previous);
             }
             toast.error('Failed to send message');
         },
         onSettled: () => {
-            queryClient.invalidateQueries({ queryKey: ['messages'] });
+            queryClient.invalidateQueries({ queryKey: ['messages-stream', activeContact?.id] });
             queryClient.invalidateQueries({ queryKey: ['user-all-messages'] });
-            queryClient.refetchQueries({ queryKey: ['messages', selectedConversation] });
-            queryClient.refetchQueries({ queryKey: ['user-all-messages'] });
         },
     });
 
     const handleSendMessage = () => {
-        if (!messageInput.trim() || !selectedConversation) return;
-
-        let receiverId = isLandlord 
-            ? (activeConv?.data?.tenant_id || activeConv?.data?.bidder_id || activeConv?.data?.applicant_email || activeConv?.data?.created_by) 
-            : (activeConv?.data?.landlord_id || activeConv?.data?.owner_id);
-
-        if (!receiverId && activeConv?.lastMessage) {
-            const myId = user?.email || user?.id;
-            receiverId = activeConv.lastMessage.sender_id === myId ? activeConv.lastMessage.receiver_id : activeConv.lastMessage.sender_id;
-        }
-
-        if (!receiverId) {
-            receiverId = isLandlord ? 'tenant' : 'landlord';
-        }
+        if (!messageInput.trim() || !activeContact) return;
 
         const textToSend = messageInput.trim();
         setMessageInput('');
 
         sendMessageMutation.mutate({
-            conversation_id: String(selectedConversation),
+            conversation_id: activeContact.id,
             sender_id: String(user?.email || user?.id || 'user'),
-            receiver_id: String(receiverId || 'user'),
+            receiver_id: String(activeContact.otherId || 'user'),
             content: textToSend,
         });
     };
@@ -744,24 +757,16 @@ export default function Messages() {
 
         input.onchange = async (e) => {
             const file = e.target.files[0];
-            if (!file) return;
+            if (!file || !activeContact) return;
 
             setUploading(true);
             try {
                 const { file_url } = await appClient.integrations.Core.UploadFile({ file });
-                let receiverId = isLandlord 
-                    ? (activeConv?.data?.tenant_id || activeConv?.data?.bidder_id || activeConv?.data?.applicant_email) 
-                    : (activeConv?.data?.landlord_id || activeConv?.data?.owner_id);
-
-                if (!receiverId && activeConv?.lastMessage) {
-                    const myId = user?.email || user?.id;
-                    receiverId = activeConv.lastMessage.sender_id === myId ? activeConv.lastMessage.receiver_id : activeConv.lastMessage.sender_id;
-                }
 
                 await sendMessageMutation.mutateAsync({
-                    conversation_id: String(selectedConversation),
+                    conversation_id: activeContact.id,
                     sender_id: String(user?.email || user?.id || 'user'),
-                    receiver_id: String(receiverId || 'user'),
+                    receiver_id: String(activeContact.otherId || 'user'),
                     content: `Shared a ${type}`,
                     file_url: file_url,
                 });
@@ -776,26 +781,17 @@ export default function Messages() {
         input.click();
     };
 
-    const sortedMessages = [...messages].sort((a, b) =>
-        new Date(a.created_date || a.created_at) - new Date(b.created_date || b.created_at)
-    );
-
-    // Auto-scroll to latest message
-    useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [sortedMessages.length, selectedConversation]);
-
     return (
         <div className="max-w-7xl mx-auto space-y-4 w-full min-w-0 overflow-x-hidden">
-            {/* Main WhatsApp Grid Container */}
+            {/* Main WhatsApp Layout Container */}
             <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm grid lg:grid-cols-12 h-[calc(100dvh-175px)] min-h-[500px] sm:h-[650px] lg:h-[720px] max-h-[850px] overflow-hidden">
                 
-                {/* 🟢 LEFT SIDEBAR: WhatsApp Contacts & Threads List */}
+                {/* 🟢 LEFT SIDEBAR: WhatsApp Contacts List */}
                 <div className={`lg:col-span-4 border-r border-zinc-200 flex flex-col h-full min-h-0 overflow-hidden bg-zinc-50/50 ${
-                    selectedConversation ? 'hidden lg:flex' : 'flex'
+                    selectedConversationKey ? 'hidden lg:flex' : 'flex'
                 }`}>
                     
-                    {/* Sidebar Header with Profile Info */}
+                    {/* Sidebar Header */}
                     <div className="p-3.5 sm:p-4 border-b border-zinc-200/90 bg-white flex items-center justify-between shrink-0">
                         <div className="flex items-center gap-3">
                             <div className="relative">
@@ -877,15 +873,17 @@ export default function Messages() {
                         </button>
                     </div>
 
-                    {/* Contacts & Conversation Threads List */}
+                    {/* Contacts List */}
                     <div className="flex-1 overflow-y-auto custom-scrollbar overscroll-contain min-h-0 divide-y divide-zinc-100">
-                        {filteredConversations.map(conv => {
-                            const isSelected = selectedConversation === conv.id;
-                            const unreadCount = convUnreadMap.get(conv.id) || convUnreadMap.get(conv.rawId) || (conv.isNew ? 1 : 0);
+                        {filteredContacts.map(contact => {
+                            const isSelected = selectedConversationKey === contact.id;
+                            const unread = contact.unreadCount;
+                            const hasNotice = contact.hasNewBid || contact.hasNewTour || contact.hasNewApp;
+
                             return (
                                 <button
-                                    key={conv.id}
-                                    onClick={() => handleSelectConversation(conv)}
+                                    key={contact.id}
+                                    onClick={() => setSelectedConversationKey(contact.id)}
                                     className={`w-full text-left p-3 sm:p-3.5 transition-all flex items-start gap-3 relative ${
                                         isSelected
                                             ? 'bg-zinc-200/80 border-l-4 border-zinc-900'
@@ -895,52 +893,34 @@ export default function Messages() {
                                     {/* Contact Avatar */}
                                     <div className="relative shrink-0">
                                         <Avatar className="w-11 h-11 border border-zinc-200 overflow-hidden">
-                                            {(conv.avatar_url || conv.avatar) && (
-                                                <AvatarImage src={conv.avatar_url || conv.avatar} alt={conv.contactName} className="object-cover" />
-                                            )}
                                             <AvatarFallback className="bg-zinc-900 text-white font-bold text-xs">
-                                                {conv.initials}
+                                                {contact.initials}
                                             </AvatarFallback>
                                         </Avatar>
-                                        <div className={`absolute -bottom-1 -right-1 p-0.5 rounded-full border border-white ${
-                                            conv.type === 'bid' ? 'bg-rose-500 text-white' :
-                                            conv.type === 'tour' ? 'bg-blue-500 text-white' :
-                                            conv.type === 'application' ? 'bg-purple-500 text-white' :
-                                            'bg-zinc-700 text-white'
-                                        }`}>
-                                            {conv.type === 'bid' && <Gavel className="w-3 h-3" />}
-                                            {conv.type === 'tour' && <Calendar className="w-3 h-3" />}
-                                            {conv.type === 'application' && <FileText className="w-3 h-3" />}
-                                            {conv.type === 'lease' && <Building2 className="w-3 h-3" />}
-                                            {conv.type === 'chat' && <MessageSquare className="w-3 h-3" />}
-                                        </div>
+                                        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border border-white" />
                                     </div>
 
-                                    {/* Contact & Thread Info */}
+                                    {/* Contact & Thread Subtitle */}
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center justify-between gap-1 mb-0.5">
                                             <h4 className="font-bold text-xs sm:text-sm text-zinc-900 truncate">
-                                                {conv.contactName}
+                                                {contact.contactName}
                                             </h4>
                                             <span className="text-[10px] text-zinc-400 shrink-0">
-                                                {formatDate(conv.updatedAt, 'h:mm a')}
+                                                {formatDate(contact.latestTimestamp, 'h:mm a')}
                                             </span>
                                         </div>
 
-                                        <p className="text-xs font-semibold text-zinc-700 truncate mb-0.5">
-                                            {conv.title}
-                                        </p>
-
                                         <div className="flex items-center justify-between gap-2">
-                                            <p className={`text-xs truncate ${unreadCount > 0 ? 'text-zinc-900 font-bold' : 'text-zinc-500'}`}>
-                                                {conv.subtitle}
+                                            <p className={`text-xs truncate ${unread > 0 || hasNotice ? 'text-zinc-900 font-bold' : 'text-zinc-500'}`}>
+                                                {contact.lastMessageText || 'No recent messages'}
                                             </p>
-                                            {unreadCount > 0 ? (
+                                            {unread > 0 ? (
                                                 <span className="h-5 min-w-[20px] px-1.5 bg-emerald-600 text-white text-[10px] font-extrabold rounded-full flex items-center justify-center shrink-0 shadow-xs">
-                                                    {unreadCount > 99 ? '99+' : unreadCount}
+                                                    {unread > 99 ? '99+' : unread}
                                                 </span>
-                                            ) : conv.isNew ? (
-                                                <span className="w-2.5 h-2.5 bg-rose-500 rounded-full shrink-0" title="New notification" />
+                                            ) : hasNotice ? (
+                                                <span className="w-2.5 h-2.5 bg-rose-500 rounded-full shrink-0" title="New Activity" />
                                             ) : null}
                                         </div>
                                     </div>
@@ -948,7 +928,7 @@ export default function Messages() {
                             );
                         })}
 
-                        {filteredConversations.length === 0 && (
+                        {filteredContacts.length === 0 && (
                             <div className="text-center py-16 px-4 text-zinc-400">
                                 <MessageSquare className="w-10 h-10 mx-auto mb-2 opacity-40" />
                                 <p className="text-xs font-semibold text-zinc-600">No conversations found</p>
@@ -958,11 +938,11 @@ export default function Messages() {
                     </div>
                 </div>
 
-                {/* 🔵 RIGHT SIDE: WhatsApp Chat Exchange Window */}
+                {/* 🔵 RIGHT SIDEBAR: WhatsApp Chat Exchange Window */}
                 <div className={`lg:col-span-8 flex flex-col h-full min-h-0 overflow-hidden bg-[#efeae2]/30 relative ${
-                    !selectedConversation ? 'hidden lg:flex' : 'flex'
+                    !selectedConversationKey ? 'hidden lg:flex' : 'flex'
                 }`}>
-                    {activeConv ? (
+                    {activeContact ? (
                         <div className="flex flex-col h-full min-h-0 overflow-hidden flex-1 min-w-0">
                             
                             {/* WhatsApp Header Bar */}
@@ -973,7 +953,7 @@ export default function Messages() {
                                         variant="ghost"
                                         size="sm"
                                         className="lg:hidden p-1.5 h-8 w-8 text-zinc-700 hover:bg-zinc-100 rounded-full shrink-0"
-                                        onClick={() => setSelectedConversation(null)}
+                                        onClick={() => setSelectedConversationKey(null)}
                                         aria-label="Back to contacts list"
                                     >
                                         <ChevronLeft className="w-5 h-5" />
@@ -981,11 +961,8 @@ export default function Messages() {
 
                                     <div className="relative shrink-0">
                                         <Avatar className="w-10 h-10 border border-zinc-200 overflow-hidden">
-                                            {(activeConv.avatar_url || activeConv.avatar) && (
-                                                <AvatarImage src={activeConv.avatar_url || activeConv.avatar} alt={activeConv.contactName} className="object-cover" />
-                                            )}
                                             <AvatarFallback className="bg-zinc-950 text-white font-bold text-xs">
-                                                {activeConv.initials}
+                                                {activeContact.initials}
                                             </AvatarFallback>
                                         </Avatar>
                                         <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border border-white" />
@@ -993,479 +970,242 @@ export default function Messages() {
 
                                     <div className="min-w-0">
                                         <h3 className="font-bold text-sm sm:text-base text-zinc-900 truncate">
-                                            {activeConv.contactName}
+                                            {activeContact.contactName}
                                         </h3>
                                         <p className="text-xs text-zinc-500 truncate">
-                                            {activeConv.title}
+                                            Direct Contact • {activeContact.otherId}
                                         </p>
                                     </div>
                                 </div>
-
-                                <div className="flex items-center gap-2 shrink-0">
-                                    <Badge variant="outline" className="text-zinc-600 border-zinc-200 capitalize text-[10px] px-2 py-0.5 font-medium">
-                                        {activeConv.category}
-                                    </Badge>
-                                </div>
                             </div>
 
-                            {/* WhatsApp Speech Bubbles Container */}
-                            <div className="flex-1 p-3 sm:p-5 overflow-y-auto custom-scrollbar overscroll-contain space-y-3.5 min-h-0 bg-[#f4f6f8] relative">
+                            {/* WhatsApp Speech Bubbles Container (Internal Scroll Container) */}
+                            <div 
+                                ref={chatContainerRef}
+                                className="flex-1 p-3 sm:p-5 overflow-y-auto custom-scrollbar overscroll-contain space-y-3.5 min-h-0 bg-[#f4f6f8] relative"
+                            >
                                 {/* Ambient Background Pattern */}
                                 <div className="absolute inset-0 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:20px_20px] opacity-35 pointer-events-none" />
 
-                                {/* Actionable Dynamic Request Chat Bubble (Tours, Bids, Applications, Job Bids) */}
-                                {activeConv && activeConv.data && ['bid', 'tour', 'application', 'job_bid'].includes(activeConv.type) && (() => {
-                                    const d = activeConv.data;
-                                    const myId = user?.email || user?.id;
-                                    const isOwnRequest = Boolean(
-                                        myId && (
-                                            d.tenant_id === myId ||
-                                            d.bidder_id === myId ||
-                                            d.contractor_id === myId ||
-                                            d.applicant_email === myId
-                                        )
-                                    );
+                                {/* Active Request Banners & Interactive Action Cards attached to this Contact */}
 
-                                    if (activeConv.type === 'tour') {
-                                        const isTenantParty = Boolean(
-                                            (myEmail && (d.tenant_id?.toLowerCase() === myEmail || d.tenant_email?.toLowerCase() === myEmail)) ||
-                                            (myId && d.tenant_id === myId)
-                                        );
-                                        const isLandlordParty = Boolean(
-                                            (myEmail && d.landlord_id?.toLowerCase() === myEmail) ||
-                                            (myId && d.landlord_id === myId) ||
-                                            (d.property_id && landlordPropertyIds.has(String(d.property_id))) ||
-                                            (!isTenantParty && (isLandlord || isSysAdmin))
-                                        );
-                                        const isRescheduler = Boolean(myEmail && d.rescheduled_by?.toLowerCase() === myEmail);
-                                        const isReschedulePending = d.status === 'reschedule_requested' || d.status === 'rescheduled';
-                                        const isRecipientOfReschedule = isReschedulePending && !isRescheduler;
-                                        const isOwnRequest = isTenantParty;
+                                {/* 1. Active Bids Cards */}
+                                {activeContact.bids.map(b => {
+                                    const isTenantParty = (normalizeStr(b.tenant_id) === myEmail || b.tenant_id === myId || normalizeStr(b.bidder_id) === myEmail || b.bidder_id === myId);
+                                    const isLandlordParty = !isTenantParty;
 
-                                        return (
-                                            <div className={`flex ${isOwnRequest ? 'justify-end' : 'justify-start'} relative z-10 my-1`}>
-                                                <div className="w-[280px] sm:w-[370px] md:w-[420px] max-w-[88vw] shrink-0 min-w-0">
-                                                    <div className={`p-3.5 sm:p-4 text-xs sm:text-[13.5px] relative shadow-md rounded-2xl ${
-                                                        isOwnRequest
-                                                            ? 'bg-gradient-to-br from-slate-900 via-zinc-900 to-slate-950 text-white rounded-tr-none border border-zinc-800/90'
-                                                            : 'bg-white text-zinc-900 border border-zinc-200/90 rounded-tl-none'
-                                                    }`}>
-                                                        {isOwnRequest ? (
-                                                            <svg className="absolute -right-2 top-0 w-2.5 h-3.5 text-slate-950 fill-current pointer-events-none" viewBox="0 0 10 14">
-                                                                <path d="M0,0 L10,0 L0,14 Z" />
-                                                            </svg>
-                                                        ) : (
-                                                            <svg className="absolute -left-2 top-0 w-2.5 h-3.5 text-white fill-current pointer-events-none" viewBox="0 0 10 14">
-                                                                <path d="M10,0 L0,0 L10,14 Z" />
-                                                            </svg>
-                                                        )}
-                                                        <div className="flex items-center justify-between gap-2 mb-2">
-                                                            <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${
-                                                                isOwnRequest ? 'bg-blue-900/60 text-blue-200 border-blue-800' : 'text-blue-700 bg-blue-50 border-blue-100'
-                                                            }`}>
-                                                                VIEWING REQUEST {isOwnRequest ? '(TENANT)' : '(LANDLORD)'}
-                                                            </span>
-                                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
-                                                                d.status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
-                                                                d.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
-                                                                isReschedulePending ? 'bg-amber-100 text-amber-900 border border-amber-300' :
-                                                                d.status === 'declined' ? 'bg-rose-100 text-rose-800' :
-                                                                'bg-zinc-100 text-zinc-800'
-                                                            }`}>
-                                                                {isReschedulePending ? 'Reschedule Proposed' : (d.status || 'pending')}
-                                                            </span>
-                                                        </div>
-
-                                                        <p className={`text-xs sm:text-sm font-bold ${isOwnRequest ? 'text-white' : 'text-zinc-900'}`}>
-                                                            Viewing: <span className="text-blue-400 font-extrabold">{d.requested_date} @ {d.requested_time}</span>
-                                                        </p>
-
-                                                        {/* Reschedule Callout Banner */}
-                                                        {isReschedulePending && (
-                                                            <div className="mt-2.5 p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200">
-                                                                <p className="text-[11px] font-bold flex items-center gap-1.5 text-amber-700 dark:text-amber-300">
-                                                                    <RefreshCw className="w-3.5 h-3.5" />
-                                                                    Proposed Reschedule:
-                                                                </p>
-                                                                <p className="text-xs font-extrabold mt-0.5 text-zinc-900 dark:text-white">
-                                                                    {d.reschedule_date || d.requested_date} at {d.reschedule_time || d.requested_time}
-                                                                </p>
-                                                                <p className="text-[10px] opacity-75 mt-0.5">
-                                                                    Initiated by {isRescheduler ? 'you' : (d.rescheduled_by || 'Organizer')}
-                                                                </p>
-                                                            </div>
-                                                        )}
-
-                                                        {d.notes && (
-                                                            <p className={`text-xs mt-1.5 italic ${isOwnRequest ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                                                                "{d.notes}"
-                                                            </p>
-                                                        )}
-
-                                                        {/* Interactive Action Controls */}
-                                                        <div className="flex flex-wrap items-center gap-2 mt-3 pt-2.5 border-t border-zinc-200/40">
-                                                            {/* Recipient of Reschedule (Tenant or Landlord) CAN RESPOND */}
-                                                            {isRecipientOfReschedule && (
-                                                                <>
-                                                                    <Button
-                                                                        size="sm"
-                                                                        className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs"
-                                                                        onClick={() => updateTourMutation.mutate({
-                                                                            id: d.id || activeConv.rawId,
-                                                                            status: 'confirmed',
-                                                                            rescheduleDate: d.reschedule_date || d.requested_date,
-                                                                            rescheduleTime: d.reschedule_time || d.requested_time,
-                                                                            isAcceptingReschedule: true
-                                                                        })}
-                                                                        disabled={updateTourMutation.isPending}
-                                                                    >
-                                                                        <Check className="w-3.5 h-3.5 mr-1" /> Accept Rescheduled Time
-                                                                    </Button>
-                                                                    <Button
-                                                                        size="sm"
-                                                                        variant="outline"
-                                                                        className="border-zinc-300 text-zinc-800 hover:bg-zinc-100 font-bold text-xs h-7.5 px-3 rounded-lg"
-                                                                        onClick={() => {
-                                                                            const newDate = prompt('Enter your proposed date (YYYY-MM-DD):', d.reschedule_date || d.requested_date);
-                                                                            const newTime = prompt('Enter your proposed time slot (e.g. 11:00 AM):', d.reschedule_time || d.requested_time);
-                                                                            if (newDate && newTime) {
-                                                                                updateTourMutation.mutate({
-                                                                                    id: d.id || activeConv.rawId,
-                                                                                    status: 'reschedule_requested',
-                                                                                    rescheduleDate: newDate,
-                                                                                    rescheduleTime: newTime,
-                                                                                    rescheduledBy: user?.email || user?.id
-                                                                                });
-                                                                            }
-                                                                        }}
-                                                                        disabled={updateTourMutation.isPending}
-                                                                    >
-                                                                        <RefreshCw className="w-3.5 h-3.5 mr-1" /> Suggest Another Time
-                                                                    </Button>
-                                                                    <Button
-                                                                        size="sm"
-                                                                        variant="outline"
-                                                                        className="border-rose-200 text-rose-700 hover:bg-rose-50 font-bold text-xs h-7.5 px-3 rounded-lg"
-                                                                        onClick={() => updateTourMutation.mutate({
-                                                                            id: d.id || activeConv.rawId,
-                                                                            status: 'declined'
-                                                                        })}
-                                                                        disabled={updateTourMutation.isPending}
-                                                                    >
-                                                                        <X className="w-3.5 h-3.5 mr-1" /> Decline
-                                                                    </Button>
-                                                                </>
-                                                            )}
-
-                                                            {/* Standard Pending Landlord Controls */}
-                                                            {isLandlordParty && d.status === 'pending' && (
-                                                                <>
-                                                                    <Button
-                                                                        size="sm"
-                                                                        className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs"
-                                                                        onClick={() => updateTourMutation.mutate({ id: d.id || activeConv.rawId, status: 'confirmed' })}
-                                                                        disabled={updateTourMutation.isPending}
-                                                                    >
-                                                                        <Check className="w-3.5 h-3.5 mr-1" /> Confirm
-                                                                    </Button>
-                                                                    <Button
-                                                                        size="sm"
-                                                                        variant="outline"
-                                                                        className="border-zinc-300 text-zinc-800 hover:bg-zinc-100 font-bold text-xs h-7.5 px-3 rounded-lg"
-                                                                        onClick={() => {
-                                                                            const newDate = prompt('Enter proposed reschedule date (YYYY-MM-DD):', d.requested_date);
-                                                                            const newTime = prompt('Enter proposed reschedule time slot:', '11:00 AM');
-                                                                            if (newDate && newTime) {
-                                                                                updateTourMutation.mutate({
-                                                                                    id: d.id || activeConv.rawId,
-                                                                                    status: 'reschedule_requested',
-                                                                                    rescheduleDate: newDate,
-                                                                                    rescheduleTime: newTime,
-                                                                                    rescheduledBy: user?.email || user?.id
-                                                                                });
-                                                                            }
-                                                                        }}
-                                                                        disabled={updateTourMutation.isPending}
-                                                                    >
-                                                                        <RefreshCw className="w-3.5 h-3.5 mr-1" /> Reschedule
-                                                                    </Button>
-                                                                    <Button
-                                                                        size="sm"
-                                                                        variant="outline"
-                                                                        className="border-rose-200 text-rose-700 hover:bg-rose-50 font-bold text-xs h-7.5 px-3 rounded-lg"
-                                                                        onClick={() => updateTourMutation.mutate({ id: d.id || activeConv.rawId, status: 'declined' })}
-                                                                        disabled={updateTourMutation.isPending}
-                                                                    >
-                                                                        <X className="w-3.5 h-3.5 mr-1" /> Decline
-                                                                    </Button>
-                                                                </>
-                                                            )}
-
-                                                            {/* Confirmed Tour / Completion Controls */}
-                                                            {isLandlordParty && (d.status === 'confirmed' || (isTourPassed(d) && d.status !== 'completed' && d.status !== 'declined')) && (
-                                                                <Button
-                                                                    size="sm"
-                                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs flex items-center"
-                                                                    onClick={() => updateTourMutation.mutate({ id: d.id || activeConv.rawId, status: 'completed' })}
-                                                                    disabled={updateTourMutation.isPending}
-                                                                >
-                                                                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Mark Tour as Complete
-                                                                </Button>
-                                                            )}
-
-                                                            {/* Tenant options when pending */}
-                                                            {isTenantParty && d.status === 'pending' && !isReschedulePending && (
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    className="border-zinc-300 text-zinc-700 hover:bg-zinc-100 font-semibold text-xs h-7.5 px-2.5 rounded-lg"
-                                                                    onClick={() => {
-                                                                        const newDate = prompt('Enter your preferred date (YYYY-MM-DD):', d.requested_date);
-                                                                        const newTime = prompt('Enter your preferred time:', d.requested_time);
-                                                                        if (newDate && newTime) {
-                                                                            updateTourMutation.mutate({
-                                                                                id: d.id || activeConv.rawId,
-                                                                                status: 'reschedule_requested',
-                                                                                rescheduleDate: newDate,
-                                                                                rescheduleTime: newTime,
-                                                                                rescheduledBy: user?.email || user?.id
-                                                                            });
-                                                                        }
-                                                                    }}
-                                                                    disabled={updateTourMutation.isPending}
-                                                                >
-                                                                    <RefreshCw className="w-3.5 h-3.5 mr-1" /> Change Time
-                                                                </Button>
-                                                            )}
-                                                        </div>
+                                    return (
+                                        <div key={`bid_card_${b.id}`} className={`flex ${isTenantParty ? 'justify-end' : 'justify-start'} relative z-10 my-2`}>
+                                            <div className="w-[280px] sm:w-[370px] md:w-[420px] max-w-[88vw] shrink-0 min-w-0">
+                                                <div className={`p-3.5 sm:p-4 text-xs sm:text-[13.5px] relative shadow-md rounded-2xl ${
+                                                    isTenantParty
+                                                        ? 'bg-gradient-to-br from-slate-900 via-zinc-900 to-slate-950 text-white rounded-tr-none border border-zinc-800/90'
+                                                        : 'bg-white text-zinc-900 border border-zinc-200/90 rounded-tl-none'
+                                                }`}>
+                                                    <div className="flex items-center justify-between gap-2 mb-2">
+                                                        <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${
+                                                            isTenantParty ? 'bg-emerald-900/60 text-emerald-200 border-emerald-800' : 'text-emerald-700 bg-emerald-50 border-emerald-100'
+                                                        }`}>
+                                                            PROPERTY RENT BID
+                                                        </span>
+                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                                                            b.status === 'accepted' ? 'bg-emerald-100 text-emerald-800' :
+                                                            b.status === 'countered' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                                                            b.status === 'rejected' ? 'bg-rose-100 text-rose-800' :
+                                                            'bg-zinc-100 text-zinc-800'
+                                                        }`}>
+                                                            {b.status || 'pending'}
+                                                        </span>
                                                     </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    }
 
-                                    if (activeConv.type === 'bid') {
-                                        const isBidderParty = Boolean(
-                                            (myEmail && (d.tenant_id?.toLowerCase() === myEmail || d.bidder_id?.toLowerCase() === myEmail || d.tenant_email?.toLowerCase() === myEmail)) ||
-                                            (myId && (d.tenant_id === myId || d.bidder_id === myId))
-                                        );
-                                        const isLandlordParty = Boolean(
-                                            (myEmail && d.landlord_id?.toLowerCase() === myEmail) ||
-                                            (myId && d.landlord_id === myId) ||
-                                            (d.property_id && landlordPropertyIds.has(String(d.property_id))) ||
-                                            (!isBidderParty && (isLandlord || isSysAdmin))
-                                        );
-                                        const isOwnRequest = isBidderParty;
-
-                                        return (
-                                            <div className={`flex ${isOwnRequest ? 'justify-end' : 'justify-start'} relative z-10 my-1`}>
-                                                <div className="w-[280px] sm:w-[370px] md:w-[420px] max-w-[88vw] shrink-0 min-w-0">
-                                                    <div className={`p-3.5 sm:p-4 text-xs sm:text-[13.5px] relative shadow-md rounded-2xl ${
-                                                        isOwnRequest
-                                                            ? 'bg-gradient-to-br from-slate-900 via-zinc-900 to-slate-950 text-white rounded-tr-none border border-zinc-800/90'
-                                                            : 'bg-white text-zinc-900 border border-zinc-200/90 rounded-tl-none'
-                                                    }`}>
-                                                        {isOwnRequest ? (
-                                                            <svg className="absolute -right-2 top-0 w-2.5 h-3.5 text-slate-950 fill-current pointer-events-none" viewBox="0 0 10 14">
-                                                                <path d="M0,0 L10,0 L0,14 Z" />
-                                                            </svg>
-                                                        ) : (
-                                                            <svg className="absolute -left-2 top-0 w-2.5 h-3.5 text-white fill-current pointer-events-none" viewBox="0 0 10 14">
-                                                                <path d="M10,0 L0,0 L10,14 Z" />
-                                                            </svg>
-                                                        )}
-                                                        <div className="flex items-center justify-between gap-2 mb-2">
-                                                            <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${
-                                                                isOwnRequest ? 'bg-rose-900/60 text-rose-200 border-rose-800' : 'text-rose-700 bg-rose-50 border-rose-100'
-                                                            }`}>
-                                                                PROPERTY BID OFFER {isOwnRequest ? '(BIDDER)' : '(LANDLORD)'}
-                                                            </span>
-                                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
-                                                                d.status === 'accepted' ? 'bg-emerald-100 text-emerald-800' :
-                                                                d.status === 'countered' ? 'bg-amber-100 text-amber-800' :
-                                                                d.status === 'rejected' ? 'bg-rose-100 text-rose-800' :
-                                                                'bg-amber-100 text-amber-800'
-                                                            }`}>
-                                                                {d.status || 'pending'}
-                                                            </span>
-                                                        </div>
-
-                                                        <p className={`text-xs sm:text-sm font-bold ${isOwnRequest ? 'text-white' : 'text-zinc-900'}`}>
-                                                            Proposed Rent: <span className="text-rose-400 font-extrabold">R{(d.proposed_rent || d.bid_amount || 0).toLocaleString()}/month</span>
+                                                    <p className={`text-xs sm:text-sm font-bold ${isTenantParty ? 'text-white' : 'text-zinc-900'}`}>
+                                                        Proposed Rent: <span className="text-emerald-400 font-extrabold">R{Number(b.proposed_rent || b.bid_amount || 0).toLocaleString()}/month</span>
+                                                    </p>
+                                                    <p className={`text-xs mt-1 ${isTenantParty ? 'text-zinc-300' : 'text-zinc-500'}`}>
+                                                        Move-in Date: {b.move_in_date || 'Flexible'} • Duration: {b.lease_duration_months || 12} months
+                                                    </p>
+                                                    {b.message && (
+                                                        <p className={`text-xs mt-1.5 italic ${isTenantParty ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                                                            "{b.message}"
                                                         </p>
+                                                    )}
 
-                                                        {d.proposed_lease_months && (
-                                                            <p className={`text-xs mt-0.5 ${isOwnRequest ? 'text-zinc-300' : 'text-zinc-500'}`}>
-                                                                Duration: {d.proposed_lease_months} months • Move-in: {d.move_in_date || 'Flexible'}
-                                                            </p>
-                                                        )}
-
-                                                        {d.counter_rent && (
-                                                            <div className="mt-2 p-2 rounded-lg bg-amber-500/15 border border-amber-500/30 text-xs font-semibold text-amber-800 dark:text-amber-200">
-                                                                💬 Landlord Counter Offer: R{Number(d.counter_rent).toLocaleString()}/month
-                                                            </div>
-                                                        )}
-
-                                                        {d.message && (
-                                                            <p className={`text-xs mt-1.5 italic ${isOwnRequest ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                                                                "{d.message}"
-                                                            </p>
-                                                        )}
-
-                                                        {/* Landlord Action Controls */}
-                                                        {isLandlordParty && (
-                                                            <div className="flex flex-wrap items-center gap-2 mt-3 pt-2.5 border-t border-zinc-100">
-                                                                {d.status === 'pending' && (
-                                                                    <>
-                                                                        <Button
-                                                                            size="sm"
-                                                                            className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs"
-                                                                            onClick={() => updateBidMutation.mutate({ id: d.id || activeConv.rawId, status: 'accepted' })}
-                                                                            disabled={updateBidMutation.isPending}
-                                                                        >
-                                                                            <Check className="w-3.5 h-3.5 mr-1" /> Accept Bid
-                                                                        </Button>
-                                                                        <Button
-                                                                            size="sm"
-                                                                            variant="outline"
-                                                                            className="border-zinc-300 text-zinc-800 hover:bg-zinc-100 font-bold text-xs h-7.5 px-3 rounded-lg"
-                                                                            onClick={() => {
-                                                                                const counterVal = prompt('Enter counter proposed rent amount (R):', String(d.proposed_rent || d.bid_amount || ''));
-                                                                                if (counterVal && !isNaN(parseFloat(counterVal))) {
-                                                                                    updateBidMutation.mutate({
-                                                                                        id: d.id || activeConv.rawId,
-                                                                                        status: 'countered',
-                                                                                        counterRent: parseFloat(counterVal)
-                                                                                    });
-                                                                                }
-                                                                            }}
-                                                                            disabled={updateBidMutation.isPending}
-                                                                        >
-                                                                            Counter Offer
-                                                                        </Button>
-                                                                        <Button
-                                                                            size="sm"
-                                                                            variant="outline"
-                                                                            className="border-rose-200 text-rose-700 hover:bg-rose-50 font-bold text-xs h-7.5 px-3 rounded-lg"
-                                                                            onClick={() => updateBidMutation.mutate({ id: d.id || activeConv.rawId, status: 'rejected' })}
-                                                                            disabled={updateBidMutation.isPending}
-                                                                        >
-                                                                            <X className="w-3.5 h-3.5 mr-1" /> Decline
-                                                                        </Button>
-                                                                    </>
-                                                                )}
-                                                                {(d.status === 'accepted' || d.status === 'pending' || d.status === 'countered') && (
-                                                                    <Button
-                                                                        size="sm"
-                                                                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs flex items-center"
-                                                                        onClick={() => createLeaseFromBidMutation.mutate(d)}
-                                                                        disabled={createLeaseFromBidMutation.isPending}
-                                                                    >
-                                                                        <FileText className="w-3.5 h-3.5 mr-1" /> Send Digital E-Lease
-                                                                    </Button>
-                                                                )}
-                                                            </div>
-                                                        )}
-
-                                                        {/* Tenant Action Controls (when countered) */}
-                                                        {isBidderParty && d.status === 'countered' && (
-                                                            <div className="flex flex-wrap items-center gap-2 mt-3 pt-2.5 border-t border-zinc-800">
+                                                    {/* Landlord Action Controls */}
+                                                    {isLandlordParty && (
+                                                        <div className="flex flex-wrap items-center gap-2 mt-3 pt-2.5 border-t border-zinc-200/40">
+                                                            {b.status === 'pending' && (
                                                                 <Button
                                                                     size="sm"
-                                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs"
-                                                                    onClick={() => updateBidMutation.mutate({ id: d.id || activeConv.rawId, status: 'accepted' })}
+                                                                    className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs"
+                                                                    onClick={() => updateBidMutation.mutate({ id: b.id, status: 'accepted' })}
                                                                     disabled={updateBidMutation.isPending}
                                                                 >
-                                                                    <Check className="w-3.5 h-3.5 mr-1" /> Accept Counter Offer
+                                                                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Accept & Initiate Lease
                                                                 </Button>
+                                                            )}
+                                                            {(b.status === 'accepted' || b.status === 'pending') && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs flex items-center"
+                                                                    onClick={() => createLeaseFromBidMutation.mutate(b)}
+                                                                    disabled={createLeaseFromBidMutation.isPending}
+                                                                >
+                                                                    <FileText className="w-3.5 h-3.5 mr-1" /> Send Digital E-Lease
+                                                                </Button>
+                                                            )}
+                                                            {b.status === 'pending' && (
                                                                 <Button
                                                                     size="sm"
                                                                     variant="outline"
-                                                                    className="border-rose-400 text-rose-200 hover:bg-rose-900/40 font-bold text-xs h-7.5 px-3 rounded-lg"
-                                                                    onClick={() => updateBidMutation.mutate({ id: d.id || activeConv.rawId, status: 'rejected' })}
+                                                                    className="border-zinc-300 text-zinc-800 hover:bg-zinc-100 font-bold text-xs h-7.5 px-3 rounded-lg"
+                                                                    onClick={() => {
+                                                                        const counterVal = prompt('Enter counter proposed rent amount (R):', String(b.proposed_rent || 0));
+                                                                        if (counterVal && !isNaN(parseFloat(counterVal))) {
+                                                                            updateBidMutation.mutate({ id: b.id, status: 'countered', counterRent: parseFloat(counterVal) });
+                                                                        }
+                                                                    }}
+                                                                    disabled={updateBidMutation.isPending}
+                                                                >
+                                                                    Counter Offer
+                                                                </Button>
+                                                            )}
+                                                            {b.status === 'pending' && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="border-rose-200 text-rose-700 hover:bg-rose-50 font-bold text-xs h-7.5 px-3 rounded-lg"
+                                                                    onClick={() => updateBidMutation.mutate({ id: b.id, status: 'rejected' })}
                                                                     disabled={updateBidMutation.isPending}
                                                                 >
                                                                     <X className="w-3.5 h-3.5 mr-1" /> Decline
                                                                 </Button>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    }
-
-                                    if (activeConv.type === 'job_bid') {
-                                        return (
-                                            <div className={`flex ${isOwnRequest ? 'justify-end' : 'justify-start'} relative z-10 my-1`}>
-                                                <div className="w-[270px] sm:w-[350px] md:w-[400px] max-w-[88vw] shrink-0 min-w-0">
-                                                    <div className={`p-3.5 sm:p-4 text-xs sm:text-[13.5px] relative shadow-md rounded-2xl ${
-                                                        isOwnRequest
-                                                            ? 'bg-gradient-to-br from-slate-900 via-zinc-900 to-slate-950 text-white rounded-tr-none border border-zinc-800/90'
-                                                            : 'bg-white text-zinc-900 border border-zinc-200/90 rounded-tl-none'
-                                                    }`}>
-                                                        {isOwnRequest ? (
-                                                            <svg className="absolute -right-2 top-0 w-2.5 h-3.5 text-slate-950 fill-current pointer-events-none" viewBox="0 0 10 14">
-                                                                <path d="M0,0 L10,0 L0,14 Z" />
-                                                            </svg>
-                                                        ) : (
-                                                            <svg className="absolute -left-2 top-0 w-2.5 h-3.5 text-white fill-current pointer-events-none" viewBox="0 0 10 14">
-                                                                <path d="M10,0 L0,0 L10,14 Z" />
-                                                            </svg>
-                                                        )}
-                                                        <div className="flex items-center justify-between gap-2 mb-2">
-                                                            <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${
-                                                                isOwnRequest ? 'bg-amber-900/60 text-amber-200 border-amber-800' : 'text-amber-700 bg-amber-50 border-amber-100'
-                                                            }`}>
-                                                                CONTRACTOR JOB BID {isOwnRequest ? 'SENT' : 'RECEIVED'}
-                                                            </span>
+                                                            )}
                                                         </div>
-                                                        <p className={`text-xs sm:text-sm font-bold ${isOwnRequest ? 'text-white' : 'text-zinc-900'}`}>
-                                                            Quote Amount: <span className="text-amber-400 font-extrabold">R{(d.amount || d.bid_amount || 0).toLocaleString()}</span> ({d.estimated_days || 1} days)
-                                                        </p>
-                                                        {d.proposal && (
-                                                            <p className="text-xs mt-1 text-zinc-300 line-clamp-2">{d.proposal}</p>
-                                                        )}
-                                                    </div>
+                                                    )}
+
+                                                    {/* Tenant Actions (when countered) */}
+                                                    {isTenantParty && b.status === 'countered' && (
+                                                        <div className="flex flex-wrap items-center gap-2 mt-3 pt-2.5 border-t border-zinc-700">
+                                                            <Button
+                                                                size="sm"
+                                                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs"
+                                                                onClick={() => updateBidMutation.mutate({ id: b.id, status: 'accepted' })}
+                                                                disabled={updateBidMutation.isPending}
+                                                            >
+                                                                <Check className="w-3.5 h-3.5 mr-1" /> Accept Counter Offer
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="border-rose-400 text-rose-200 hover:bg-rose-900/40 font-bold text-xs h-7.5 px-3 rounded-lg"
+                                                                onClick={() => updateBidMutation.mutate({ id: b.id, status: 'rejected' })}
+                                                                disabled={updateBidMutation.isPending}
+                                                            >
+                                                                <X className="w-3.5 h-3.5 mr-1" /> Decline
+                                                            </Button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
-                                        );
-                                    }
+                                        </div>
+                                    );
+                                })}
 
-                                    return null;
-                                })()}
+                                {/* 2. Active Tour Viewing Cards */}
+                                {activeContact.tours.map(t => {
+                                    const isTenantParty = (normalizeStr(t.tenant_id) === myEmail || t.tenant_id === myId || normalizeStr(t.tenant_email) === myEmail);
+                                    const isLandlordParty = !isTenantParty;
 
+                                    return (
+                                        <div key={`tour_card_${t.id}`} className={`flex ${isTenantParty ? 'justify-end' : 'justify-start'} relative z-10 my-2`}>
+                                            <div className="w-[280px] sm:w-[370px] md:w-[420px] max-w-[88vw] shrink-0 min-w-0">
+                                                <div className={`p-3.5 sm:p-4 text-xs sm:text-[13.5px] relative shadow-md rounded-2xl ${
+                                                    isTenantParty
+                                                        ? 'bg-gradient-to-br from-slate-900 via-zinc-900 to-slate-950 text-white rounded-tr-none border border-zinc-800/90'
+                                                        : 'bg-white text-zinc-900 border border-zinc-200/90 rounded-tl-none'
+                                                }`}>
+                                                    <div className="flex items-center justify-between gap-2 mb-2">
+                                                        <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${
+                                                            isTenantParty ? 'bg-blue-900/60 text-blue-200 border-blue-800' : 'text-blue-700 bg-blue-50 border-blue-100'
+                                                        }`}>
+                                                            PROPERTY VIEWING TOUR
+                                                        </span>
+                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                                                            t.status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
+                                                            t.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
+                                                            t.status === 'reschedule_requested' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                                                            t.status === 'declined' ? 'bg-rose-100 text-rose-800' :
+                                                            'bg-zinc-100 text-zinc-800'
+                                                        }`}>
+                                                            {t.status || 'pending'}
+                                                        </span>
+                                                    </div>
+
+                                                    <p className={`text-xs sm:text-sm font-bold ${isTenantParty ? 'text-white' : 'text-zinc-900'}`}>
+                                                        Viewing: <span className="text-blue-400 font-extrabold">{t.requested_date} @ {t.requested_time}</span>
+                                                    </p>
+
+                                                    {isLandlordParty && t.status === 'pending' && (
+                                                        <div className="flex flex-wrap items-center gap-2 mt-3 pt-2.5 border-t border-zinc-200/40">
+                                                            <Button
+                                                                size="sm"
+                                                                className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs"
+                                                                onClick={() => updateTourMutation.mutate({ id: t.id, status: 'confirmed' })}
+                                                                disabled={updateTourMutation.isPending}
+                                                            >
+                                                                <Check className="w-3.5 h-3.5 mr-1" /> Confirm Viewing
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="border-rose-200 text-rose-700 hover:bg-rose-50 font-bold text-xs h-7.5 px-3 rounded-lg"
+                                                                onClick={() => updateTourMutation.mutate({ id: t.id, status: 'declined' })}
+                                                                disabled={updateTourMutation.isPending}
+                                                            >
+                                                                <X className="w-3.5 h-3.5 mr-1" /> Decline
+                                                            </Button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+
+                                {/* 3. WhatsApp Messages Feed (Chronological Oldest at Top to Newest at Bottom) */}
                                 {sortedMessages.length === 0 ? (
                                     <div className="text-center py-16 text-zinc-400 relative z-10">
                                         <div className="w-14 h-14 bg-white shadow-sm border border-zinc-200/80 rounded-2xl flex items-center justify-center mx-auto mb-3">
                                             <MessageSquare className="w-7 h-7 text-zinc-700" />
                                         </div>
-                                        <p className="text-sm font-bold text-zinc-800">Isolated Conversation Thread</p>
+                                        <p className="text-sm font-bold text-zinc-800">Unified Conversation Thread</p>
                                         <p className="text-xs text-zinc-500 max-w-xs mx-auto mt-1 leading-relaxed">
-                                            All messages sent here are strictly isolated to this contact and thread.
+                                            Messages between you and {activeContact.contactName} will appear here in chronological order.
                                         </p>
                                     </div>
                                 ) : (
                                     sortedMessages.map((msg) => {
-                                        const isOwn = msg.sender_id === user?.email || msg.sender_id === user?.id;
+                                        const sId = normalizeStr(msg.sender_id);
+                                        const isOwn = sId === myEmail || sId === myId;
+
                                         return (
                                             <motion.div
                                                 key={msg.id}
-                                                initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                                                initial={{ opacity: 0, y: 6, scale: 0.99 }}
                                                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                                                transition={{ duration: 0.2 }}
+                                                transition={{ duration: 0.15 }}
                                                 className={`flex ${isOwn ? 'justify-end' : 'justify-start'} relative z-10`}
                                             >
-                                                {/* Fixed Width Chat Bubble Container per Device Breakpoint */}
+                                                {/* Chat Bubble Container */}
                                                 <div className="w-[270px] sm:w-[350px] md:w-[400px] max-w-[88vw] shrink-0 min-w-0">
                                                     <div className={`p-3.5 sm:p-4 text-xs sm:text-[13.5px] break-words break-all [overflow-wrap:anywhere] whitespace-pre-wrap relative shadow-sm transition-shadow hover:shadow-md min-w-0 max-w-full overflow-hidden ${
                                                         isOwn
-                                                            ? 'bg-gradient-to-br from-slate-900 via-zinc-900 to-slate-950 text-white rounded-2xl rounded-tr-none border border-zinc-800/90'
+                                                            ? 'bg-emerald-950 text-white rounded-2xl rounded-tr-none border border-emerald-900/80'
                                                             : 'bg-white text-zinc-900 border border-zinc-200/90 rounded-2xl rounded-tl-none'
                                                     }`}>
-                                                        {/* Speech Bubble Triangle Tail */}
+                                                        {/* Speech Bubble Tail */}
                                                         {isOwn ? (
-                                                            <svg className="absolute -right-2 top-0 w-2.5 h-3.5 text-slate-950 fill-current pointer-events-none" viewBox="0 0 10 14">
+                                                            <svg className="absolute -right-2 top-0 w-2.5 h-3.5 text-emerald-950 fill-current pointer-events-none" viewBox="0 0 10 14">
                                                                 <path d="M0,0 L10,0 L0,14 Z" />
                                                             </svg>
                                                         ) : (
@@ -1474,63 +1214,46 @@ export default function Messages() {
                                                             </svg>
                                                         )}
 
-                                                        {/* Incoming Sender Name */}
+                                                        {/* Sender Name for Received Message */}
                                                         {!isOwn && (
-                                                            <p className="text-[11px] font-bold text-emerald-600 mb-1 tracking-tight">
-                                                                {activeConv?.contactName}
+                                                            <p className="text-[11px] font-bold text-emerald-700 mb-1 tracking-tight">
+                                                                {activeContact.contactName}
                                                             </p>
                                                         )}
 
-                                                        <p className={`leading-relaxed font-normal ${isOwn ? 'text-slate-100' : 'text-zinc-800'}`}>
+                                                        <p className={`leading-relaxed font-normal ${isOwn ? 'text-emerald-50' : 'text-zinc-800'}`}>
                                                             {msg.content}
                                                         </p>
 
                                                         {/* Attached File Preview */}
                                                         {msg.file_url && (
-                                                            <div className={`mt-2.5 rounded-xl overflow-hidden border ${isOwn ? 'border-slate-800 bg-slate-950/60' : 'border-zinc-200 bg-zinc-50'} p-1`}>
+                                                            <div className={`mt-2.5 rounded-xl overflow-hidden border ${isOwn ? 'border-emerald-800 bg-emerald-900/40' : 'border-zinc-200 bg-zinc-50'} p-1`}>
                                                                 {msg.file_url.match(/\.(jpeg|jpg|gif|png|webp)/i) || msg.content?.toLowerCase().includes('image') ? (
                                                                     <img src={msg.file_url} alt="Attachment" className="max-h-60 w-full object-cover rounded-lg" />
                                                                 ) : (
-                                                                    <a href={msg.file_url} target="_blank" rel="noreferrer" className={`text-xs font-semibold underline p-2.5 flex items-center gap-2 ${isOwn ? 'text-indigo-300 hover:text-indigo-200' : 'text-indigo-600 hover:text-indigo-700'}`}>
-                                                                        📁 View Attached Document
+                                                                    <a href={msg.file_url} target="_blank" rel="noreferrer" className={`text-xs font-semibold underline p-2.5 flex items-center gap-2 ${isOwn ? 'text-emerald-200 hover:text-white' : 'text-indigo-600 hover:text-indigo-700'}`}>
+                                                                        <Paperclip className="w-3.5 h-3.5" /> View Attached Document
                                                                     </a>
                                                                 )}
                                                             </div>
                                                         )}
 
-                                                        {/* Legacy Attachments Array Support */}
-                                                        {msg.attachments && msg.attachments.length > 0 && !msg.file_url && (
-                                                            <div className="mt-2.5 space-y-1.5">
-                                                                {msg.attachments.map((att, idx) => (
-                                                                    <div key={idx} className={`rounded-xl overflow-hidden border ${isOwn ? 'border-slate-800 bg-slate-950/60' : 'border-zinc-200 bg-zinc-50'} p-1`}>
-                                                                        {att.type === 'image' ? (
-                                                                            <img src={att.url} alt="Attachment" className="max-h-52 w-full object-cover rounded-lg" />
-                                                                        ) : (
-                                                                            <a href={att.url} target="_blank" rel="noreferrer" className={`text-xs font-semibold underline p-2.5 flex items-center gap-2 ${isOwn ? 'text-indigo-300 hover:text-indigo-200' : 'text-indigo-600 hover:text-indigo-700'}`}>
-                                                                                📁 View Attached Document
-                                                                            </a>
-                                                                        )}
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        )}
-
                                                         {/* Timestamp & Read Status Bar */}
                                                         <div className={`flex items-center justify-end gap-1.5 text-[10.5px] mt-2 pt-1 border-t ${
-                                                            isOwn ? 'border-white/10 text-slate-300' : 'border-zinc-100 text-zinc-400'
+                                                            isOwn ? 'border-emerald-800/60 text-emerald-200' : 'border-zinc-100 text-zinc-400'
                                                         }`}>
                                                             <span className="font-medium tracking-tight">
-                                                                {formatDate(msg.created_date || msg.created_at, 'h:mm a')}
+                                                                {formatDate(msg.created_date || msg.created_at, 'MMM d, h:mm a')}
                                                             </span>
                                                             {isOwn && (
                                                                 msg.id && String(msg.id).startsWith('temp_') ? (
-                                                                    <Check className="w-3.5 h-3.5 text-slate-400 shrink-0" title="Sent" />
+                                                                    <Check className="w-3.5 h-3.5 text-emerald-300 shrink-0" title="Sending..." />
                                                                 ) : (
                                                                     <CheckCheck 
                                                                         className={`w-3.5 h-3.5 shrink-0 ${
                                                                             msg.read || msg.is_read || getReadMessageIds(msg.receiver_id).has(String(msg.id))
-                                                                                ? 'text-sky-400 drop-shadow-[0_0_3px_rgba(56,189,248,0.6)]'
-                                                                                : 'text-slate-400'
+                                                                                ? 'text-sky-300 drop-shadow-[0_0_3px_rgba(56,189,248,0.6)]'
+                                                                                : 'text-emerald-300'
                                                                         }`} 
                                                                         title={msg.read || msg.is_read || getReadMessageIds(msg.receiver_id).has(String(msg.id)) ? 'Read' : 'Delivered'} 
                                                                     />
@@ -1543,10 +1266,9 @@ export default function Messages() {
                                         );
                                     })
                                 )}
-                                <div ref={messagesEndRef} />
                             </div>
 
-                            {/* WhatsApp Style Sticky Bottom Input Bar */}
+                            {/* WhatsApp Sticky Bottom Input Bar */}
                             <div className="p-2.5 sm:p-3.5 bg-white/95 backdrop-blur-md border-t border-zinc-200/90 shrink-0 sticky bottom-0 z-10">
                                 <div className="flex items-center gap-2 max-w-full">
                                     <Button
@@ -1573,7 +1295,7 @@ export default function Messages() {
                                     </Button>
 
                                     <Input
-                                        placeholder="Type your message..."
+                                        placeholder="Type a message..."
                                         value={messageInput}
                                         onChange={(e) => setMessageInput(e.target.value)}
                                         onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
@@ -1583,7 +1305,7 @@ export default function Messages() {
                                     <Button
                                         onClick={handleSendMessage}
                                         disabled={!messageInput.trim() || sendMessageMutation.isPending}
-                                        className="bg-gradient-to-r from-zinc-950 to-zinc-900 hover:from-zinc-900 hover:to-zinc-800 text-white h-10 w-10 p-0 rounded-full shrink-0 shadow-md hover:shadow-lg transition-all transform active:scale-95 flex items-center justify-center"
+                                        className="bg-emerald-700 hover:bg-emerald-800 text-white h-10 w-10 p-0 rounded-full shrink-0 shadow-md hover:shadow-lg transition-all transform active:scale-95 flex items-center justify-center"
                                     >
                                         <Send className="w-4 h-4" />
                                     </Button>
@@ -1598,7 +1320,7 @@ export default function Messages() {
                             </div>
                             <h3 className="font-bold text-zinc-900 text-base mb-1">WhatsApp Style Messaging</h3>
                             <p className="text-xs text-zinc-500 max-w-xs leading-relaxed">
-                                Select a contact thread from the left list to view message exchanges and communicate in real time.
+                                Select a contact from the left sidebar to start communicating in real time.
                             </p>
                         </div>
                     )}
