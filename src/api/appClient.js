@@ -70,17 +70,30 @@ const ALLOWED_COLUMNS_MAP = {
         'landlord_signature', 'landlord_signed_at', 'terms',
         'created_from_bid_id', 'room_number', 'is_room_rental',
         'occupancy_status', 'active_months_monitored', 'last_rentscore_reward_date',
-        'termination_date', 'terminated_reason', 'created_at', 'updated_at'
+        'termination_date', 'terminated_reason',
+        'payment_frequency', 'payment_due_day', 'payment_cutoff_day', 'payment_cutoff_time',
+        'grace_period_days', 'late_penalty_fee', 'cancellation_fee', 'cancellation_score_penalty',
+        'cancelled_by', 'cancellation_reason', 'cancelled_at', 'financial_penalty_applied',
+        'score_penalty_applied', 'renewed_from_lease_id', 'renewal_count', 'renewal_notes',
+        'last_renewed_at', 'created_at', 'updated_at'
     ],
     MaintenanceRequest: [
         'id', 'lease_id', 'tenant_id', 'landlord_id', 'property_id', 'property_title',
         'title', 'description', 'category', 'priority', 'status', 'images',
-        'contractor_id', 'estimated_cost', 'created_at', 'updated_at'
+        'contractor_id', 'estimated_cost', 'created_at', 'updated_at',
+        'job_id', 'tenant_completed', 'tenant_completed_at', 'tenant_notes',
+        'landlord_completed', 'landlord_completed_at', 'landlord_notes',
+        'contractor_completed', 'contractor_completed_at', 'contractor_notes',
+        'contractor_name', 'contractor_phone'
     ],
     Job: [
         'id', 'maintenance_request_id', 'posted_by_id', 'title', 'description',
         'category', 'budget_max', 'location', 'urgency', 'status',
-        'accepted_bid_id', 'created_at'
+        'accepted_bid_id', 'created_at',
+        'tenant_completed', 'tenant_completed_at', 'tenant_notes',
+        'landlord_completed', 'landlord_completed_at', 'landlord_notes',
+        'contractor_completed', 'contractor_completed_at', 'contractor_notes',
+        'contractor_id', 'contractor_name', 'claim_status'
     ]
 };
 

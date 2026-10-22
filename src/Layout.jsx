@@ -130,7 +130,7 @@ function ScrollToTopButton() {
         <button
             onClick={scrollToTop}
             title="Scroll to Top"
-            className="hidden md:flex fixed bottom-6 right-6 z-30 bg-zinc-900 hover:bg-zinc-800 text-white p-3 rounded-full shadow-lg transition-all duration-200 items-center justify-center border border-zinc-700/50 hover:scale-105 active:scale-95"
+            className="hidden md:flex fixed bottom-6 right-6 z-30 bg-zinc-950 hover:bg-zinc-900 text-white p-3 rounded-none border border-zinc-800 shadow-3d-lg hover:shadow-xl hover:-translate-y-[1px] active:translate-y-[0px] transition-all items-center justify-center"
             aria-label="Scroll to top"
         >
             <ArrowUp className="w-4 h-4 text-white" />
@@ -268,6 +268,10 @@ export default function Layout({ children, currentPageName }) {
         location.pathname.toLowerCase().includes('/auth') ||
         location.pathname.toLowerCase().includes('/oauth');
 
+    const isMessagesPage = 
+        currentPageName?.toLowerCase() === 'messages' || 
+        location.pathname.toLowerCase().includes('/messages');
+
     // Scroll to top on every page mount / route change
     useEffect(() => {
         window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -378,7 +382,7 @@ export default function Layout({ children, currentPageName }) {
         <div className="min-h-screen app-bg-pattern font-sans antialiased flex flex-col relative pb-[env(safe-area-inset-bottom)]">
             {/* Top Sticky Navigation Bar (Hidden when Auth form is active) */}
             {!isAuthPage && (
-                <header className="bg-white/95 backdrop-blur-md border-b border-zinc-200/70 sticky top-0 z-40 transform-gpu will-change-transform">
+                <header className="bg-white border-b border-zinc-800 sticky top-0 z-40 transform-gpu will-change-transform shadow-[0_2px_0px_0px_rgba(0,0,0,0.06)]">
                 {/* Top Smart Scroll Progress Line Indicator */}
                 <ScrollProgressBar />
 
@@ -392,24 +396,24 @@ export default function Layout({ children, currentPageName }) {
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="hidden md:flex items-center gap-1.5 sm:gap-2 border border-zinc-200/80 hover:bg-zinc-100 hover:text-zinc-900 font-medium text-zinc-700 h-8 sm:h-9 px-2.5 sm:px-3 rounded-lg"
+                                        className="hidden md:flex items-center gap-1.5 sm:gap-2 border border-zinc-200 bg-white hover:bg-zinc-50 font-semibold text-zinc-950 h-8 sm:h-9 px-2.5 sm:px-3 rounded-none shadow-xs hover:shadow-sm transition-all"
                                         aria-label="Open Navigation Drawer"
                                     >
                                         <Menu className="w-4 h-4 text-zinc-800" />
-                                        <span className="text-xs font-semibold tracking-wide uppercase">Menu</span>
+                                        <span className="text-xs font-semibold tracking-wider uppercase">Menu</span>
                                     </Button>
                                 </SheetTrigger>
 
                                 {/* Navigation Drawer Slide-Out (Left Side) */}
-                                <SheetContent side="left" className="w-[300px] sm:w-[350px] p-0 flex flex-col justify-between border-r border-zinc-200 bg-white shadow-2xl">
+                                <SheetContent side="left" className="w-[300px] sm:w-[350px] p-0 flex flex-col justify-between border-r border-zinc-200 bg-white shadow-3d-modal">
                                     <div className="flex-1 overflow-hidden flex flex-col">
                                         {/* Drawer Header */}
                                         <div className="h-16 px-4 border-b border-zinc-800 bg-zinc-950 text-white flex items-center justify-start pr-12 shrink-0">
                                             <Link to={createPageUrl('Dashboard')} onClick={() => setDrawerOpen(false)} className="flex items-center gap-2.5">
-                                                <div className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center bg-zinc-900 border border-zinc-700 shadow-xs shrink-0">
+                                                <div className="w-8 h-8 rounded-none overflow-hidden flex items-center justify-center bg-zinc-900 border border-zinc-700 shadow-xs shrink-0">
                                                     <img src="/assets/rentflex-logo.png" alt="RentFlex Logo" className="w-full h-full object-contain" />
                                                 </div>
-                                                <span className="hidden sm:inline-block text-base font-bold tracking-tight text-white leading-none">
+                                                <span className="hidden sm:inline-block text-base font-black tracking-tight text-white leading-none uppercase">
                                                     RentFlex
                                                 </span>
                                             </Link>
@@ -431,8 +435,8 @@ export default function Layout({ children, currentPageName }) {
                                                         <p className="text-xs font-semibold text-zinc-900 truncate">
                                                             {user.full_name || 'User Account'}
                                                         </p>
-                                                        <p className="text-[11px] text-zinc-500 truncate">
-                                                            {user.email}
+                                                        <p className="text-[11px] text-zinc-500 truncate capitalize">
+                                                            {userRole || 'Member'} • Verified
                                                         </p>
                                                     </div>
                                                 </div>
@@ -473,10 +477,10 @@ export default function Layout({ children, currentPageName }) {
                                                                 key={item.name}
                                                                 to={item.href}
                                                                 onClick={() => setDrawerOpen(false)}
-                                                                className={`flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                                                                className={`flex items-center justify-between px-3 py-2.5 rounded-none text-sm font-bold transition-all border-2 ${
                                                                     isActive
-                                                                        ? 'bg-zinc-900 text-white font-semibold'
-                                                                        : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
+                                                                        ? 'bg-zinc-950 text-white border-zinc-950 shadow-xs'
+                                                                        : 'border-transparent text-zinc-700 hover:border-zinc-950 hover:bg-zinc-100 hover:text-zinc-950'
                                                                 }`}
                                                             >
                                                                 <div className="flex items-center gap-3">
@@ -484,7 +488,7 @@ export default function Layout({ children, currentPageName }) {
                                                                     <span>{item.name}</span>
                                                                 </div>
                                                                 {displayBadge && (
-                                                                    <span className={`text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded ${
+                                                                    <span className={`text-[10px] uppercase font-black tracking-wider px-1.5 py-0.5 rounded-none border border-zinc-300 shadow-xs ${
                                                                         isMessages && unreadMessagesCount > 0
                                                                             ? 'bg-emerald-600 text-white'
                                                                             : 'bg-zinc-900 text-white'
@@ -501,7 +505,7 @@ export default function Layout({ children, currentPageName }) {
                                             {/* Section 2: Operations & Governance */}
                                             {secondaryNavigation.length > 0 && (
                                                 <div>
-                                                    <h3 className="px-3 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+                                                    <h3 className="px-3 text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">
                                                         Operations & Governance
                                                     </h3>
                                                     <nav className="space-y-1">
@@ -512,10 +516,10 @@ export default function Layout({ children, currentPageName }) {
                                                                     key={item.name}
                                                                     to={item.href}
                                                                     onClick={() => setDrawerOpen(false)}
-                                                                    className={`flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                                                                    className={`flex items-center justify-between px-3 py-2.5 rounded-none text-sm font-bold transition-all border-2 ${
                                                                         isActive
-                                                                            ? 'bg-zinc-900 text-white font-semibold'
-                                                                            : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
+                                                                            ? 'bg-zinc-950 text-white border-zinc-950 shadow-xs'
+                                                                            : 'border-transparent text-zinc-700 hover:border-zinc-950 hover:bg-zinc-100 hover:text-zinc-950'
                                                                     }`}
                                                                 >
                                                                     <div className="flex items-center gap-3">
@@ -523,7 +527,7 @@ export default function Layout({ children, currentPageName }) {
                                                                         <span>{item.name}</span>
                                                                     </div>
                                                                     {item.badge && (
-                                                                        <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                                                                        <span className="text-[10px] uppercase font-black tracking-wider px-1.5 py-0.5 rounded-none border border-zinc-300 bg-emerald-100 text-emerald-950 shadow-xs">
                                                                             {item.badge}
                                                                         </span>
                                                                     )}
@@ -536,17 +540,17 @@ export default function Layout({ children, currentPageName }) {
 
 
                                             {/* Section 4: Preferences & Security */}
-                                            <div className="pt-2 border-t border-zinc-100">
-                                                <h3 className="px-3 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+                                            <div className="pt-2 border-t-2 border-zinc-200">
+                                                <h3 className="px-3 text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">
                                                     Preferences
                                                 </h3>
                                                 <Link
                                                     to={createPageUrl('Settings')}
                                                     onClick={() => setDrawerOpen(false)}
-                                                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                                                    className={`flex items-center gap-3 px-3 py-2.5 rounded-none text-sm font-bold transition-all border-2 ${
                                                         currentPageName === 'Settings'
-                                                            ? 'bg-zinc-900 text-white font-semibold'
-                                                            : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
+                                                            ? 'bg-zinc-950 text-white border-zinc-950 shadow-xs'
+                                                            : 'border-transparent text-zinc-700 hover:border-zinc-950 hover:bg-zinc-100 hover:text-zinc-950'
                                                     }`}
                                                 >
                                                     <Settings className="w-4 h-4" />
@@ -557,14 +561,14 @@ export default function Layout({ children, currentPageName }) {
                                     </div>
 
                                     {/* Drawer Footer with Database Health & Sign Out */}
-                                    <div className="p-4 border-t border-zinc-100 bg-zinc-50 space-y-3 shrink-0">
+                                    <div className="p-4 border-t border-zinc-200 bg-zinc-50 space-y-3 shrink-0">
                                         {/* Real-time Database Health & Connection Test (Development Only) */}
                                         {import.meta.env.DEV && <DatabaseHealthCard />}
 
                                         {user ? (
                                             <button
                                                 onClick={handleLogout}
-                                                className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                                className="w-full flex items-center justify-between px-3 py-2 text-sm font-bold text-rose-600 hover:bg-rose-50 border-2 border-transparent hover:border-rose-600 rounded-none transition-all shadow-none hover:shadow-xs"
                                             >
                                                 <div className="flex items-center gap-2.5">
                                                     <LogOut className="w-4 h-4" />
@@ -575,7 +579,7 @@ export default function Layout({ children, currentPageName }) {
                                             <Link
                                                 to={createPageUrl('Auth')}
                                                 onClick={() => setDrawerOpen(false)}
-                                                className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium text-zinc-900 bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-colors"
+                                                className="w-full flex items-center justify-between px-3 py-2 text-sm font-bold text-zinc-950 bg-white hover:bg-zinc-100 border border-zinc-200/90 rounded-none shadow-xs active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
                                             >
                                                 <div className="flex items-center gap-2.5">
                                                     <Lock className="w-4 h-4 text-zinc-700" />
@@ -590,16 +594,16 @@ export default function Layout({ children, currentPageName }) {
 
                             {/* Brand Logo */}
                             <Link to={createPageUrl('Dashboard')} className="flex items-center gap-2 sm:gap-2.5">
-                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg overflow-hidden flex items-center justify-center bg-zinc-950 border border-zinc-900 shadow-xs shrink-0">
+                                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-none overflow-hidden flex items-center justify-center bg-zinc-950 border border-zinc-200/90 shadow-xs shrink-0">
                                     <img src="/assets/rentflex-logo.png" alt="RentFlex Logo" className="w-full h-full object-contain" />
                                 </div>
-                                <span className="hidden sm:inline-block text-base sm:text-lg font-bold text-zinc-900 tracking-tight">RentFlex</span>
+                                <span className="hidden sm:inline-block text-base sm:text-lg font-black text-zinc-950 tracking-tight uppercase">RentFlex</span>
                             </Link>
 
                             {/* Active Page Indicator */}
                             {currentPageName && (
-                                <div className="hidden lg:flex items-center gap-2 pl-3 border-l border-zinc-200">
-                                    <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                                <div className="hidden lg:flex items-center gap-2 pl-3 border-l-2 border-zinc-950">
+                                    <span className="text-xs font-bold text-zinc-600 uppercase tracking-wider">
                                         {currentPageName}
                                     </span>
                                 </div>
@@ -609,11 +613,11 @@ export default function Layout({ children, currentPageName }) {
                         {/* Right: Quick Action Shortcuts & User Menu */}
                         <div className="flex items-center gap-1.5 sm:gap-3">
                             {user && (
-                                <Button asChild variant="ghost" size="sm" className="h-8 w-8 sm:h-9 sm:w-9 p-0 rounded-lg text-zinc-700 hover:bg-zinc-100 flex items-center justify-center relative" title="Messages & Notifications">
+                                <Button asChild variant="ghost" size="sm" className="h-8 w-8 sm:h-9 sm:w-9 p-0 rounded-none border border-zinc-200/90 bg-white hover:bg-zinc-100 text-zinc-950 shadow-xs hover:shadow-xs active:translate-x-[1px] active:translate-y-[1px] active:shadow-none flex items-center justify-center relative transition-all" title="Messages & Notifications">
                                     <Link to={createPageUrl('Messages')}>
-                                        <MessageSquare className="w-4 h-4 text-zinc-800" />
+                                        <MessageSquare className="w-4 h-4 text-zinc-950" />
                                         {(unreadMessagesCount > 0 || pendingNotificationCount > 0) && (
-                                            <span className={`absolute -top-1 -right-1 h-4 min-w-[16px] px-1 text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-white shadow-xs ${
+                                            <span className={`absolute -top-1.5 -right-1.5 h-4 min-w-[16px] px-1 text-white text-[9px] font-black rounded-none flex items-center justify-center border border-zinc-300 shadow-xs ${
                                                 unreadMessagesCount > 0 ? 'bg-emerald-600' : 'bg-rose-600'
                                             }`}>
                                                 {unreadMessagesCount > 0 
@@ -627,24 +631,24 @@ export default function Layout({ children, currentPageName }) {
                             {user ? (
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" className="flex items-center gap-1.5 hover:bg-zinc-100 p-1 sm:px-3 rounded-lg h-8 sm:h-9">
-                                            <Avatar className="w-6 h-6 sm:w-7 sm:h-7 border border-zinc-200 overflow-hidden">
+                                        <Button variant="ghost" className="flex items-center gap-1.5 bg-white hover:bg-zinc-50 p-1 sm:px-2 rounded-none border border-zinc-200 shadow-xs hover:shadow-sm transition-all h-8 sm:h-9">
+                                            <Avatar className="w-6 h-6 sm:w-7 sm:h-7 border border-zinc-200 overflow-hidden shadow-none">
                                                 {(user.avatar_url || user.avatar) && (
                                                     <AvatarImage src={user.avatar_url || user.avatar} alt={user.full_name || 'User Avatar'} className="object-cover" />
                                                 )}
                                                 <AvatarFallback className="bg-zinc-900 text-white text-[10px] sm:text-[11px] font-bold">
-                                                    {user.full_name?.charAt(0) || user.email?.charAt(0) || 'U'}
+                                                    {user.full_name?.charAt(0) || 'U'}
                                                 </AvatarFallback>
                                             </Avatar>
-                                            <span className="hidden md:block text-xs font-medium text-zinc-700 max-w-[100px] truncate">
-                                                {user.full_name?.split(' ')[0] || user.email?.split('@')[0]}
+                                            <span className="hidden md:block text-xs font-semibold text-zinc-900 max-w-[100px] truncate">
+                                                {user.full_name?.split(' ')[0] || 'Member'}
                                             </span>
                                         </Button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-56 rounded-xl shadow-lg border border-zinc-200 p-1">
+                                    <DropdownMenuContent align="end" className="w-56 rounded-none shadow-3d border border-zinc-200 bg-white p-1">
                                         <div className="px-3 py-2">
                                             <p className="text-sm font-semibold text-zinc-900">{user.full_name || 'Account'}</p>
-                                            <p className="text-xs text-zinc-500 truncate">{user.email}</p>
+                                            <p className="text-xs text-zinc-500 truncate capitalize">{userRole || 'User'} Account</p>
                                             <Badge className={`mt-1.5 capitalize text-[10px] ${
                                                 userRole === 'sysAdmin' ? 'bg-purple-900 text-white' :
                                                 userRole === 'landlord' ? 'bg-zinc-900 text-white' :
@@ -688,13 +692,19 @@ export default function Layout({ children, currentPageName }) {
             )}
 
             {/* Main Page Content */}
-            <main className={`flex-1 w-full min-w-0 overflow-x-hidden mx-auto ${isAuthPage ? 'max-w-full p-0' : 'max-w-7xl px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 md:pb-8'}`}>
+            <main className={`flex-1 w-full min-w-0 mx-auto ${
+                isAuthPage 
+                    ? 'max-w-full p-0' 
+                    : isMessagesPage 
+                        ? 'max-w-7xl px-2 sm:px-4 lg:px-6 py-2 sm:py-3 pb-16 md:pb-2 flex flex-col min-h-0 overflow-hidden'
+                        : 'max-w-7xl px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 md:pb-8 overflow-x-hidden'
+            }`}>
                 {children}
             </main>
 
             {/* Mobile Bottom Navigation Bar (Hidden when Auth form is active) */}
             {!isAuthPage && (
-                <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-zinc-200/90 md:hidden mobile-bottom-nav transform-gpu will-change-transform">
+                <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-zinc-200 md:hidden mobile-bottom-nav transform-gpu will-change-transform shadow-[0_-3px_0px_0px_rgba(0,0,0,0.08)]">
                     <div className="grid grid-cols-5 h-14 items-center justify-around px-1 max-w-md mx-auto">
                         {mobileNavItems.map((item) => {
                             const isActive = currentPageName === item.page || (item.page === 'Dashboard' && currentPageName === 'Home');
@@ -703,13 +713,13 @@ export default function Layout({ children, currentPageName }) {
                                     key={item.name}
                                     to={item.href}
                                     className={`flex flex-col items-center justify-center h-full py-1 transition-all ${
-                                        isActive ? 'text-zinc-950 font-bold' : 'text-zinc-400 hover:text-zinc-700'
+                                        isActive ? 'text-zinc-950 font-bold' : 'text-zinc-500 hover:text-zinc-950'
                                     }`}
                                 >
-                                    <div className={`p-1 rounded-md transition-colors relative ${isActive ? 'bg-zinc-100 text-zinc-950 font-bold' : ''}`}>
+                                    <div className={`p-1 rounded-none transition-all relative ${isActive ? 'bg-zinc-950 text-white border border-zinc-200/90 shadow-xs -translate-y-0.5' : 'text-zinc-700'}`}>
                                         <item.icon className="w-4 h-4" />
                                         {item.page === 'Messages' && (unreadMessagesCount > 0 || pendingNotificationCount > 0) && (
-                                            <span className={`absolute -top-1.5 -right-2 h-4 min-w-[16px] px-1 text-white text-[9px] font-extrabold rounded-full flex items-center justify-center border border-white shadow-xs ${
+                                            <span className={`absolute -top-1.5 -right-2 h-4 min-w-[16px] px-1 text-white text-[9px] font-black rounded-none flex items-center justify-center border border-zinc-300 shadow-xs ${
                                                 unreadMessagesCount > 0 ? 'bg-emerald-600' : 'bg-rose-600'
                                             }`}>
                                                 {unreadMessagesCount > 0 
@@ -718,7 +728,7 @@ export default function Layout({ children, currentPageName }) {
                                             </span>
                                         )}
                                     </div>
-                                    <span className="text-[10px] tracking-tight leading-tight mt-0.5">{item.name}</span>
+                                    <span className="text-[10px] font-bold tracking-tight leading-tight mt-0.5">{item.name}</span>
                                 </Link>
                             );
                         })}
@@ -728,14 +738,14 @@ export default function Layout({ children, currentPageName }) {
                             type="button"
                             onClick={() => setDrawerOpen(true)}
                             className={`flex flex-col items-center justify-center h-full py-1 transition-all ${
-                                drawerOpen ? 'text-zinc-950 font-bold' : 'text-zinc-500 hover:text-zinc-900'
+                                drawerOpen ? 'text-zinc-950 font-bold' : 'text-zinc-600 hover:text-zinc-950'
                             }`}
                             aria-label="Open Navigation Drawer Menu"
                         >
-                            <div className={`p-1 rounded-md transition-colors ${drawerOpen ? 'bg-zinc-100 text-zinc-950 font-bold' : ''}`}>
-                                <Menu className="w-4 h-4 text-zinc-900" />
+                            <div className={`p-1 rounded-none transition-all ${drawerOpen ? 'bg-zinc-950 text-white border border-zinc-200/90 shadow-xs -translate-y-0.5' : 'text-zinc-700'}`}>
+                                <Menu className="w-4 h-4" />
                             </div>
-                            <span className="text-[10px] font-semibold tracking-tight leading-tight mt-0.5 text-zinc-900">Menu</span>
+                            <span className="text-[10px] font-bold tracking-tight leading-tight mt-0.5 text-zinc-900">Menu</span>
                         </button>
                     </div>
                 </nav>

@@ -146,7 +146,7 @@ export default function ContractorDashboard() {
             </div>
 
             {/* 100% Free Contractor Membership Banner */}
-            <Card className="p-6 mb-8 sharp-card bg-zinc-950 text-white border border-transparent hover:border-zinc-800">
+            <Card className="p-6 mb-8 sharp-card bg-zinc-950 text-white border border-zinc-800 shadow-3d-lg rounded-none">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                         <div className="flex items-center gap-2 mb-1">
@@ -162,7 +162,7 @@ export default function ContractorDashboard() {
             </Card>
 
             {/* Automated Verification Dashboard Card */}
-            <Card className="p-6 mb-8 sharp-card bg-white border border-zinc-200">
+            <Card className="p-6 mb-8 sharp-card bg-white border border-zinc-200/90 shadow-card hover:shadow-card-hover rounded-none">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                     <div>
                         <div className="flex items-center gap-2 mb-1">
@@ -176,9 +176,9 @@ export default function ContractorDashboard() {
                     <div className="flex items-center gap-4">
                         <div className="text-right">
                             <span className="text-xs text-zinc-500 block">Verification Score</span>
-                            <span className="text-2xl font-black text-zinc-900">{verificationScore}/100</span>
+                            <span className="text-2xl font-bold text-zinc-900">{verificationScore}/100</span>
                         </div>
-                        <Button asChild size="sm" className="bg-zinc-900 hover:bg-zinc-800 text-white">
+                        <Button asChild size="sm" className="bg-zinc-900 hover:bg-zinc-800 text-white shadow-xs">
                             <Link to={createPageUrl('ContractorOnboarding')}>
                                 Update Documents
                                 <ChevronRight className="w-4 h-4 ml-1" />
@@ -189,11 +189,11 @@ export default function ContractorDashboard() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {verificationChecklist.map((item, index) => (
-                        <div key={index} className="flex items-center gap-3 p-3 sharp-card bg-zinc-50 border border-zinc-100">
+                        <div key={index} className="flex items-center gap-3 p-3 rounded-none bg-zinc-50/70 border border-zinc-200/80 shadow-xs">
                             {item.done ? (
                                 <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
                             ) : (
-                                <div className="w-5 h-5 rounded-full border-2 border-zinc-300 shrink-0" />
+                                <div className="w-5 h-5 rounded-none border border-zinc-300 shrink-0" />
                             )}
                             <span className={`text-xs font-medium ${item.done ? 'text-zinc-900' : 'text-zinc-500'}`}>
                                 {item.label}
@@ -205,36 +205,36 @@ export default function ContractorDashboard() {
 
             {/* Active Bids */}
             {myBids.length > 0 && (
-                <Card className="p-6 mb-8">
+                <Card className="p-6 mb-8 sharp-card bg-white border border-zinc-200/90 shadow-card hover:shadow-card-hover rounded-none">
                     <h2 className="text-xl font-bold text-slate-900 mb-4">My Bids</h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                        <div className="bg-blue-50 rounded-lg p-4 text-center">
+                        <div className="bg-blue-50/70 rounded-none p-4 text-center border border-blue-200 shadow-xs">
                             <Clock className="w-6 h-6 text-blue-600 mx-auto mb-2" />
                             <p className="text-2xl font-bold text-blue-900">{pendingBids}</p>
-                            <p className="text-sm text-blue-700">Pending</p>
+                            <p className="text-sm font-medium text-blue-700">Pending</p>
                         </div>
-                        <div className="bg-emerald-50 rounded-lg p-4 text-center">
+                        <div className="bg-emerald-50/70 rounded-none p-4 text-center border border-emerald-200 shadow-xs">
                             <CheckCircle2 className="w-6 h-6 text-emerald-600 mx-auto mb-2" />
                             <p className="text-2xl font-bold text-emerald-900">{acceptedBids}</p>
-                            <p className="text-sm text-emerald-700">Won</p>
+                            <p className="text-sm font-medium text-emerald-700">Won</p>
                         </div>
-                        <div className="bg-red-50 rounded-lg p-4 text-center">
-                            <XCircle className="w-6 h-6 text-red-600 mx-auto mb-2" />
-                            <p className="text-2xl font-bold text-red-900">{rejectedBids}</p>
-                            <p className="text-sm text-red-700">Lost</p>
+                        <div className="bg-rose-50/70 rounded-none p-4 text-center border border-rose-200 shadow-xs">
+                            <XCircle className="w-6 h-6 text-rose-600 mx-auto mb-2" />
+                            <p className="text-2xl font-bold text-rose-900">{rejectedBids}</p>
+                            <p className="text-sm font-medium text-rose-700">Lost</p>
                         </div>
                     </div>
                     <div className="space-y-3">
                         {myBids.slice(0, 3).map(bid => (
-                            <div key={bid.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                            <div key={bid.id} className="flex justify-between items-center p-3 bg-zinc-50/70 rounded-none border border-zinc-200/80 shadow-xs">
                                 <div>
-                                    <p className="font-medium text-slate-900">{bid.job_title}</p>
-                                    <p className="text-sm text-slate-600">R{bid.bid_amount.toLocaleString()}</p>
+                                    <p className="font-semibold text-slate-900 text-sm">{bid.job_title}</p>
+                                    <p className="text-xs text-slate-600">R{bid.bid_amount.toLocaleString()}</p>
                                 </div>
                                 <Badge className={
-                                    bid.status === 'pending' ? 'bg-blue-100 text-blue-700' :
-                                        bid.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' :
-                                            'bg-red-100 text-red-700'
+                                    bid.status === 'pending' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                                        bid.status === 'accepted' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                                            'bg-rose-100 text-rose-700 border-rose-200'
                                 }>
                                     {bid.status}
                                 </Badge>
@@ -255,7 +255,7 @@ export default function ContractorDashboard() {
 
                 <div className="grid gap-4">
                     {availableJobs.slice(0, 5).map(job => (
-                        <Card key={job.id} className="p-6 hover:shadow-lg transition-shadow">
+                        <Card key={job.id} className="p-6 transition-all sharp-card bg-white border border-zinc-200/90 shadow-card hover:shadow-card-hover rounded-none">
                             <div className="flex justify-between items-start mb-3">
                                 <div className="flex-1">
                                     <h3 className="text-lg font-semibold text-slate-900 mb-1">{job.title}</h3>
@@ -264,7 +264,7 @@ export default function ContractorDashboard() {
                                         <span>{job.property_address}</span>
                                     </div>
                                 </div>
-                                <Badge className={job.urgency === 'emergency' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'}>
+                                <Badge className={job.urgency === 'emergency' ? 'bg-red-100 text-red-700 border-red-200' : 'bg-slate-100 text-slate-700 border-slate-200'}>
                                     {job.urgency}
                                 </Badge>
                             </div>
@@ -284,7 +284,7 @@ export default function ContractorDashboard() {
                                         </div>
                                     )}
                                 </div>
-                                <Button size="sm" asChild>
+                                <Button size="sm" asChild className="shadow-xs">
                                     <Link to={createPageUrl(`JobDetails?id=${job.id}`)}>Bid Now</Link>
                                 </Button>
                             </div>
@@ -293,7 +293,7 @@ export default function ContractorDashboard() {
                 </div>
 
                 {availableJobs.length === 0 && (
-                    <Card className="p-12 text-center">
+                    <Card className="p-12 text-center sharp-card bg-white border border-zinc-200/90 shadow-card rounded-none">
                         <Briefcase className="w-12 h-12 text-slate-300 mx-auto mb-4" />
                         <h3 className="text-lg font-semibold text-slate-900 mb-2">No jobs available</h3>
                         <p className="text-slate-600">Check back later for new opportunities</p>

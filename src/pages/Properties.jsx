@@ -257,7 +257,7 @@ export default function Properties() {
 
             {/* View Selection Tabs for Landlords & Admins */}
             {(isLandlord || isSysAdmin) && (
-                <div className="flex border-b border-zinc-200">
+                <div className="flex gap-2 flex-wrap pb-2 border-b-2 border-zinc-950">
                     {isLandlord && (
                         <button
                             type="button"
@@ -265,15 +265,15 @@ export default function Properties() {
                                 setViewTab('my_properties');
                                 setHasUserSelectedTab(true);
                             }}
-                            className={`py-3 px-5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
+                            className={`py-2 px-4 text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 rounded-none border border-zinc-200/90 ${
                                 viewTab === 'my_properties'
-                                    ? 'border-zinc-950 text-zinc-950'
-                                    : 'border-transparent text-zinc-500 hover:text-zinc-800'
+                                    ? 'bg-zinc-950 text-white shadow-sm -translate-x-[1px] -translate-y-[1px]'
+                                    : 'bg-white text-zinc-700 hover:bg-zinc-100 shadow-xs'
                             }`}
                         >
-                            <Building2 className="w-4 h-4 text-zinc-900" />
+                            <Building2 className="w-4 h-4" />
                             My Managed Properties
-                            <Badge className="bg-zinc-900 text-white text-[10px] ml-1">
+                            <Badge className="bg-white text-zinc-950 border border-zinc-950 text-[10px] ml-1 shadow-none">
                                 {isLandlord && viewTab === 'my_properties' ? targetProperties.length : 'Mine'}
                             </Badge>
                         </button>
@@ -285,10 +285,10 @@ export default function Properties() {
                             setViewTab(isSysAdmin ? 'all_system' : 'marketplace');
                             setHasUserSelectedTab(true);
                         }}
-                        className={`py-3 px-5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
+                        className={`py-2 px-4 text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 rounded-none border border-zinc-200/90 ${
                             viewTab !== 'my_properties'
-                                ? 'border-zinc-950 text-zinc-950'
-                                : 'border-transparent text-zinc-500 hover:text-zinc-800'
+                                ? 'bg-zinc-950 text-white shadow-sm -translate-x-[1px] -translate-y-[1px]'
+                                : 'bg-white text-zinc-700 hover:bg-zinc-100 shadow-xs'
                         }`}
                     >
                         <Layers className="w-4 h-4" />
@@ -298,16 +298,16 @@ export default function Properties() {
             )}
 
             {/* Search & Filters */}
-            <div className="bg-white rounded-xl p-3 sm:p-4 border border-zinc-200/80 hover:border-zinc-300 transition-colors duration-150">
+            <div className="bg-white rounded-none p-4 sm:p-5 border border-zinc-200/90 shadow-card">
                 <div className="flex flex-col sm:flex-row gap-2.5">
                     {/* Search */}
                     <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                         <Input
                             placeholder="Search by location, suburb, or address..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-9 h-10 bg-zinc-50/80 text-sm border-zinc-200/80 rounded-lg focus-visible:ring-1 focus-visible:ring-zinc-900"
+                            className="pl-9"
                         />
                     </div>
 
@@ -315,7 +315,7 @@ export default function Properties() {
                     <div className="flex gap-2">
                         {(isLandlord || isSysAdmin) && (
                             <Select value={statusFilter} onValueChange={setStatusFilter}>
-                                <SelectTrigger className="w-28 h-10 text-xs rounded-lg border-zinc-200/80">
+                                <SelectTrigger className="w-32">
                                     <SelectValue placeholder="Status" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -328,8 +328,8 @@ export default function Properties() {
                         )}
 
                         <Select value={propertyType} onValueChange={setPropertyType}>
-                            <SelectTrigger className="w-32 h-10 text-xs rounded-lg border-zinc-200/80">
-                                <Building2 className="w-3.5 h-3.5 mr-1.5 text-zinc-400" />
+                            <SelectTrigger className="w-32">
+                                <Building2 className="w-3.5 h-3.5 mr-1.5 text-zinc-600" />
                                 <SelectValue placeholder="Type" />
                             </SelectTrigger>
                             <SelectContent>
@@ -343,7 +343,7 @@ export default function Properties() {
                         </Select>
 
                         <Select value={bedrooms} onValueChange={setBedrooms}>
-                            <SelectTrigger className="w-24 h-10 text-xs rounded-lg border-zinc-200/80">
+                            <SelectTrigger className="w-28">
                                 <SelectValue placeholder="Beds" />
                             </SelectTrigger>
                             <SelectContent>
@@ -358,11 +358,11 @@ export default function Properties() {
                         {/* More Filters Sheet */}
                         <Sheet>
                             <SheetTrigger asChild>
-                                <Button variant="outline" className="h-10 text-xs rounded-lg border-zinc-200/80 relative">
+                                <Button variant="outline" className="h-10 text-xs relative">
                                     <SlidersHorizontal className="w-3.5 h-3.5 mr-1.5" />
                                     Filters
                                     {activeFiltersCount > 0 && (
-                                        <Badge className="absolute -top-1.5 -right-1.5 h-4 w-4 p-0 text-[10px] flex items-center justify-center bg-zinc-900 text-white rounded-full">
+                                        <Badge className="absolute -top-1.5 -right-1.5 h-4 w-4 p-0 text-[10px] flex items-center justify-center bg-zinc-950 text-white rounded-none border border-zinc-950 shadow-none">
                                             {activeFiltersCount}
                                         </Badge>
                                     )}
@@ -375,7 +375,7 @@ export default function Properties() {
                                 <div className="mt-6 space-y-6">
                                     {/* Price Range */}
                                     <div>
-                                        <label className="text-sm font-medium text-zinc-700 mb-3 block">
+                                        <label className="text-sm font-bold text-zinc-950 mb-3 block">
                                             Price Range: R{(priceRange?.[0] ?? 0).toLocaleString()} - R{(priceRange?.[1] ?? 50000).toLocaleString()}
                                         </label>
                                         <Slider
@@ -390,14 +390,15 @@ export default function Properties() {
 
                                     {/* Bidding Only */}
                                     <div className="flex items-center justify-between">
-                                        <label className="text-sm font-medium text-zinc-700">
+                                        <label className="text-sm font-bold text-zinc-950">
                                             Show bidding properties only
                                         </label>
                                         <button
+                                            type="button"
                                             onClick={() => setShowBiddingOnly(!showBiddingOnly)}
-                                            className={`w-11 h-6 rounded-full transition-colors ${showBiddingOnly ? 'bg-zinc-900' : 'bg-zinc-200'}`}
+                                            className={`w-12 h-6 rounded-none border border-zinc-200/90 transition-colors p-0.5 flex items-center shadow-xs ${showBiddingOnly ? 'bg-zinc-950' : 'bg-zinc-100'}`}
                                         >
-                                            <div className={`w-5 h-5 rounded-full bg-white shadow transition-transform ${showBiddingOnly ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                                            <div className={`w-4 h-4 rounded-none border border-zinc-950 transition-transform ${showBiddingOnly ? 'translate-x-6 bg-emerald-400' : 'translate-x-0 bg-white'}`} />
                                         </button>
                                     </div>
 

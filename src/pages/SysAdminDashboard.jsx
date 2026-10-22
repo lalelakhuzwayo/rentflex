@@ -353,11 +353,11 @@ export default function SysAdminDashboard() {
                         {/* Mobile Compact User List */}
                         <div className="block md:hidden space-y-2.5">
                             {filteredUsers.map((user) => (
-                                <div key={user.id} className="p-3 bg-zinc-50/70 border border-zinc-200 rounded-xl space-y-2.5">
+                                <div key={user.id} className="p-3 bg-zinc-50/70 border border-zinc-200 rounded-none space-y-2.5">
                                     <div className="flex items-start justify-between gap-2">
                                         <div className="min-w-0 flex-1">
-                                            <p className="font-bold text-xs text-zinc-900 truncate">{user.full_name}</p>
-                                            <p className="text-[11px] text-zinc-500 font-mono truncate">{user.email}</p>
+                                            <p className="font-bold text-xs text-zinc-900 truncate">{user.full_name || 'Active Member'}</p>
+                                            <p className="text-[11px] text-zinc-500 font-mono truncate">{user.email ? user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3') : 'Verified User'}</p>
                                         </div>
                                         <Badge
                                             className={`capitalize text-[10px] font-semibold shrink-0 px-2 py-0.5 ${
@@ -435,8 +435,8 @@ export default function SysAdminDashboard() {
                                         <TableRow key={user.id} className="hover:bg-zinc-50/50">
                                             <TableCell>
                                                 <div>
-                                                    <p className="font-semibold text-xs text-zinc-900">{user.full_name}</p>
-                                                    <p className="text-[11px] text-zinc-500 font-mono">{user.email}</p>
+                                                    <p className="font-semibold text-xs text-zinc-900">{user.full_name || 'Active Member'}</p>
+                                                    <p className="text-[11px] text-zinc-500 font-mono">{user.email ? user.email.replace(/(.{2})(.*)(@.*)/, '$1***$3') : 'Verified User'}</p>
                                                 </div>
                                             </TableCell>
                                             <TableCell>

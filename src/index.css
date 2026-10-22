@@ -50,6 +50,11 @@
   }
 }
 
+/* Universal Sharp Edge Enforcement: Strictly NO round borders, only sharp edges across entire app */
+*, *::before, *::after {
+  border-radius: 0px !important;
+}
+
 /* Clean scrollbar suppression on root and utility classes without querying every DOM element */
 html, body {
   -ms-overflow-style: none;
@@ -94,17 +99,17 @@ html::-webkit-scrollbar, body::-webkit-scrollbar {
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: rgba(161, 161, 170, 0.45);
-  border-radius: 9999px;
+  border-radius: 0px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(113, 113, 122, 0.75);
 }
 
-/* Modern Ambient Mesh Gradient Canvas (GPU Accelerated Fixed Layer) */
+/* Modern Ambient Canvas */
 .app-bg-pattern {
   position: relative;
-  background-color: #f8fafc;
+  background-color: #fafafa;
   isolation: isolate;
 }
 
@@ -116,11 +121,10 @@ html::-webkit-scrollbar, body::-webkit-scrollbar {
   pointer-events: none;
   background-color: #f8fafc;
   background-image: 
-    radial-gradient(at 10% 12%, rgba(224, 231, 255, 0.6) 0px, transparent 45%),
-    radial-gradient(at 88% 8%, rgba(254, 243, 199, 0.5) 0px, transparent 40%),
-    radial-gradient(at 92% 85%, rgba(240, 253, 250, 0.65) 0px, transparent 50%),
-    radial-gradient(at 8% 85%, rgba(243, 232, 255, 0.5) 0px, transparent 45%),
-    radial-gradient(at 50% 45%, rgba(248, 250, 252, 0.75) 0px, transparent 60%),
+    radial-gradient(at 10% 12%, rgba(224, 231, 255, 0.45) 0px, transparent 45%),
+    radial-gradient(at 88% 8%, rgba(254, 243, 199, 0.35) 0px, transparent 40%),
+    radial-gradient(at 92% 85%, rgba(240, 253, 250, 0.45) 0px, transparent 50%),
+    radial-gradient(at 8% 85%, rgba(243, 232, 255, 0.35) 0px, transparent 45%),
     linear-gradient(180deg, #ffffff 0%, #f4f4f6 50%, #eceef2 100%);
   background-size: cover;
   background-repeat: no-repeat;
@@ -144,25 +148,75 @@ html::-webkit-scrollbar, body::-webkit-scrollbar {
   }
 }
 
-/* Sharp Edge Design & Animated Border Hover */
-.sharp-container, .sharp-card {
+/* Elevated Sharp 3D Card & Surface System with Rich Soft Shadows and Depth */
+.sharp-container, .sharp-card, .apple-card, .card-3d {
   position: relative;
-  border: 1px solid transparent;
-  transition: border-color 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.sharp-container:not([class*="bg-"]), .sharp-card:not([class*="bg-"]) {
+  border-radius: 0px !important;
   background-color: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  box-shadow: 
+    0 1px 3px 0 rgba(0, 0, 0, 0.03),
+    0 4px 14px 0 rgba(0, 0, 0, 0.05),
+    0 14px 32px -4px rgba(0, 0, 0, 0.08),
+    0 28px 56px -12px rgba(0, 0, 0, 0.06);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.sharp-container:hover, .sharp-card:hover,
-.sharp-container:focus-within, .sharp-card:focus-within,
-.sharp-container[data-active="true"], .sharp-card[data-active="true"] {
-  border-color: #18181b !important;
-  box-shadow: 0 0 0 1px #18181b;
+.sharp-container:hover, .sharp-card:hover, .apple-card:hover, .card-3d:hover {
+  border-color: rgba(0, 0, 0, 0.18);
+  transform: translateY(-2px);
+  box-shadow: 
+    0 2px 6px 0 rgba(0, 0, 0, 0.04),
+    0 8px 24px 0 rgba(0, 0, 0, 0.08),
+    0 20px 42px -4px rgba(0, 0, 0, 0.12),
+    0 36px 72px -12px rgba(0, 0, 0, 0.08);
 }
 
-/* Tactile Segmented Track & Filter Pills */
+/* Sharp 3D Soft Shadow Utilities (Tactile Soft Elevation & Multi-Layer Depth) */
+.shadow-3d-sm {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 10px rgba(0, 0, 0, 0.05);
+}
+.shadow-3d {
+  box-shadow: 
+    0 2px 6px rgba(0, 0, 0, 0.03),
+    0 8px 20px -2px rgba(0, 0, 0, 0.07),
+    0 20px 40px -8px rgba(0, 0, 0, 0.08);
+}
+.shadow-3d-lg {
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.04),
+    0 16px 36px -4px rgba(0, 0, 0, 0.10),
+    0 36px 72px -12px rgba(0, 0, 0, 0.12);
+}
+.shadow-3d-modal {
+  box-shadow: 
+    0 10px 25px -5px rgba(0, 0, 0, 0.10),
+    0 24px 56px -8px rgba(0, 0, 0, 0.18),
+    0 48px 100px -16px rgba(0, 0, 0, 0.22);
+}
+.shadow-3d-emerald {
+  box-shadow: 
+    0 4px 14px rgba(5, 150, 105, 0.12),
+    0 14px 32px -4px rgba(5, 150, 105, 0.18);
+}
+
+/* 3D Tactile Button System with Soft Elevation */
+.btn-3d {
+  border-radius: 0px !important;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.04);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-3d:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.10), 0 8px 20px rgba(0, 0, 0, 0.06);
+}
+.btn-3d:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Tactile Sharp Filter Buttons with Soft Shadows */
 .segmented-track {
   display: inline-flex;
   align-items: center;
@@ -179,38 +233,38 @@ html::-webkit-scrollbar, body::-webkit-scrollbar {
   gap: 0.375rem;
   padding: 0.5rem 1rem;
   font-size: 0.75rem;
-  font-weight: 500;
-  color: #71717a;
-  border: none;
-  background-color: transparent;
-  transition: all 0.2s ease-out;
+  font-weight: 700;
+  color: #18181b;
+  border-radius: 0px !important;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background-color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 3px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
 }
 
 .filter-pill-btn:hover {
-  color: #09090b;
-  background-color: rgba(244, 244, 245, 0.7);
+  color: #000000;
+  border-color: rgba(0, 0, 0, 0.25);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.07), 0 6px 18px rgba(0, 0, 0, 0.05);
 }
 
 .filter-pill-btn:active {
-  transform: scale(0.98);
+  transform: translateY(1px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
 .filter-pill-btn[data-active="true"], .filter-pill-btn.active {
-  background-color: #ffffff;
-  color: #09090b;
-  font-weight: 600;
-  border: none;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  background-color: #09090b;
+  color: #ffffff;
+  border-color: #09090b;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18), 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
 @layer base {
-  *, *::before, *::after {
-    border-radius: 0px !important;
-  }
-
   * {
     @apply border-border outline-ring/50;
   }

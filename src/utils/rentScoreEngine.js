@@ -45,30 +45,14 @@ export async function syncAndScoreTenant(userOrEmail) {
         if (verifiedIncome) verificationPoints += 35;
         if (verifiedEmployment) verificationPoints += 35;
 
-        // 2. Fetch payments made by this tenant
-        let paymentsCount = 0;
-        try {
-            const paymentsByEmail = userEmail ? await appClient.entities.Payment.filter({ tenant_id: userEmail }).catch(() => []) : [];
-            const paymentsById = userId ? await appClient.entities.Payment.filter({ tenant_id: userId }).catch(() => []) : [];
-            const rawPayments = [...(Array.isArray(paymentsByEmail) ? paymentsByEmail : []), ...(Array.isArray(paymentsById) ? paymentsById : [])];
-            const seenP = new Set();
-            const payments = rawPayments.filter(p => {
-                const pid = p.id || JSON.stringify(p);
-                if (seenP.has(pid)) return false;
-                seenP.add(pid);
-                return true;
-            });
-            if (Array.isArray(payments)) {
-                paymentsCount = payments.filter(p => p.status === 'completed' || p.status === 'success' || p.status === 'paid').length;
-            }
-        } catch (_) {}
-
-        const paymentPoints = Math.min(120, paymentsCount * 15);
-
-        // 3. Fetch leases and calculate occupancy duration
+        // 2. Fetch leases first to establish payment terms and occupancy
         let monthsOccupied = 0;
         let activeLeasesCount = 0;
         let completedLeasesCount = 0;
+        let renewalRewardPoints = 0;
+        let cancellationPenaltyPoints = 0;
+        let totalRenewals = 0;
+        const leaseMap = new Map();
 
         try {
             const leasesByEmail = userEmail ? await appClient.entities.Lease.filter({ tenant_id: userEmail }).catch(() => []) : [];
@@ -97,6 +81,9 @@ export async function syncAndScoreTenant(userOrEmail) {
             if (Array.isArray(leases)) {
                 const now = new Date();
                 leases.forEach(lease => {
+                    if (lease.id) {
+                        leaseMap.set(lease.id, lease);
+                    }
                     const isBothSigned = (lease.status === 'active' || (lease.tenant_signature && lease.landlord_signature));
                     if (isBothSigned && lease.start_date) {
                         activeLeasesCount++;
@@ -110,24 +97,97 @@ export async function syncAndScoreTenant(userOrEmail) {
                     if (lease.status === 'completed' || lease.status === 'ended') {
                         completedLeasesCount++;
                     }
+
+                    // Lease Renewal Incentive: +25 pts per verified lease renewal
+                    if (lease.renewal_count && lease.renewal_count > 0) {
+                        totalRenewals += lease.renewal_count;
+                        renewalRewardPoints += Math.min(50, lease.renewal_count * 25);
+                    } else if (lease.status === 'renewed') {
+                        totalRenewals += 1;
+                        renewalRewardPoints += 25;
+                    }
+
+                    // Tenant-Initiated Early Cancellation Penalty
+                    if (lease.cancelled_by === 'tenant' || (lease.status === 'cancelled' && lease.cancelled_by === 'tenant')) {
+                        const penalty = Number(lease.cancellation_score_penalty || 35);
+                        cancellationPenaltyPoints += penalty;
+                    }
                 });
             }
         } catch (_) {}
+
+        // 3. Fetch payments and evaluate against lease cut-off times
+        let paymentsCount = 0;
+        let onTimePayments = 0;
+        let latePayments = 0;
+
+        try {
+            const paymentsByEmail = userEmail ? await appClient.entities.Payment.filter({ tenant_id: userEmail }).catch(() => []) : [];
+            const paymentsById = userId ? await appClient.entities.Payment.filter({ tenant_id: userId }).catch(() => []) : [];
+            const rawPayments = [...(Array.isArray(paymentsByEmail) ? paymentsByEmail : []), ...(Array.isArray(paymentsById) ? paymentsById : [])];
+            const seenP = new Set();
+            const payments = rawPayments.filter(p => {
+                const pid = p.id || JSON.stringify(p);
+                if (seenP.has(pid)) return false;
+                seenP.add(pid);
+                return true;
+            });
+            if (Array.isArray(payments)) {
+                payments.forEach(p => {
+                    const isPaid = p.status === 'completed' || p.status === 'success' || p.status === 'paid';
+                    if (!isPaid) return;
+
+                    paymentsCount++;
+                    const lease = p.lease_id ? leaseMap.get(p.lease_id) : null;
+                    const cutoffDay = lease?.payment_cutoff_day || 5;
+                    const graceDays = lease?.grace_period_days || 3;
+
+                    if (p.status === 'late') {
+                        latePayments++;
+                    } else if (p.paid_date && p.due_date) {
+                        const paidDate = new Date(p.paid_date);
+                        const dueDate = new Date(p.due_date);
+                        // Calculate max allowed on-time date incorporating grace period
+                        const allowedDate = new Date(dueDate);
+                        allowedDate.setDate(allowedDate.getDate() + graceDays);
+
+                        if (paidDate > allowedDate) {
+                            latePayments++;
+                        } else {
+                            onTimePayments++;
+                        }
+                    } else if (p.paid_date) {
+                        const paidDay = new Date(p.paid_date).getDate();
+                        if (paidDay > (cutoffDay + graceDays)) {
+                            latePayments++;
+                        } else {
+                            onTimePayments++;
+                        }
+                    } else {
+                        onTimePayments++;
+                    }
+                });
+            }
+        } catch (_) {}
+
+        // Payments score: +15 for on-time, -15 penalty for late payments
+        const paymentPoints = Math.max(0, Math.min(135, (onTimePayments * 15) - (latePayments * 15)));
 
         // Occupancy Duration factor: +10 base active tenancy bonus + +5 pts per month spent actively occupying
         const activeLeaseBonus = activeLeasesCount > 0 ? 10 : 0;
         const occupancyPoints = Math.min(100, activeLeaseBonus + (monthsOccupied * 5));
         const leaseCompletionPoints = Math.min(50, completedLeasesCount * 25);
 
-        // Calculate total score: Base 550, max 850, min 300
+        // Calculate total score: Base 550, max 850, min 300, factoring in renewal bonuses and cancellation penalties
         const baseScore = 550;
-        const totalCalculated = Math.min(850, Math.max(300, baseScore + verificationPoints + paymentPoints + occupancyPoints + leaseCompletionPoints));
+        const netScore = baseScore + verificationPoints + paymentPoints + occupancyPoints + leaseCompletionPoints + renewalRewardPoints - cancellationPenaltyPoints;
+        const totalCalculated = Math.min(850, Math.max(300, netScore));
 
         // Sub-scores (0-100 scale)
-        const paymentHistoryScore = Math.min(100, 60 + Math.floor(paymentPoints / 3));
+        const paymentHistoryScore = Math.min(100, Math.max(20, 60 + Math.floor(paymentPoints / 3) - (latePayments * 5)));
         const verificationScore = Math.min(100, Math.round((verificationPoints / 110) * 100));
-        const leaseScore = Math.min(100, 50 + occupancyPoints / 2 + leaseCompletionPoints);
-        const reviewScore = Math.min(100, 75 + (activeLeasesCount > 0 ? 15 : 0));
+        const leaseScore = Math.min(100, Math.max(20, 50 + occupancyPoints / 2 + leaseCompletionPoints + renewalRewardPoints - cancellationPenaltyPoints));
+        const reviewScore = Math.min(100, 75 + (activeLeasesCount > 0 ? 15 : 0) - (cancellationPenaltyPoints > 0 ? 15 : 0));
 
         const historyPayload = {
             verified_identity: verifiedIdentity,
@@ -140,6 +200,10 @@ export async function syncAndScoreTenant(userOrEmail) {
             months_occupied: monthsOccupied,
             active_leases_count: activeLeasesCount,
             payments_recorded: paymentsCount,
+            on_time_payments: onTimePayments,
+            late_payments: latePayments,
+            total_renewals: totalRenewals,
+            cancellation_penalty_points: cancellationPenaltyPoints,
             last_scored_at: new Date().toISOString()
         };
 

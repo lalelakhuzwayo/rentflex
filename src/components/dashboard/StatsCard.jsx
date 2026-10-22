@@ -14,23 +14,23 @@ export default function StatsCard({ title, value, subtitle, icon: Icon, trend, t
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay, duration: 0.3 }}
-            className="bg-white rounded-xl p-5 border border-zinc-200/80 hover:border-zinc-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+            className="bg-white rounded-none p-5 border border-zinc-200/90 shadow-card hover:shadow-card-hover hover:-translate-y-[2px] transition-all duration-200"
         >
             <div className="flex items-start justify-between gap-3">
                 <div className="space-y-2 min-w-0">
-                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider truncate">{title}</p>
-                    <p className="text-2xl xs:text-3xl font-bold text-zinc-900 tracking-tight">{value}</p>
+                    <p className="text-xs font-black text-zinc-500 uppercase tracking-wider truncate">{title}</p>
+                    <p className="text-2xl xs:text-3xl font-black text-zinc-950 tracking-tight">{value}</p>
                     {subtitle && (
-                        <p className="text-xs text-zinc-500 truncate">{subtitle}</p>
+                        <p className="text-xs font-medium text-zinc-500 truncate">{subtitle}</p>
                     )}
                     {trend !== undefined && (
-                        <div className={`flex items-center gap-1 text-xs font-medium ${trendUp ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        <div className={`flex items-center gap-1 text-xs font-bold ${trendUp ? 'text-emerald-700' : 'text-rose-700'}`}>
                             <span>{trendUp ? '↑' : '↓'} {trend}%</span>
-                            <span className="text-zinc-400 font-normal hidden xs:inline">vs last month</span>
+                            <span className="text-zinc-500 font-normal hidden xs:inline">vs last month</span>
                         </div>
                     )}
                 </div>
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${colors[color] || colors.zinc}`}>
+                <div className={`w-10 h-10 rounded-none border border-zinc-200/90 shadow-xs flex items-center justify-center shrink-0 ${colors[color] || colors.zinc}`}>
                     <Icon className="w-5 h-5" />
                 </div>
             </div>

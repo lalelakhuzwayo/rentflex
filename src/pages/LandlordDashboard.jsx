@@ -163,11 +163,11 @@ export default function LandlordDashboard() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.05, duration: 0.3 }}
-                className="sharp-card bg-zinc-950 p-6 text-white border border-transparent hover:border-zinc-800 space-y-6"
+                className="sharp-card bg-zinc-950 p-6 text-white border border-zinc-800 shadow-3d-lg space-y-6 rounded-none"
             >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
                     <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-zinc-900 text-white rounded-none border border-zinc-800">
+                        <div className="p-2.5 bg-zinc-900 text-white rounded-none border border-zinc-800 shadow-xs">
                             <TrendingUp className="w-5 h-5" />
                         </div>
                         <div>
@@ -186,17 +186,17 @@ export default function LandlordDashboard() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="bg-zinc-900 border border-zinc-800 p-4">
+                    <div className="bg-zinc-900/90 border border-zinc-800 p-4 shadow-xs rounded-none">
                         <span className="text-xs font-medium text-zinc-400">Monthly Gross Revenue</span>
                         <p className="text-2xl font-bold text-white mt-1">R{totalRevenue.toLocaleString()}</p>
                         <p className="text-[11px] text-emerald-400 mt-1">{totalRevenue > 0 ? '↑ 100% On-time collected' : 'No revenue recorded'}</p>
                     </div>
-                    <div className="bg-zinc-900 border border-zinc-800 p-4">
+                    <div className="bg-zinc-900/90 border border-zinc-800 p-4 shadow-xs rounded-none">
                         <span className="text-xs font-medium text-zinc-400">Est. Operating Expenses</span>
                         <p className="text-2xl font-bold text-zinc-300 mt-1">R{operatingExpenses.toLocaleString()}</p>
                         <p className="text-[11px] text-zinc-500 mt-1">Maintenance & rates deduction</p>
                     </div>
-                    <div className="bg-zinc-900 border border-zinc-800 p-4">
+                    <div className="bg-zinc-900/90 border border-zinc-800 p-4 shadow-xs rounded-none">
                         <span className="text-xs font-medium text-zinc-400">Net Operating Income (NOI)</span>
                         <p className="text-2xl font-bold text-white mt-1">R{netOperatingIncome.toLocaleString()}</p>
                         <p className="text-[11px] text-zinc-400 mt-1">Projected Annual: R{(netOperatingIncome * 12).toLocaleString()}</p>
@@ -208,10 +208,10 @@ export default function LandlordDashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Pending Lease Countersignatures Alert */}
                 {pendingLeaseCountersignatures.length > 0 && (
-                    <div className="sharp-card bg-emerald-950 p-6 text-white border border-emerald-500/50 shadow-lg lg:col-span-3">
+                    <div className="sharp-card bg-emerald-950 p-6 text-white border border-emerald-700 shadow-3d-emerald lg:col-span-3 rounded-none">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                             <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 bg-emerald-900 border border-emerald-400 flex items-center justify-center shrink-0">
+                                <div className="w-10 h-10 bg-emerald-900 border border-emerald-600 shadow-xs flex items-center justify-center shrink-0 rounded-none">
                                     <FileText className="w-5 h-5 text-emerald-200" />
                                 </div>
                                 <div>
@@ -234,10 +234,10 @@ export default function LandlordDashboard() {
 
                 {/* Pending Bids Alert */}
                 {pendingBids > 0 && (
-                    <div className="sharp-card bg-zinc-950 p-6 text-white border border-transparent hover:border-zinc-800 lg:col-span-3">
+                    <div className="sharp-card bg-zinc-950 p-6 text-white border border-zinc-800 shadow-3d-lg lg:col-span-3 rounded-none">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                             <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
+                                <div className="w-10 h-10 bg-zinc-900 border border-zinc-700 shadow-xs flex items-center justify-center shrink-0 rounded-none">
                                     <TrendingUp className="w-5 h-5 text-white" />
                                 </div>
                                 <div>
@@ -245,7 +245,7 @@ export default function LandlordDashboard() {
                                     <p className="text-zinc-400 text-xs">You have {pendingBids} pending bid{pendingBids > 1 ? 's' : ''} to review</p>
                                 </div>
                             </div>
-                            <Button asChild className="bg-white text-zinc-950 hover:bg-zinc-100 font-semibold shrink-0">
+                            <Button asChild className="bg-white text-zinc-950 hover:bg-zinc-100 font-semibold shrink-0 shadow-sm">
                                 <Link to={createPageUrl('ApplicationScreening')}>
                                     Review Bids & Tours <ArrowRight className="w-4 h-4 ml-2" />
                                 </Link>
@@ -259,10 +259,10 @@ export default function LandlordDashboard() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 }}
-                    className="bg-white rounded-2xl p-6 shadow-xs border border-zinc-200/90 hover:shadow-md hover:border-zinc-300/80 transition-all duration-200 lg:col-span-2"
+                    className="sharp-card bg-white p-6 border border-zinc-200/90 shadow-card hover:shadow-card-hover lg:col-span-2 rounded-none"
                 >
                     <div className="flex items-center justify-between mb-5">
-                        <h2 className="text-lg font-semibold text-zinc-900">Your Properties</h2>
+                        <h2 className="text-lg font-bold text-zinc-900">Your Properties</h2>
                         <Link
                             to={createPageUrl('Properties')}
                             className="text-sm text-zinc-900 hover:text-zinc-700 font-semibold flex items-center gap-1"
@@ -274,7 +274,7 @@ export default function LandlordDashboard() {
                     {propertiesLoading ? (
                         <div className="space-y-3">
                             {[1, 2, 3].map(i => (
-                                <Skeleton key={i} className="h-16 rounded-xl" />
+                                <Skeleton key={i} className="h-16 rounded-none border border-zinc-200" />
                             ))}
                         </div>
                     ) : properties?.length > 0 ? (
@@ -282,23 +282,23 @@ export default function LandlordDashboard() {
                             {properties.slice(0, 5).map((property) => (
                                 <div
                                     key={property.id}
-                                    className="flex items-center justify-between p-4 rounded-xl bg-zinc-50 hover:bg-zinc-100/90 border border-zinc-200/70 transition-colors"
+                                    className="flex items-center justify-between p-4 rounded-none bg-zinc-50/70 border border-zinc-200/80 shadow-xs hover:shadow-sm transition-all"
                                 >
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center border border-zinc-200 shrink-0">
+                                        <div className="w-10 h-10 rounded-none bg-white flex items-center justify-center border border-zinc-200 shadow-xs shrink-0">
                                             <Home className="w-5 h-5 text-zinc-700" />
                                         </div>
                                         <div>
-                                            <p className="font-medium text-zinc-900 text-sm line-clamp-1">{property.title}</p>
+                                            <p className="font-semibold text-zinc-900 text-sm line-clamp-1">{property.title}</p>
                                             <p className="text-xs text-zinc-500">{property.city}, {property.state}</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-3">
                                         <div className="text-right">
                                             <p className="font-semibold text-zinc-900 text-xs">R{property.monthly_rent?.toLocaleString()}/mo</p>
-                                            <Badge className={`${property.status === 'available' ? 'bg-emerald-50 text-emerald-700' :
-                                                    property.status === 'rented' ? 'bg-zinc-100 text-zinc-700' :
-                                                        'bg-amber-50 text-amber-700'
+                                            <Badge className={`${property.status === 'available' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                    property.status === 'rented' ? 'bg-zinc-100 text-zinc-700 border-zinc-200' :
+                                                        'bg-amber-50 text-amber-700 border-amber-200'
                                                 } text-[10px]`}>
                                                 {property.status}
                                             </Badge>
@@ -316,7 +316,7 @@ export default function LandlordDashboard() {
                         <div className="text-center py-8">
                             <Building2 className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
                             <p className="text-zinc-600 font-medium mb-2">No properties yet</p>
-                            <Button asChild size="sm" className="bg-zinc-900 hover:bg-zinc-800 text-white">
+                            <Button asChild size="sm" className="bg-zinc-900 hover:bg-zinc-800 text-white shadow-xs">
                                 <Link to={createPageUrl('AddProperty')}>
                                     <Plus className="w-4 h-4 mr-2" />
                                     Add Your First Property
@@ -331,11 +331,11 @@ export default function LandlordDashboard() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2 }}
-                    className="bg-white rounded-2xl p-6 shadow-xs border border-zinc-200/90 hover:shadow-md hover:border-zinc-300/80 transition-all duration-200"
+                    className="sharp-card bg-white p-6 border border-zinc-200/90 shadow-card hover:shadow-card-hover rounded-none"
                 >
                     <div className="flex items-center justify-between mb-5">
-                        <h2 className="text-lg font-semibold text-zinc-900">Maintenance</h2>
-                        <Badge className={`${pendingMaintenance > 0 ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                        <h2 className="text-lg font-bold text-zinc-900">Maintenance</h2>
+                        <Badge className={`${pendingMaintenance > 0 ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
                             {pendingMaintenance}
                         </Badge>
                     </div>
@@ -343,12 +343,12 @@ export default function LandlordDashboard() {
                     {recentMaintenance.length > 0 ? (
                         <div className="space-y-3">
                             {recentMaintenance.map((request) => (
-                                <div key={request.id} className="p-3 rounded-lg border border-zinc-200/80 bg-zinc-50/50">
+                                <div key={request.id} className="p-3 rounded-none border border-zinc-200/80 shadow-xs bg-zinc-50/70">
                                     <div className="flex items-start justify-between gap-2 mb-2">
-                                        <p className="font-medium text-sm text-zinc-900 line-clamp-1">{request.title}</p>
-                                        <Badge className={`${request.priority === 'emergency' ? 'bg-rose-50 text-rose-700' :
-                                                request.priority === 'high' ? 'bg-orange-50 text-orange-700' :
-                                                    'bg-amber-50 text-amber-700'
+                                        <p className="font-semibold text-sm text-zinc-900 line-clamp-1">{request.title}</p>
+                                        <Badge className={`${request.priority === 'emergency' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                                request.priority === 'high' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                                                    'bg-amber-50 text-amber-700 border-amber-200'
                                             } text-xs shrink-0`}>
                                             {request.priority}
                                         </Badge>
@@ -371,48 +371,48 @@ export default function LandlordDashboard() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
-                className="bg-white rounded-2xl p-6 shadow-xs border border-zinc-200/90 hover:shadow-md hover:border-zinc-300/80 transition-all duration-200"
+                className="bg-white rounded-none p-6 shadow-card border border-zinc-200/90 hover:shadow-card-hover transition-all duration-200"
             >
-                <h2 className="text-lg font-semibold text-zinc-900 mb-4">Quick Actions</h2>
+                <h2 className="text-lg font-bold text-zinc-900 mb-4">Quick Actions</h2>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <Link
                         to={createPageUrl('AddProperty')}
-                        className="flex flex-col items-center gap-3 p-4 rounded-xl bg-zinc-50 hover:bg-white hover:border-zinc-300 hover:shadow-xs border border-zinc-200/70 transition-all group text-center"
+                        className="flex flex-col items-center gap-3 p-4 rounded-none bg-white hover:bg-zinc-50 border border-zinc-200 shadow-xs hover:shadow-sm hover:-translate-y-[1px] transition-all group text-center"
                     >
-                        <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center group-hover:bg-zinc-200 transition-colors">
+                        <div className="w-10 h-10 rounded-none bg-zinc-100 border border-zinc-200 shadow-xs flex items-center justify-center transition-colors">
                             <Plus className="w-5 h-5 text-zinc-900" />
                         </div>
-                        <span className="text-sm font-medium text-zinc-700">Add Property</span>
+                        <span className="text-sm font-semibold text-zinc-800">Add Property</span>
                     </Link>
 
                     <Link
                         to={createPageUrl('ApplicationScreening')}
-                        className="flex flex-col items-center gap-3 p-4 rounded-xl bg-zinc-50 hover:bg-white hover:border-zinc-300 hover:shadow-xs border border-zinc-200/70 transition-all group text-center"
+                        className="flex flex-col items-center gap-3 p-4 rounded-none bg-white hover:bg-zinc-50 border border-zinc-200 shadow-xs hover:shadow-sm hover:-translate-y-[1px] transition-all group text-center"
                     >
-                        <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center group-hover:bg-emerald-200 transition-colors">
+                        <div className="w-10 h-10 rounded-none bg-emerald-50 border border-emerald-200 shadow-xs flex items-center justify-center transition-colors">
                             <Users className="w-5 h-5 text-emerald-700" />
                         </div>
-                        <span className="text-sm font-medium text-zinc-700">Screening & Bids</span>
+                        <span className="text-sm font-semibold text-zinc-800">Screening & Vetting</span>
                     </Link>
 
                     <Link
                         to={createPageUrl('Messages')}
-                        className="flex flex-col items-center gap-3 p-4 rounded-xl bg-zinc-50 hover:bg-white hover:border-zinc-300 hover:shadow-xs border border-zinc-200/70 transition-all group text-center"
+                        className="flex flex-col items-center gap-3 p-4 rounded-none bg-white hover:bg-zinc-50 border border-zinc-200 shadow-xs hover:shadow-sm hover:-translate-y-[1px] transition-all group text-center"
                     >
-                        <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+                        <div className="w-10 h-10 rounded-none bg-blue-50 border border-blue-200 shadow-xs flex items-center justify-center transition-colors">
                             <MessageSquare className="w-5 h-5 text-blue-700" />
                         </div>
-                        <span className="text-sm font-medium text-zinc-700">Messages & Chat</span>
+                        <span className="text-sm font-semibold text-zinc-800">Messages & Chat</span>
                     </Link>
 
                     <Link
                         to={createPageUrl('Payments')}
-                        className="flex flex-col items-center gap-3 p-4 rounded-xl bg-zinc-50 hover:bg-white hover:border-zinc-300 hover:shadow-xs border border-zinc-200/70 transition-all group text-center"
+                        className="flex flex-col items-center gap-3 p-4 rounded-none bg-white hover:bg-zinc-50 border border-zinc-200 shadow-xs hover:shadow-sm hover:-translate-y-[1px] transition-all group text-center"
                     >
-                        <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center group-hover:bg-amber-200 transition-colors">
+                        <div className="w-10 h-10 rounded-none bg-amber-50 border border-amber-200 shadow-xs flex items-center justify-center transition-colors">
                             <DollarSign className="w-5 h-5 text-amber-700" />
                         </div>
-                        <span className="text-sm font-medium text-zinc-700">Payments & Income</span>
+                        <span className="text-sm font-semibold text-zinc-800">Payments & Income</span>
                     </Link>
                 </div>
             </motion.div>

@@ -9,10 +9,12 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { MapPin, Calendar, DollarSign, Briefcase, User, Star, Clock, Shield } from 'lucide-react';
+import { MapPin, Calendar, DollarSign, Briefcase, User, Star, Clock, Shield, CreditCard } from 'lucide-react';
 import { formatDate } from '@/utils';
 import { toast } from 'sonner';
 import BlockLoader from '@/components/ui/BlockLoader';
+import { executePaystackPayment } from '@/utils/paymentProcessingEngine';
+import ThreePartyCompletionCard from '@/components/maintenance/ThreePartyCompletionCard';
 
 export default function JobDetails() {
     const { id } = useParams();
@@ -28,6 +30,7 @@ export default function JobDetails() {
         proposal: ''
     });
     const [ratingDialogOpen, setRatingDialogOpen] = useState(false);
+    const [payingBidId, setPayingBidId] = useState(null);
     const [ratingForm, setRatingForm] = useState({
         rating: 5,
         turnaround: 'on_schedule',
@@ -192,6 +195,40 @@ export default function JobDetails() {
         onError: () => toast.error('Failed to submit contractor rating')
     });
 
+    const handlePayContractor = (bid) => {
+        setPayingBidId(bid.id);
+        const amount = Number(bid.bid_amount || bid.amount || 0);
+
+        executePaystackPayment({
+            email: user?.email,
+            amount,
+            flowType: 'landlord_to_contractor',
+            jobId: job.id,
+            bidId: bid.id,
+            payerId: user?.email || user?.id,
+            payeeId: bid.contractor_id,
+            paymentType: 'maintenance',
+            description: `Contractor Payout: ${job.title} (${bid.contractor_company || 'Contractor'})`,
+            onSuccess: ({ paystack }) => {
+                setPayingBidId(null);
+                queryClient.invalidateQueries({ queryKey: ['job', id] });
+                queryClient.invalidateQueries({ queryKey: ['contractor'] });
+                queryClient.invalidateQueries({ queryKey: ['payments'] });
+                toast.success(`🎉 R${amount.toLocaleString()} paid to ${bid.contractor_company || 'Contractor'}! Contractor JobScore™ accrued.`);
+                setSelectedBid(bid);
+                setRatingDialogOpen(true);
+            },
+            onClose: () => {
+                setPayingBidId(null);
+                toast.info('Payment checkout closed.');
+            },
+            onError: (err) => {
+                setPayingBidId(null);
+                toast.error(err.message || 'Payment processing failed');
+            }
+        });
+    };
+
     const handleSubmitBid = (e) => {
         e.preventDefault();
         if (!bidForm.bid_amount) {
@@ -222,112 +259,125 @@ export default function JobDetails() {
             <div className="grid md:grid-cols-3 gap-8">
                 {/* Main Content */}
                 <div className="md:col-span-2 space-y-6">
-                    <Card className="p-6">
+                    <Card className="p-6 sharp-card bg-white border border-zinc-200/90 shadow-card hover:shadow-card-hover rounded-none">
                         <div className="flex justify-between items-start mb-4">
                             <div>
-                                <h1 className="text-3xl font-bold text-slate-900 mb-2">{job.title}</h1>
-                                <div className="flex items-center gap-2 text-slate-600">
-                                    <MapPin className="w-4 h-4" />
+                                <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-wider text-zinc-950 mb-2">{job.title}</h1>
+                                <div className="flex items-center gap-2 text-xs font-semibold text-zinc-600">
+                                    <MapPin className="w-4 h-4 text-zinc-950" />
                                     <span>{job.property_address}</span>
                                 </div>
                             </div>
-                            <Badge className={job.urgency === 'emergency' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'}>
+                            <Badge className={`${job.urgency === 'emergency' ? 'bg-red-500 text-white' : 'bg-zinc-100 text-zinc-950'} border border-zinc-200/90 shadow-xs font-black uppercase text-[10px]`}>
                                 {job.urgency}
                             </Badge>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4 mb-6">
-                            <div className="flex items-center gap-2 text-sm text-slate-600">
-                                <Briefcase className="w-4 h-4" />
+                            <div className="flex items-center gap-2 text-xs font-bold text-zinc-800">
+                                <Briefcase className="w-4 h-4 text-zinc-950" />
                                 <span className="capitalize">{job.category}</span>
                             </div>
                             {job.budget_max > 0 && (
-                                <div className="flex items-center gap-2 text-sm text-slate-600">
-                                    <DollarSign className="w-4 h-4" />
+                                <div className="flex items-center gap-2 text-xs font-bold text-zinc-800">
+                                    <DollarSign className="w-4 h-4 text-emerald-600" />
                                     <span>R{(job.budget_min ?? 0).toLocaleString()} - R{(job.budget_max ?? 0).toLocaleString()}</span>
                                 </div>
                             )}
                             {job.preferred_start_date && (
-                                <div className="flex items-center gap-2 text-sm text-slate-600">
-                                    <Calendar className="w-4 h-4" />
+                                <div className="flex items-center gap-2 text-xs font-semibold text-zinc-600">
+                                    <Calendar className="w-4 h-4 text-zinc-950" />
                                     <span>{formatDate(job.preferred_start_date)}</span>
                                 </div>
                             )}
-                            <div className="flex items-center gap-2 text-sm text-slate-600">
-                                <Clock className="w-4 h-4" />
+                            <div className="flex items-center gap-2 text-xs font-semibold text-zinc-600">
+                                <Clock className="w-4 h-4 text-zinc-950" />
                                 <span>Posted {formatDate(job.created_date, 'MMM d')}</span>
                             </div>
                         </div>
 
-                        <div>
-                            <h2 className="font-semibold text-slate-900 mb-2">Description</h2>
-                            <p className="text-slate-600 whitespace-pre-wrap">{job.description}</p>
+                        <div className="border-t-2 border-zinc-950 pt-4">
+                            <h2 className="text-xs font-black uppercase tracking-wider text-zinc-950 mb-2">Description</h2>
+                            <p className="text-xs text-zinc-700 leading-relaxed font-medium whitespace-pre-wrap">{job.description}</p>
                         </div>
 
                         {job.images && job.images.length > 0 && (
-                            <div>
-                                <h2 className="font-semibold text-slate-900 mb-3">Photos</h2>
+                            <div className="mt-4 border-t-2 border-zinc-950 pt-4">
+                                <h2 className="text-xs font-black uppercase tracking-wider text-zinc-950 mb-3">Photos</h2>
                                 <div className="grid grid-cols-2 gap-3">
                                     {job.images.map((img, index) => (
-                                        <img key={index} src={img} alt="" className="rounded-lg w-full h-48 object-cover" />
+                                        <img key={index} src={img} alt="" className="rounded-none border border-zinc-200/90 shadow-xs w-full h-48 object-cover" />
                                     ))}
                                 </div>
                             </div>
                         )}
                     </Card>
 
+                    {/* Three-Party Confirmation System */}
+                    <ThreePartyCompletionCard
+                        item={job}
+                        itemType="job"
+                        currentUser={user}
+                        userRole={user?.user_type}
+                        onUpdated={() => {
+                            queryClient.invalidateQueries({ queryKey: ['job', id] });
+                            queryClient.invalidateQueries({ queryKey: ['contractor'] });
+                            queryClient.invalidateQueries({ queryKey: ['payments'] });
+                        }}
+                    />
+
                     {/* Bids Section */}
                     {isJobOwner && bids.length > 0 && (
-                        <Card className="p-6">
-                            <h2 className="text-xl font-bold text-slate-900 mb-4">
+                        <Card className="p-6 sharp-card bg-white border border-zinc-200/90 shadow-card hover:shadow-card-hover rounded-none">
+                            <h2 className="text-base font-black uppercase tracking-wider text-zinc-950 mb-4">
                                 Bids Received ({bids.length})
                             </h2>
                             <div className="space-y-4">
                                 {bids.map(bid => (
-                                    <div key={bid.id} className="border border-slate-200 rounded-lg p-4">
-                                        <div className="flex justify-between items-start mb-3">
+                                    <div key={bid.id} className="border border-zinc-200/90 rounded-none p-4 shadow-xs bg-white space-y-3">
+                                        <div className="flex justify-between items-start mb-2">
                                             <div>
-                                                <h3 className="font-semibold text-slate-900">{bid.contractor_company}</h3>
-                                                <div className="flex items-center gap-2 text-sm text-slate-600">
-                                                    <Star className="w-4 h-4 text-amber-500" />
+                                                <h3 className="font-black text-sm uppercase tracking-wider text-zinc-950">{bid.contractor_company}</h3>
+                                                <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-600 mt-0.5">
+                                                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
                                                     <span>{(bid.contractor_rating ?? 5.0).toFixed(1)}</span>
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="text-xl font-bold text-zinc-900">R{(bid.bid_amount ?? 0).toLocaleString()}</p>
-                                                <p className="text-xs text-zinc-500">{bid.estimated_duration_days} days</p>
+                                                <p className="text-lg font-black text-zinc-950">R{(bid.bid_amount ?? 0).toLocaleString()}</p>
+                                                <p className="text-[11px] font-semibold text-zinc-500">{bid.estimated_duration_days} days</p>
                                             </div>
                                         </div>
-                                        <p className="text-zinc-600 text-xs mb-3">{bid.proposal}</p>
+                                        <p className="text-zinc-700 text-xs font-medium leading-relaxed">{bid.proposal}</p>
                                         {bid.status === 'pending' && (
                                             <Button
                                                 onClick={() => acceptBidMutation.mutate(bid)}
                                                 disabled={acceptBidMutation.isPending}
                                                 size="sm"
-                                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-wider"
                                             >
                                                 Accept Bid
                                             </Button>
                                         )}
                                         {bid.status === 'accepted' && (
-                                            <div className="space-y-3 mt-3 pt-3 border-t border-zinc-100">
-                                                 <div className="bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800 flex items-center justify-between">
-                                                     <div className="flex items-center gap-2 font-medium">
-                                                         <Shield className="w-4 h-4 text-emerald-600" />
-                                                         <span>Verified Quote: R{Number(bid.bid_amount || 0).toLocaleString()} via Direct Paygate</span>
+                                            <div className="space-y-3 mt-3 pt-3 border-t-2 border-zinc-950">
+                                                 <div className="bg-emerald-50 border border-emerald-200 rounded-none p-3 shadow-xs text-xs text-emerald-950 flex items-center justify-between">
+                                                     <div className="flex items-center gap-2 font-black">
+                                                         <Shield className="w-4 h-4 text-emerald-700" />
+                                                         <span>Verified Quote: R{Number(bid.bid_amount || 0).toLocaleString()} • Direct Settlement</span>
                                                      </div>
-                                                     <Badge className="bg-emerald-600 text-white">Direct Paygate</Badge>
+                                                     <Badge className="bg-emerald-700 text-white border border-zinc-300 shadow-xs font-black uppercase text-[10px]">Verified</Badge>
                                                  </div>
 
                                                  <div className="flex flex-col sm:flex-row gap-2">
                                                      <Button
                                                          size="sm"
-                                                         className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-white"
-                                                         onClick={() => {
-                                                             toast.success('🎉 Proof of work approved! Direct Paygate payment processed to contractor.');
-                                                         }}
+                                                         className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-white flex items-center justify-center gap-2 font-semibold"
+                                                         disabled={payingBidId === bid.id}
+                                                         onClick={() => handlePayContractor(bid)}
                                                      >
-                                                         Approve Proof-of-Work & Pay via Paygate
+                                                         <CreditCard className="w-4 h-4 text-emerald-400" />
+                                                         {payingBidId === bid.id ? 'Processing Payment...' : `Approve & Pay R${Number(bid.bid_amount || 0).toLocaleString()}`}
                                                      </Button>
 
                                                      <Button
@@ -345,7 +395,7 @@ export default function JobDetails() {
                                                  </div>
 
                                                  {job.landlord_rating && (
-                                                     <div className="bg-amber-50/80 border border-amber-200/90 rounded-lg p-2.5 text-xs text-amber-900">
+                                                     <div className="bg-amber-50 border border-amber-200 rounded-none p-3 text-xs text-amber-950 shadow-xs">
                                                          <div className="flex items-center gap-1.5 font-bold mb-0.5">
                                                              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
                                                              <span>Rated {job.landlord_rating} / 5 Stars • Turnaround: {job.landlord_turnaround?.replace('_', ' ')}</span>
@@ -363,9 +413,9 @@ export default function JobDetails() {
 
                     {/* Contractor Work & Speed Rating Dialog */}
                     <Dialog open={ratingDialogOpen} onOpenChange={setRatingDialogOpen}>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Rate Contractor Work & Completion Speed</DialogTitle>
+                        <DialogContent className="rounded-none border border-zinc-200/90 shadow-3d-modal bg-white p-6">
+                            <DialogHeader className="border-b-2 border-zinc-950 pb-3">
+                                <DialogTitle className="text-base font-black uppercase tracking-wider text-zinc-950">Rate Contractor Work & Completion Speed</DialogTitle>
                             </DialogHeader>
                             <div className="space-y-4 pt-2">
                                 <div>
@@ -404,10 +454,10 @@ export default function JobDetails() {
                                                 key={t.id}
                                                 type="button"
                                                 onClick={() => setRatingForm({ ...ratingForm, turnaround: t.id })}
-                                                className={`p-2.5 rounded-lg border text-xs font-medium text-left transition-colors ${
+                                                className={`p-2.5 rounded-none border-2 text-xs font-bold text-left transition-all ${
                                                     ratingForm.turnaround === t.id
-                                                        ? 'border-zinc-950 bg-zinc-900 text-white'
-                                                        : 'border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700'
+                                                        ? 'border-zinc-950 bg-zinc-950 text-white shadow-xs'
+                                                        : 'border-zinc-950 bg-white hover:bg-zinc-50 text-zinc-950'
                                                 }`}
                                             >
                                                 {t.label}
@@ -449,7 +499,7 @@ export default function JobDetails() {
 
                 {/* Sidebar */}
                 <div className="space-y-6">
-                    <Card className="p-6">
+                    <Card className="p-6 sharp-card bg-white border border-zinc-200/90 shadow-card hover:shadow-card-hover rounded-none">
                         <div className="flex items-center gap-3 mb-4">
                             <User className="w-5 h-5 text-zinc-600" />
                             <div>
@@ -466,9 +516,9 @@ export default function JobDetails() {
                                         Place Bid
                                     </Button>
                                 </DialogTrigger>
-                                <DialogContent>
-                                    <DialogHeader>
-                                        <DialogTitle>Submit Your Bid</DialogTitle>
+                                <DialogContent className="rounded-none border border-zinc-200/90 shadow-3d-modal bg-white p-6">
+                                    <DialogHeader className="border-b-2 border-zinc-950 pb-3">
+                                        <DialogTitle className="text-base font-black uppercase tracking-wider text-zinc-950">Submit Your Bid</DialogTitle>
                                     </DialogHeader>
                                     <form onSubmit={handleSubmitBid} className="space-y-4">
                                         <div>
@@ -517,8 +567,8 @@ export default function JobDetails() {
                     </Card>
 
                     {bids.length > 0 && !isJobOwner && (
-                        <Card className="p-6">
-                            <h3 className="font-semibold text-slate-900 mb-3">Bid Statistics</h3>
+                        <Card className="p-6 sharp-card bg-white border border-zinc-200/90 shadow-card hover:shadow-card-hover rounded-none">
+                            <h3 className="font-black uppercase tracking-wider text-xs text-zinc-950 mb-3">Bid Statistics</h3>
                             <div className="space-y-2 text-sm">
                                 <div className="flex justify-between">
                                     <span className="text-slate-600">Total Bids:</span>

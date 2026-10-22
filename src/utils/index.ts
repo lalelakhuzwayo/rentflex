@@ -3,4 +3,5 @@ export function createPageUrl(pageName: string) {
 }
 
 export * from './dateUtils';
-export * from './leaseManager';
+export * from './leaseManager';
+export * from './userFormatting';

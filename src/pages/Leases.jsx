@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { formatDate, formatDateRange, parseSafeDate, createPageUrl } from '@/utils';
+import { formatUserDisplayName } from '@/utils/userFormatting';
 import { useNavigate } from 'react-router-dom';
 import { appClient } from '@/api/appClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -19,8 +20,16 @@ import {
     Home,
     Download,
     Wrench,
-    Type
+    Type,
+    Repeat,
+    Sliders,
+    ShieldCheck,
+    AlertTriangle,
+    CreditCard
 } from 'lucide-react';
+import CancelLeaseDialog from '@/components/leases/CancelLeaseDialog';
+import EditLeaseTermsDialog from '@/components/leases/EditLeaseTermsDialog';
+import RenewLeaseDialog from '@/components/leases/RenewLeaseDialog';
 import { syncAndScoreTenant } from '@/utils/rentScoreEngine';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -42,6 +51,10 @@ export default function Leases() {
     const [filter, setFilter] = useState('all');
     const [selectedLease, setSelectedLease] = useState(null);
     const [signatureModal, setSignatureModal] = useState(false);
+    const [cancelModalOpen, setCancelModalOpen] = useState(false);
+    const [editTermsModalOpen, setEditTermsModalOpen] = useState(false);
+    const [renewModalOpen, setRenewModalOpen] = useState(false);
+    const [activeLeaseForAction, setActiveLeaseForAction] = useState(null);
     const [sigMode, setSigMode] = useState('draw'); // 'draw' or 'type'
     const [typedName, setTypedName] = useState('');
 
@@ -326,15 +339,26 @@ export default function Leases() {
         });
     };
 
+    const handleOpenCancelDialog = (lease) => {
+        setActiveLeaseForAction(lease);
+        setCancelModalOpen(true);
+    };
+
+    const handleOpenEditTerms = (lease) => {
+        setActiveLeaseForAction(lease);
+        setEditTermsModalOpen(true);
+    };
+
+    const handleOpenRenewDialog = (lease) => {
+        setActiveLeaseForAction(lease);
+        setRenewModalOpen(true);
+    };
+
     const handleTerminateLease = (leaseId) => {
-        if (!window.confirm('Are you sure you want to terminate this lease agreement?')) return;
-        updateLeaseMutation.mutate({
-            id: leaseId,
-            data: {
-                status: 'terminated',
-                updated_at: new Date().toISOString()
-            }
-        });
+        const target = leases.find(l => l.id === leaseId);
+        if (target) {
+            handleOpenCancelDialog(target);
+        }
     };
 
     const filteredLeases = leases?.filter(lease => {
@@ -384,10 +408,17 @@ export default function Leases() {
                 </Badge>
             );
         }
-        if (lease.status === 'terminated' || lease.status === 'cancelled') {
+        if (lease.status === 'cancelled') {
             return (
                 <Badge className="bg-rose-50 text-rose-800 border-rose-300 flex items-center gap-1 font-semibold text-xs">
-                    <XCircle className="w-3.5 h-3.5 text-rose-600" /> Terminated
+                    <XCircle className="w-3.5 h-3.5 text-rose-600" /> Cancelled {lease.cancelled_by ? `(${lease.cancelled_by})` : ''}
+                </Badge>
+            );
+        }
+        if (lease.status === 'terminated') {
+            return (
+                <Badge className="bg-zinc-100 text-zinc-800 border-zinc-300 flex items-center gap-1 font-semibold text-xs">
+                    <XCircle className="w-3.5 h-3.5 text-zinc-600" /> Terminated {lease.cancelled_by ? `(${lease.cancelled_by})` : ''}
                 </Badge>
             );
         }
@@ -462,15 +493,15 @@ export default function Leases() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: idx * 0.05, duration: 0.3 }}
-                                className="sharp-card bg-white p-6 border border-zinc-200/90 hover:border-zinc-900 transition-all duration-200 space-y-4"
+                                className="sharp-card bg-white p-6 border border-zinc-200/90 shadow-card hover:shadow-3d-lg transition-all duration-200 space-y-4"
                             >
                                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                                     <div className="space-y-2">
                                         <div className="flex flex-wrap items-center gap-2.5">
-                                            <h3 className="text-base font-bold text-zinc-900">{lease.property_title || 'Residential Property'}</h3>
+                                            <h3 className="text-base font-black uppercase tracking-wider text-zinc-950">{lease.property_title || 'Residential Property'}</h3>
                                             {getStatusBadge(lease)}
                                             {isOccupying && (
-                                                <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 shadow-xs">
+                                                <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex items-center gap-1 border border-zinc-200/90 shadow-xs">
                                                     <Home className="w-3 h-3" /> Actively Occupying ({monthsOccupied} mo • +{rentScoreBonus} pts RentScore)
                                                 </Badge>
                                             )}
@@ -494,11 +525,11 @@ export default function Leases() {
                                         <div className="flex flex-wrap gap-4 text-xs text-zinc-500">
                                             <span className="flex items-center gap-1">
                                                 <Home className="w-3.5 h-3.5 text-zinc-700" />
-                                                Tenant: <strong className="text-zinc-800">{lease.tenant_name || lease.tenant_id}</strong>
+                                                Tenant: <strong className="text-zinc-800">{formatUserDisplayName(lease.tenant_name || lease.tenant_id, 'Tenant')}</strong>
                                             </span>
                                             <span className="flex items-center gap-1">
                                                 <Building2 className="w-3.5 h-3.5 text-zinc-700" />
-                                                Landlord: <strong className="text-zinc-800">{lease.landlord_name || lease.landlord_id}</strong>
+                                                Landlord: <strong className="text-zinc-800">{formatUserDisplayName(lease.landlord_name || lease.landlord_id, 'Landlord')}</strong>
                                             </span>
                                             <span className="flex items-center gap-1">
                                                 <Calendar className="w-3.5 h-3.5 text-zinc-900" />
@@ -572,68 +603,144 @@ export default function Leases() {
                                             </Button>
                                         )}
 
-                                        {(userIsLandlord || user?.user_type === 'sysAdmin') && lease.status === 'active' && (
+                                        {/* Customise Terms Button (Landlord / Admin) */}
+                                        {(userIsLandlord || user?.user_type === 'sysAdmin') && (
                                             <Button
                                                 variant="outline"
                                                 size="sm"
-                                                className="border-rose-200 text-rose-700 hover:bg-rose-50"
-                                                onClick={() => handleTerminateLease(lease.id)}
+                                                className="border-zinc-200 text-zinc-800 hover:bg-zinc-50 font-medium flex items-center shadow-xs"
+                                                onClick={() => handleOpenEditTerms(lease)}
                                             >
-                                                Terminate
+                                                <Sliders className="w-3.5 h-3.5 mr-1.5 text-zinc-600" />
+                                                Customise Terms
+                                            </Button>
+                                        )}
+
+                                        {/* Renew Lease Button (Landlord or Tenant) */}
+                                        {(lease.status === 'active' || lease.status === 'ended' || lease.status === 'cancelled' || lease.status === 'terminated') && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="border-amber-200 text-amber-900 hover:bg-amber-50 font-medium flex items-center shadow-xs"
+                                                onClick={() => handleOpenRenewDialog(lease)}
+                                            >
+                                                <Repeat className="w-3.5 h-3.5 mr-1.5 text-amber-600" />
+                                                Renew Lease
+                                            </Button>
+                                        )}
+
+                                        {/* Cancel / Terminate Button (Role-Aware Penalties) */}
+                                        {(lease.status === 'active' || lease.status === 'pending_tenant_signature' || lease.status === 'pending_landlord_signature') && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="border-rose-200 text-rose-700 hover:bg-rose-50 font-medium flex items-center shadow-xs"
+                                                onClick={() => handleOpenCancelDialog(lease)}
+                                            >
+                                                <XCircle className="w-3.5 h-3.5 mr-1.5 text-rose-600" />
+                                                {userIsTenant ? 'Cancel Lease' : 'Terminate'}
                                             </Button>
                                         )}
                                     </div>
                                 </div>
 
+                                {/* Payment Arrangements & Cut-Off Details */}
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-zinc-950 bg-zinc-50 border border-zinc-200/90 shadow-xs rounded-none p-3">
+                                    <span className="flex items-center gap-1 font-bold text-zinc-950">
+                                        <CreditCard className="w-3.5 h-3.5 text-zinc-950" />
+                                        Schedule: <strong className="capitalize">{lease.payment_frequency === 'bi_weekly' ? 'Bi-Weekly Split' : lease.payment_frequency || 'Monthly'}</strong>
+                                    </span>
+                                    <span className="flex items-center gap-1 font-medium">
+                                        <Clock className="w-3.5 h-3.5 text-zinc-600" />
+                                        Due: <strong>{lease.payment_due_day || 1}st of month</strong>
+                                    </span>
+                                    <span className="flex items-center gap-1 font-medium">
+                                        <Clock className="w-3.5 h-3.5 text-amber-600" />
+                                        Cut-Off: <strong>{lease.payment_cutoff_day || 5}th ({lease.payment_cutoff_time || '23:59'})</strong>
+                                    </span>
+                                    <span className="flex items-center gap-1 font-medium">
+                                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                                        Grace: <strong>{lease.grace_period_days || 3} days</strong>
+                                    </span>
+                                    <span className="flex items-center gap-1 font-medium">
+                                        <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                                        Late Fee: <strong>R{Number(lease.late_penalty_fee || 250).toLocaleString()}</strong>
+                                    </span>
+                                    {lease.renewal_count > 0 && (
+                                        <span className="flex items-center gap-1 text-emerald-700 font-bold">
+                                            <Repeat className="w-3.5 h-3.5 text-emerald-600" />
+                                            Renewed: <strong>{lease.renewal_count}x (+{lease.renewal_count * 25} pts bonus)</strong>
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Cancellation & Penalty Record if cancelled */}
+                                {(lease.status === 'cancelled' || lease.status === 'terminated') && lease.cancelled_at && (
+                                    <div className="bg-rose-50 border border-rose-200 text-xs text-rose-950 rounded-none p-3 shadow-xs flex flex-wrap items-center justify-between gap-2">
+                                        <div className="flex flex-wrap items-center gap-3 font-medium">
+                                            <span>Cancelled by: <strong className="capitalize">{lease.cancelled_by || 'Party'}</strong> on {formatDate(lease.cancelled_at)}</span>
+                                            {lease.financial_penalty_applied > 0 && (
+                                                <span>Penalty Fee: <strong className="text-rose-700 font-black">R{Number(lease.financial_penalty_applied).toLocaleString()}</strong></span>
+                                            )}
+                                            {lease.score_penalty_applied > 0 && (
+                                                <span>RentScore Impact: <strong className="text-rose-700 font-black">-{lease.score_penalty_applied} pts</strong></span>
+                                            )}
+                                        </div>
+                                        {lease.cancellation_reason && (
+                                            <span className="w-full text-[11px] text-rose-900 font-semibold mt-0.5">Note: {lease.cancellation_reason}</span>
+                                        )}
+                                    </div>
+                                )}
+
                                 {/* Progress Bar */}
-                                <div className="space-y-1 pt-2 border-t border-zinc-100">
-                                    <div className="flex justify-between text-xs text-slate-500 font-medium">
+                                <div className="space-y-1.5 pt-2 border-t-2 border-zinc-950">
+                                    <div className="flex justify-between text-xs text-zinc-950 font-black uppercase tracking-wider">
                                         <span>Lease Term Completion</span>
                                         <span>{progress}% Completed</span>
                                     </div>
-                                    <Progress value={progress} className="h-2" />
+                                    <Progress value={progress} className="h-2 rounded-none border border-zinc-200/90" />
                                 </div>
                             </motion.div>
                         );
                     })}
                 </div>
             ) : (
-                <div className="text-center py-16 sharp-card bg-white border border-zinc-200">
-                    <FileText className="w-10 h-10 text-zinc-300 mx-auto mb-3" />
-                    <h3 className="font-bold text-sm text-zinc-900 mb-1">No lease agreements found</h3>
-                    <p className="text-xs text-zinc-500">Active and pending lease agreements will appear here</p>
+                <div className="text-center py-16 sharp-card bg-white border border-zinc-200/90 shadow-card">
+                    <FileText className="w-10 h-10 text-zinc-400 mx-auto mb-3" />
+                    <h3 className="font-black uppercase tracking-wider text-sm text-zinc-950 mb-1">No lease agreements found</h3>
+                    <p className="text-xs text-zinc-600 font-medium">Active and pending lease agreements will appear here</p>
                 </div>
             )}
 
             {/* Digital Lease & Dual-Signature Modal */}
             <Dialog open={signatureModal} onOpenChange={setSignatureModal}>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center justify-between text-lg font-bold">
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-none border border-zinc-200/90 shadow-3d-modal bg-white p-6">
+                    <DialogHeader className="border-b-2 border-zinc-950 pb-3">
+                        <DialogTitle className="flex items-center justify-between text-base font-black uppercase tracking-wider text-zinc-950">
                             <span>Digital Residential Lease Agreement</span>
-                            <Badge className="bg-zinc-950 text-white font-mono text-xs">
+                            <Badge className="bg-zinc-950 text-white font-mono text-xs border border-zinc-200/90 shadow-xs">
                                 POPIA & Housing Act Compliant
                             </Badge>
                         </DialogTitle>
-                        <DialogDescription className="text-xs text-zinc-500">
-                            Property: {selectedLease?.property_title} • Status: <span className="font-semibold text-zinc-900 capitalize">{selectedLease?.status}</span>
+                        <DialogDescription className="text-xs font-semibold text-zinc-600">
+                            Property: {selectedLease?.property_title} • Status: <span className="font-black text-zinc-950 capitalize">{selectedLease?.status}</span>
                         </DialogDescription>
                     </DialogHeader>
 
                     {selectedLease && (
                         <div className="space-y-6 my-3">
                             {/* Legal Agreement Terms Box */}
-                            <div className="bg-zinc-50 border border-zinc-200 p-4 text-xs font-mono text-zinc-700 space-y-3 leading-relaxed max-h-56 overflow-y-auto rounded-lg">
-                                <p className="font-bold text-center text-zinc-900 border-b border-zinc-200 pb-2">
+                            <div className="bg-zinc-50 border border-zinc-200/90 p-4 text-xs font-mono text-zinc-950 space-y-3 leading-relaxed max-h-56 overflow-y-auto rounded-none shadow-xs">
+                                <p className="font-black text-center text-zinc-950 border-b-2 border-zinc-950 pb-2 uppercase tracking-wider">
                                     STANDARD RESIDENTIAL LEASE CONTRACT
                                 </p>
                                 <p><strong>Property:</strong> {selectedLease.property_title} {selectedLease.property_address ? `(${selectedLease.property_address})` : ''}</p>
-                                <p><strong>Landlord / Lessor:</strong> {selectedLease.landlord_name || selectedLease.landlord_id} ({selectedLease.landlord_id})</p>
-                                <p><strong>Tenant / Lessee:</strong> {selectedLease.tenant_name || selectedLease.tenant_id} ({selectedLease.tenant_id})</p>
+                                <p><strong>Landlord / Lessor:</strong> {formatUserDisplayName(selectedLease.landlord_name || selectedLease.landlord_id, 'Landlord')} (Verified Lessor)</p>
+                                <p><strong>Tenant / Lessee:</strong> {formatUserDisplayName(selectedLease.tenant_name || selectedLease.tenant_id, 'Tenant')} (Verified Lessee)</p>
                                 <p><strong>Monthly Rent:</strong> R{Number(selectedLease.monthly_rent || 0).toLocaleString()} (Due on the 1st of each calendar month)</p>
                                 <p><strong>Security Deposit:</strong> R{Number(selectedLease.deposit_amount || 0).toLocaleString()} (Protected security deposit)</p>
                                 <p><strong>Term Duration:</strong> {formatDateRange(selectedLease.start_date, selectedLease.end_date)}</p>
-                                <p className="text-zinc-600 pt-2 border-t border-zinc-200 text-[11px]">
+                                <p className="text-zinc-700 pt-2 border-t border-zinc-200 text-[11px]">
                                     <strong>Dual Execution Clause:</strong> In accordance with the South African Rental Housing Act (RHA), this agreement is entered into electronically. The tenant signs first, following which the landlord countersigns to put the contract into full legal effect. Verified duration spent occupying this property directly impacts the tenant's RentScore.
                                 </p>
                             </div>
@@ -641,76 +748,76 @@ export default function Leases() {
                             {/* Dual Signature Status Panel */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {/* Tenant Signature Status */}
-                                <div className="p-3.5 bg-zinc-50 rounded-lg border border-zinc-200 space-y-2">
+                                <div className="p-4 bg-zinc-50 rounded-none border border-zinc-200/90 shadow-xs space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
+                                        <span className="text-xs font-black uppercase tracking-wider text-zinc-950 flex items-center gap-1.5">
                                             <UserCheck className="w-4 h-4 text-blue-600" />
                                             1. Tenant Signature
                                         </span>
                                         {selectedLease.tenant_signature ? (
-                                            <Badge className="bg-emerald-100 text-emerald-800 border-none text-[10px]">
+                                            <Badge className="bg-emerald-100 text-emerald-950 border border-emerald-200 text-[10px] font-black uppercase">
                                                 ✓ Signed
                                             </Badge>
                                         ) : (
-                                            <Badge className="bg-amber-100 text-amber-800 border-none text-[10px]">
+                                            <Badge className="bg-amber-100 text-amber-950 border border-amber-200 text-[10px] font-black uppercase">
                                                 Awaiting Tenant
                                             </Badge>
                                         )}
                                     </div>
-                                    <p className="text-[11px] text-zinc-500 font-mono truncate">{selectedLease.tenant_name || selectedLease.tenant_id}</p>
+                                    <p className="text-[11px] text-zinc-600 font-mono truncate">{formatUserDisplayName(selectedLease.tenant_name || selectedLease.tenant_id, 'Tenant')}</p>
                                     {selectedLease.tenant_signature ? (
-                                        <div className="bg-white p-2 border border-zinc-200 rounded text-center">
+                                        <div className="bg-white p-2 border border-zinc-200/90 rounded-none text-center shadow-xs">
                                             {selectedLease.tenant_signature.startsWith('data:image') ? (
                                                 <img src={selectedLease.tenant_signature} alt="Tenant Signature" className="h-12 mx-auto object-contain" />
                                             ) : (
-                                                <p className="font-serif italic text-base text-zinc-800 py-1">
+                                                <p className="font-serif italic text-base text-zinc-950 py-1">
                                                     {selectedLease.tenant_signature.replace(/^e-sign:/, '').split(':')[0]}
                                                 </p>
                                             )}
-                                            <p className="text-[9px] text-zinc-400 mt-1">
+                                            <p className="text-[9px] text-zinc-500 font-bold mt-1">
                                                 Signed: {formatDate(selectedLease.tenant_signed_at || selectedLease.created_at)}
                                             </p>
                                         </div>
                                     ) : (
-                                        <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
+                                        <p className="text-xs text-amber-950 bg-amber-50 p-2 rounded-none border border-amber-200 font-bold">
                                             Awaiting digital signature from tenant.
                                         </p>
                                     )}
                                 </div>
 
                                 {/* Landlord Countersignature Status */}
-                                <div className="p-3.5 bg-zinc-50 rounded-lg border border-zinc-200 space-y-2">
+                                <div className="p-4 bg-zinc-50 rounded-none border border-zinc-200/90 shadow-xs space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
+                                        <span className="text-xs font-black uppercase tracking-wider text-zinc-950 flex items-center gap-1.5">
                                             <Building2 className="w-4 h-4 text-emerald-600" />
                                             2. Landlord Countersignature
                                         </span>
                                         {selectedLease.landlord_signature ? (
-                                            <Badge className="bg-emerald-100 text-emerald-800 border-none text-[10px]">
+                                            <Badge className="bg-emerald-100 text-emerald-950 border border-emerald-200 text-[10px] font-black uppercase">
                                                 ✓ Countersigned
                                             </Badge>
                                         ) : (
-                                            <Badge className="bg-amber-100 text-amber-800 border-none text-[10px]">
+                                            <Badge className="bg-amber-100 text-amber-950 border border-amber-200 text-[10px] font-black uppercase">
                                                 {selectedLease.tenant_signature ? 'Ready to Countersign' : 'Pending Tenant'}
                                             </Badge>
                                         )}
                                     </div>
-                                    <p className="text-[11px] text-zinc-500 font-mono truncate">{selectedLease.landlord_name || selectedLease.landlord_id}</p>
+                                    <p className="text-[11px] text-zinc-600 font-mono truncate">{formatUserDisplayName(selectedLease.landlord_name || selectedLease.landlord_id, 'Landlord')}</p>
                                     {selectedLease.landlord_signature ? (
-                                        <div className="bg-white p-2 border border-zinc-200 rounded text-center">
+                                        <div className="bg-white p-2 border border-zinc-200/90 rounded-none text-center shadow-xs">
                                             {selectedLease.landlord_signature.startsWith('data:image') ? (
                                                 <img src={selectedLease.landlord_signature} alt="Landlord Signature" className="h-12 mx-auto object-contain" />
                                             ) : (
-                                                <p className="font-serif italic text-base text-zinc-800 py-1">
+                                                <p className="font-serif italic text-base text-zinc-950 py-1">
                                                     {selectedLease.landlord_signature.replace(/^e-sign:/, '').split(':')[0]}
                                                 </p>
                                             )}
-                                            <p className="text-[9px] text-zinc-400 mt-1">
+                                            <p className="text-[9px] text-zinc-500 font-bold mt-1">
                                                 Countersigned: {formatDate(selectedLease.landlord_signed_at || selectedLease.updated_at)}
                                             </p>
                                         </div>
                                     ) : (
-                                        <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
+                                        <p className="text-xs text-amber-950 bg-amber-50 p-2 rounded-none border border-amber-200 font-bold">
                                             {selectedLease.tenant_signature 
                                                 ? 'Tenant has signed! Awaiting countersignature from landlord.'
                                                 : 'Will be available once tenant completes first signature.'}
@@ -723,10 +830,10 @@ export default function Leases() {
                             {((isCurrentUserTenant(selectedLease) && !selectedLease.tenant_signature) ||
                               (isCurrentUserLandlord(selectedLease) && Boolean(selectedLease.tenant_signature) && !selectedLease.landlord_signature) ||
                               (user?.user_type === 'sysAdmin' && (!selectedLease.tenant_signature || !selectedLease.landlord_signature))) && (
-                                <div className="space-y-3 border-t border-zinc-200 pt-4">
+                                <div className="space-y-3 border-t-2 border-zinc-950 pt-4">
                                     <div className="flex items-center justify-between">
-                                        <label className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
-                                            <PenTool className="w-3.5 h-3.5 text-zinc-900" />
+                                        <label className="text-xs font-black uppercase tracking-wider text-zinc-950 flex items-center gap-1.5">
+                                            <PenTool className="w-3.5 h-3.5 text-zinc-950" />
                                             {isCurrentUserTenant(selectedLease) && !selectedLease.tenant_signature
                                                 ? 'Sign as Tenant:'
                                                 : 'Countersign as Landlord:'}
@@ -735,14 +842,14 @@ export default function Leases() {
                                             <button
                                                 type="button"
                                                 onClick={() => setSigMode('draw')}
-                                                className={`px-2 py-0.5 text-xs font-semibold rounded ${sigMode === 'draw' ? 'bg-zinc-900 text-white' : 'text-zinc-600 bg-zinc-100'}`}
+                                                className={`px-3 py-1 text-xs font-black uppercase tracking-wider border border-zinc-200/90 transition-all ${sigMode === 'draw' ? 'bg-zinc-950 text-white shadow-xs' : 'text-zinc-950 bg-zinc-100 hover:bg-zinc-200'}`}
                                             >
                                                 Draw
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setSigMode('type')}
-                                                className={`px-2 py-0.5 text-xs font-semibold rounded ${sigMode === 'type' ? 'bg-zinc-900 text-white' : 'text-zinc-600 bg-zinc-100'}`}
+                                                className={`px-3 py-1 text-xs font-black uppercase tracking-wider border border-zinc-200/90 transition-all ${sigMode === 'type' ? 'bg-zinc-950 text-white shadow-xs' : 'text-zinc-950 bg-zinc-100 hover:bg-zinc-200'}`}
                                             >
                                                 Type Name
                                             </button>
@@ -750,7 +857,7 @@ export default function Leases() {
                                                 <button
                                                     type="button"
                                                     onClick={clearCanvas}
-                                                    className="text-xs text-zinc-500 hover:text-zinc-900 underline ml-2"
+                                                    className="text-xs font-black uppercase tracking-wider text-zinc-600 hover:text-zinc-950 underline ml-2"
                                                 >
                                                     Clear
                                                 </button>
@@ -759,7 +866,7 @@ export default function Leases() {
                                     </div>
 
                                     {sigMode === 'draw' ? (
-                                        <div className="border-2 border-dashed border-zinc-300 bg-white rounded-lg overflow-hidden touch-none">
+                                        <div className="border border-zinc-200/90 bg-white rounded-none overflow-hidden touch-none shadow-xs">
                                             <canvas
                                                 ref={canvasRef}
                                                 width={550}
@@ -771,7 +878,7 @@ export default function Leases() {
                                                 onTouchStart={handleTouchStart}
                                                 onTouchMove={handleTouchMove}
                                                 onTouchEnd={stopDrawing}
-                                                className="w-full h-28 cursor-crosshair"
+                                                className="w-full h-28 cursor-crosshair bg-white"
                                             />
                                         </div>
                                     ) : (
@@ -782,7 +889,7 @@ export default function Leases() {
                                                 onChange={(e) => setTypedName(e.target.value)}
                                                 className="font-serif italic text-lg"
                                             />
-                                            <p className="text-[11px] text-zinc-500">
+                                            <p className="text-[11px] font-bold text-zinc-600">
                                                 Your typed name will be recorded as your legally binding electronic signature under the South African ECT Act & RHA.
                                             </p>
                                         </div>
@@ -852,6 +959,45 @@ export default function Leases() {
                     )}
                 </DialogContent>
             </Dialog>
+
+            {/* Cancel Lease Dialog */}
+            <CancelLeaseDialog
+                isOpen={cancelModalOpen}
+                onClose={() => setCancelModalOpen(false)}
+                lease={activeLeaseForAction}
+                currentUser={user}
+                onSuccess={() => {
+                    queryClient.invalidateQueries({ queryKey: ['leases'] });
+                    queryClient.invalidateQueries({ queryKey: ['rentScore'] });
+                    queryClient.invalidateQueries({ queryKey: ['properties'] });
+                    queryClient.invalidateQueries({ queryKey: ['payments'] });
+                }}
+            />
+
+            {/* Edit Terms & Payment Arrangements Dialog */}
+            <EditLeaseTermsDialog
+                isOpen={editTermsModalOpen}
+                onClose={() => setEditTermsModalOpen(false)}
+                lease={activeLeaseForAction}
+                currentUser={user}
+                onSuccess={() => {
+                    queryClient.invalidateQueries({ queryKey: ['leases'] });
+                    queryClient.invalidateQueries({ queryKey: ['rentScore'] });
+                }}
+            />
+
+            {/* Renew Lease Dialog */}
+            <RenewLeaseDialog
+                isOpen={renewModalOpen}
+                onClose={() => setRenewModalOpen(false)}
+                lease={activeLeaseForAction}
+                currentUser={user}
+                onSuccess={() => {
+                    queryClient.invalidateQueries({ queryKey: ['leases'] });
+                    queryClient.invalidateQueries({ queryKey: ['rentScore'] });
+                    queryClient.invalidateQueries({ queryKey: ['properties'] });
+                }}
+            />
         </div>
     );
 }

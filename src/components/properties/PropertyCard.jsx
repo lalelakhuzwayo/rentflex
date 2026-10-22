@@ -35,11 +35,11 @@ export default function PropertyCard({ property, index = 0 }) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05, duration: 0.25 }}
-            className="group bg-white rounded-xl overflow-hidden border border-zinc-200/80 hover:border-zinc-300 hover:shadow-md hover:-translate-y-0.5 transition-[border-color,box-shadow,transform] duration-200 transform-gpu flex flex-col justify-between"
+            className="group bg-white rounded-none overflow-hidden border border-zinc-200/90 shadow-card hover:shadow-card-hover hover:-translate-y-[2px] transition-all duration-200 flex flex-col justify-between"
         >
             <Link to={createPageUrl(`PropertyDetails?id=${property.id}`)} className="block">
                 {/* Image */}
-                <div className="relative h-48 sm:h-52 overflow-hidden bg-zinc-100">
+                <div className="relative h-48 sm:h-52 overflow-hidden bg-zinc-100 border-b-2 border-zinc-950">
                     <img
                         src={displayImage}
                         alt={property.title}
@@ -51,26 +51,26 @@ export default function PropertyCard({ property, index = 0 }) {
                             e.target.src = defaultImage;
                         }}
                     />
-                    <div className="absolute top-3 left-3 flex gap-1.5">
-                        <Badge className={`${statusColors[property.status] || 'bg-zinc-100 text-zinc-700'} text-[11px] font-medium px-2 py-0.5 rounded-md`}>
+                    <div className="absolute top-3 left-3 flex gap-1.5 flex-wrap">
+                        <Badge className={`${statusColors[property.status] || 'bg-white text-zinc-950'} text-[11px] font-bold px-2 py-0.5 rounded-none border border-zinc-200/90 shadow-xs`}>
                             {property.status}
                         </Badge>
                         {property.rental_type === 'room' && (
-                            <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[11px] font-medium px-2 py-0.5 rounded-md">
+                            <Badge className="bg-indigo-50 text-indigo-950 border border-zinc-200/90 text-[11px] font-bold px-2 py-0.5 rounded-none shadow-xs">
                                 {property.available_rooms !== undefined ? `${property.available_rooms} rooms left` : 'Room Rental'}
                             </Badge>
                         )}
                         {property.accepts_bidding && (
-                            <Badge className="bg-zinc-900 text-white border-zinc-800 text-[11px] font-medium px-2 py-0.5 rounded-md flex items-center gap-1">
+                            <Badge className="bg-zinc-950 text-white border border-zinc-200/90 text-[11px] font-bold px-2 py-0.5 rounded-none shadow-xs flex items-center gap-1">
                                 <Gavel className="w-3 h-3" />
                                 Bidding
                             </Badge>
                         )}
                     </div>
                     {property.min_rentscore && (
-                        <div className="absolute top-3 right-3 bg-white/95 rounded-md px-2 py-0.5 flex items-center gap-1 border border-zinc-200/60 shadow-xs">
-                            <TrendingUp className="w-3 h-3 text-zinc-900" />
-                            <span className="text-[11px] font-semibold text-zinc-800">{property.min_rentscore}+</span>
+                        <div className="absolute top-3 right-3 bg-white rounded-none px-2 py-0.5 flex items-center gap-1 border border-zinc-200/90 shadow-xs">
+                            <TrendingUp className="w-3 h-3 text-zinc-950" />
+                            <span className="text-[11px] font-bold text-zinc-950">{property.min_rentscore}+</span>
                         </div>
                     )}
                 </div>
@@ -78,12 +78,12 @@ export default function PropertyCard({ property, index = 0 }) {
                 {/* Content */}
                 <div className="p-4 sm:p-5">
                     <div className="flex items-start justify-between gap-3 mb-2">
-                        <h3 className="font-semibold text-zinc-900 text-base line-clamp-1 group-hover:text-zinc-700 transition-colors">
+                        <h3 className="font-bold text-zinc-950 text-base line-clamp-1 group-hover:text-zinc-700 transition-colors">
                             {property.title}
                         </h3>
                         <div className="text-right shrink-0">
-                            <p className="text-base font-bold text-zinc-900">R{property.monthly_rent?.toLocaleString()}</p>
-                            <p className="text-[11px] text-zinc-400">/month</p>
+                            <p className="text-base font-black text-zinc-950">R{property.monthly_rent?.toLocaleString()}</p>
+                            <p className="text-[11px] font-semibold text-zinc-500">/month</p>
                         </div>
                     </div>
 

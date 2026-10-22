@@ -1,4 +1,5 @@
 import { formatDate } from '@/utils';
+import { formatUserDisplayName } from '@/utils/userFormatting';
 import {
     User,
     DollarSign,
@@ -8,6 +9,7 @@ import {
     Users,
     PawPrint,
     Shield,
+    ShieldCheck,
     Clock
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -69,13 +71,16 @@ export default function ApplicationDetailsModal({
                                 Applicant Information
                             </h3>
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-slate-50 rounded-lg p-4">
-                                    <p className="text-sm text-slate-500 mb-1">Full Name</p>
-                                    <p className="font-medium text-slate-900">{application.tenant_name}</p>
+                                <div className="bg-slate-50 rounded-none border border-zinc-200/80 p-4">
+                                    <p className="text-xs text-slate-500 mb-1 font-semibold uppercase tracking-wider">Applicant Name</p>
+                                    <p className="font-bold text-slate-900">{formatUserDisplayName(application.tenant_name || application.tenant_id, 'Applicant')}</p>
                                 </div>
-                                <div className="bg-slate-50 rounded-lg p-4">
-                                    <p className="text-sm text-slate-500 mb-1">Email</p>
-                                    <p className="font-medium text-slate-900">{application.tenant_email}</p>
+                                <div className="bg-slate-50 rounded-none border border-zinc-200/80 p-4">
+                                    <p className="text-xs text-slate-500 mb-1 font-semibold uppercase tracking-wider">Verification Status</p>
+                                    <p className="font-semibold text-emerald-700 flex items-center gap-1.5 text-xs">
+                                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                                        Verified Identity Record
+                                    </p>
                                 </div>
                                 {application.tenant_phone && (
                                     <div className="bg-slate-50 rounded-lg p-4">
@@ -104,7 +109,7 @@ export default function ApplicationDetailsModal({
                                 <div className="bg-slate-50 rounded-lg p-4">
                                     <p className="text-sm text-slate-500 mb-1">Monthly Income</p>
                                     <p className="text-2xl font-bold text-slate-900">
-                                        ${application.monthly_income?.toLocaleString()}
+                                        R{application.monthly_income?.toLocaleString()}
                                     </p>
                                     {application.income_verified && (
                                         <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 mt-2">

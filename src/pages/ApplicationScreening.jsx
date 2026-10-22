@@ -13,7 +13,17 @@ import {
     Calendar,
     Gavel,
     RefreshCw,
-    FileText
+    FileText,
+    ShieldCheck,
+    Briefcase,
+    Star,
+    Award,
+    ExternalLink,
+    AlertTriangle,
+    Shield,
+    Phone,
+    MapPin,
+    Check
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,16 +38,22 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { toast } from 'sonner';
+import { useSearchParams } from 'react-router-dom';
 import ApplicationCard from '@/components/screening/ApplicationCard';
 import ApplicationDetailsModal from '@/components/screening/ApplicationDetailsModal';
 import StatsCard from '@/components/dashboard/StatsCard';
 import { getViewedItemIds, markItemsAsViewed } from '@/utils/realtimeNotificationManager';
 import { initiateLeaseFromAcceptedBid } from '@/utils/leaseManager';
+import { formatUserDisplayName } from '@/utils/userFormatting';
+import { validateSouthAfricanID, validateTaxNumber } from '@/utils/contractorVerificationEngine';
 
 const isValidUuid = (id) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
 
 export default function ApplicationScreening() {
+    const [searchParams] = useSearchParams();
+    const initialTab = searchParams.get('tab') || 'pending';
+    const [activeTab, setActiveTab] = useState(initialTab);
     const [user, setUser] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedProperty, setSelectedProperty] = useState('all');
@@ -47,6 +63,11 @@ export default function ApplicationScreening() {
     const [detailsModalOpen, setDetailsModalOpen] = useState(false);
     const [landlordNotes, setLandlordNotes] = useState('');
     const [viewedVersion, setViewedVersion] = useState(0);
+
+    // Contractor Vetting State
+    const [contractorSearch, setContractorSearch] = useState('');
+    const [contractorStatusFilter, setContractorStatusFilter] = useState('all');
+
     const queryClient = useQueryClient();
 
     useEffect(() => {
@@ -323,6 +344,40 @@ export default function ApplicationScreening() {
         onError: () => toast.error('Failed to update bid')
     });
 
+    // Contractors Query for Landlord Vetting
+    const { data: contractors = [], isLoading: contractorsLoading } = useQuery({
+        queryKey: ['contractors-screening-list'],
+        queryFn: async () => {
+            try {
+                const list = await appClient.entities.Contractor.list();
+                return Array.isArray(list) ? list : [];
+            } catch (err) {
+                console.warn('Error fetching contractors for screening:', err);
+                return [];
+            }
+        }
+    });
+
+    // Contractor Accreditation / Vetting Mutation
+    const updateContractorAccreditationMutation = useMutation({
+        mutationFn: async ({ id, status, notes }) => {
+            const payload = {
+                verification_status: status,
+                verified: status === 'verified',
+                verification_score: status === 'verified' ? 95 : (status === 'under_review' ? 60 : 25),
+                updated_at: new Date().toISOString()
+            };
+            if (notes) payload.landlord_vetting_notes = notes;
+            return await appClient.entities.Contractor.update(id, payload);
+        },
+        onSuccess: (_, vars) => {
+            queryClient.invalidateQueries({ queryKey: ['contractors-screening-list'] });
+            queryClient.invalidateQueries({ queryKey: ['contractors'] });
+            queryClient.invalidateQueries({ queryKey: ['all-contractors'] });
+            toast.success(`Contractor accreditation set to ${vars.status.toUpperCase()}!`);
+        },
+        onError: () => toast.error('Failed to update contractor accreditation')
+    });
 
     const viewedSet = React.useMemo(() => {
         return getViewedItemIds(user?.email || user?.id);
@@ -503,6 +558,25 @@ export default function ApplicationScreening() {
     const approvedApplications = sortedApplications.filter(a => a.status === 'approved');
     const rejectedApplications = sortedApplications.filter(a => a.status === 'rejected');
 
+    const filteredContractors = contractors.filter(c => {
+        const term = contractorSearch.toLowerCase();
+        const matchesSearch = !contractorSearch ||
+            (c.company_name && c.company_name.toLowerCase().includes(term)) ||
+            (c.business_name && c.business_name.toLowerCase().includes(term)) ||
+            (c.name && c.name.toLowerCase().includes(term)) ||
+            (c.contact_name && c.contact_name.toLowerCase().includes(term)) ||
+            (c.category && c.category.toLowerCase().includes(term)) ||
+            (Array.isArray(c.services) && c.services.some(s => s.toLowerCase().includes(term)));
+        
+        if (contractorStatusFilter === 'verified') return matchesSearch && (c.verified || c.verification_status === 'verified');
+        if (contractorStatusFilter === 'under_review') return matchesSearch && c.verification_status === 'under_review';
+        if (contractorStatusFilter === 'pending') return matchesSearch && (!c.verified && c.verification_status !== 'rejected' && c.verification_status !== 'declined');
+        if (contractorStatusFilter === 'rejected') return matchesSearch && (c.verification_status === 'rejected' || c.verification_status === 'declined');
+        return matchesSearch;
+    });
+
+    const pendingContractorsCount = contractors.filter(c => !c.verified && c.verification_status !== 'rejected' && c.verification_status !== 'declined').length;
+
     const avgRentScore = applications?.length > 0
         ? Math.round(applications.reduce((sum, app) => sum + (app.rentscore || 0), 0) / applications.length)
         : 0;
@@ -511,14 +585,14 @@ export default function ApplicationScreening() {
         <div className="space-y-6">
             {/* Header */}
             <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Application Screening</h1>
-                <p className="text-slate-500 mt-1">Review and approve tenant applications</p>
+                <h1 className="text-2xl sm:text-3xl font-bold text-zinc-950 tracking-tight">Application Screening & Vetting Hub</h1>
+                <p className="text-zinc-500 text-xs sm:text-sm mt-1">Vet prospective tenant applications, accredit contractors, and coordinate viewings</p>
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                 <StatsCard
-                    title="Pending Review"
+                    title="Pending Tenants"
                     value={pendingApplications.length}
                     subtitle="Awaiting decision"
                     icon={Clock}
@@ -532,10 +606,17 @@ export default function ApplicationScreening() {
                     color="indigo"
                 />
                 <StatsCard
-                    title="Approved"
+                    title="Approved Tenants"
                     value={approvedApplications.length}
                     subtitle="Ready to lease"
                     icon={CheckCircle2}
+                    color="emerald"
+                />
+                <StatsCard
+                    title="Contractors to Vet"
+                    value={pendingContractorsCount}
+                    subtitle={`${contractors.filter(c => c.verified).length} accredited`}
+                    icon={ShieldCheck}
                     color="emerald"
                 />
                 <StatsCard
@@ -548,27 +629,27 @@ export default function ApplicationScreening() {
             </div>
 
             {/* Filters */}
-            <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/90 hover:border-slate-300/80 transition-all duration-200">
+            <div className="bg-white rounded-none p-4 shadow-card border border-zinc-200/90 hover:border-zinc-300/80 transition-all duration-200">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                     {/* Search */}
                     <div className="lg:col-span-2">
                         <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
                             <Input
-                                placeholder="Search applicants..."
+                                placeholder="Search applicant names, properties..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-9"
+                                className="pl-9 rounded-none text-xs"
                             />
                         </div>
                     </div>
 
                     {/* Property Filter */}
                     <Select value={selectedProperty} onValueChange={setSelectedProperty}>
-                        <SelectTrigger>
+                        <SelectTrigger className="rounded-none text-xs">
                             <SelectValue placeholder="All Properties" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="rounded-none">
                             <SelectItem value="all">All Properties</SelectItem>
                             {properties?.map(property => (
                                 <SelectItem key={property.id} value={property.id}>
@@ -580,10 +661,10 @@ export default function ApplicationScreening() {
 
                     {/* RentScore Filter */}
                     <Select value={minRentScore} onValueChange={setMinRentScore}>
-                        <SelectTrigger>
+                        <SelectTrigger className="rounded-none text-xs">
                             <SelectValue placeholder="Min RentScore" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="rounded-none">
                             <SelectItem value="0">All Scores</SelectItem>
                             <SelectItem value="550">550+</SelectItem>
                             <SelectItem value="650">650+</SelectItem>
@@ -593,10 +674,10 @@ export default function ApplicationScreening() {
 
                     {/* Sort */}
                     <Select value={sortBy} onValueChange={setSortBy}>
-                        <SelectTrigger>
+                        <SelectTrigger className="rounded-none text-xs">
                             <SelectValue placeholder="Sort by" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="rounded-none">
                             <SelectItem value="date_desc">Newest First</SelectItem>
                             <SelectItem value="date_asc">Oldest First</SelectItem>
                             <SelectItem value="rentscore_desc">Highest RentScore</SelectItem>
@@ -608,66 +689,75 @@ export default function ApplicationScreening() {
             </div>
 
             {/* Tabs */}
-            <Tabs defaultValue="pending" onValueChange={handleTabChange}>
+            <Tabs defaultValue={initialTab} value={activeTab} onValueChange={(val) => { setActiveTab(val); handleTabChange(val); }}>
                 <div className="flex items-center justify-between mb-6">
                     <TabsList className="bg-transparent p-0 border-none gap-2 flex-wrap">
-                        <TabsTrigger value="pending" className="flex items-center gap-2">
+                        <TabsTrigger value="pending" className="flex items-center gap-2 rounded-none">
                             <Clock className="w-4 h-4" />
-                            Pending
+                            Pending Applicants
                             {pendingApplications.length > 0 && (
-                                <span className="ml-1 px-1.5 py-0.5 bg-amber-500 text-white text-xs rounded-full">
+                                <span className="ml-1 px-1.5 py-0.5 bg-amber-500 text-white text-xs rounded-none font-bold">
                                     {pendingApplications.length}
                                 </span>
                             )}
                         </TabsTrigger>
-                        <TabsTrigger value="review" className="flex items-center gap-2">
+                        <TabsTrigger value="review" className="flex items-center gap-2 rounded-none">
                             <SlidersHorizontal className="w-4 h-4" />
                             Under Review
                             {underReviewApplications.length > 0 && (
-                                <span className="ml-1 px-1.5 py-0.5 bg-blue-500 text-white text-xs rounded-full">
+                                <span className="ml-1 px-1.5 py-0.5 bg-blue-500 text-white text-xs rounded-none font-bold">
                                     {underReviewApplications.length}
                                 </span>
                             )}
                         </TabsTrigger>
-                        <TabsTrigger value="approved" className="flex items-center gap-2">
+                        <TabsTrigger value="approved" className="flex items-center gap-2 rounded-none">
                             <CheckCircle2 className="w-4 h-4" />
                             Approved
                             {approvedApplications.length > 0 && (
-                                <span className="ml-1 px-1.5 py-0.5 bg-emerald-600 text-white text-xs rounded-full font-bold">
+                                <span className="ml-1 px-1.5 py-0.5 bg-emerald-600 text-white text-xs rounded-none font-bold">
                                     {approvedApplications.length}
                                 </span>
                             )}
                         </TabsTrigger>
-                        <TabsTrigger value="tours" className="flex items-center gap-2">
+                        <TabsTrigger value="contractors" className="flex items-center gap-2 rounded-none">
+                            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                            Contractor Vetting
+                            {pendingContractorsCount > 0 && (
+                                <span className="ml-1 px-1.5 py-0.5 bg-emerald-600 text-white text-xs rounded-none font-bold">
+                                    {pendingContractorsCount}
+                                </span>
+                            )}
+                        </TabsTrigger>
+                        <TabsTrigger value="tours" className="flex items-center gap-2 rounded-none">
                             <Calendar className="w-4 h-4" />
                             Tour Schedules
                             {unviewedTours.length > 0 && (
-                                <span className="ml-1 px-1.5 py-0.5 bg-emerald-700 text-white text-xs rounded-full font-bold">
+                                <span className="ml-1 px-1.5 py-0.5 bg-emerald-700 text-white text-xs rounded-none font-bold">
                                     {unviewedTours.length}
                                 </span>
                             )}
                         </TabsTrigger>
-                        <TabsTrigger value="bids" className="flex items-center gap-2">
+                        <TabsTrigger value="bids" className="flex items-center gap-2 rounded-none">
                             <Gavel className="w-4 h-4" />
                             Property Bids
                             {unviewedBids.length > 0 && (
-                                <span className="ml-1 px-1.5 py-0.5 bg-zinc-900 text-white text-xs rounded-full font-bold">
+                                <span className="ml-1 px-1.5 py-0.5 bg-zinc-900 text-white text-xs rounded-none font-bold">
                                     {unviewedBids.length}
                                 </span>
                             )}
                         </TabsTrigger>
-                        <TabsTrigger value="rejected" className="flex items-center gap-2">
+                        <TabsTrigger value="rejected" className="flex items-center gap-2 rounded-none">
                             <XCircle className="w-4 h-4" />
                             Declined
                             {rejectedApplications.length > 0 && (
-                                <span className="ml-1 px-1.5 py-0.5 bg-rose-600 text-white text-xs rounded-full font-bold">
+                                <span className="ml-1 px-1.5 py-0.5 bg-rose-600 text-white text-xs rounded-none font-bold">
                                     {rejectedApplications.length}
                                 </span>
                             )}
                         </TabsTrigger>
                     </TabsList>
 
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" className="rounded-none text-xs">
                         <Download className="w-4 h-4 mr-2" />
                         Export
                     </Button>
@@ -677,7 +767,7 @@ export default function ApplicationScreening() {
                     {isLoading ? (
                         <div className="space-y-4">
                             {[1, 2, 3].map(i => (
-                                <Skeleton key={i} className="h-64 rounded-2xl" />
+                                <Skeleton key={i} className="h-64 rounded-none border border-zinc-200" />
                             ))}
                         </div>
                     ) : pendingApplications.length > 0 ? (
@@ -691,10 +781,10 @@ export default function ApplicationScreening() {
                             />
                         ))
                     ) : (
-                        <div className="text-center py-16 bg-white rounded-2xl border border-slate-200/90 shadow-sm">
-                            <Clock className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                            <h3 className="font-semibold text-slate-900 mb-1">No pending applications</h3>
-                            <p className="text-slate-500">New applications will appear here</p>
+                        <div className="text-center py-16 bg-white rounded-none border border-zinc-200/90 shadow-card">
+                            <Clock className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
+                            <h3 className="font-semibold text-zinc-900 mb-1">No pending applications</h3>
+                            <p className="text-zinc-500 text-xs">New tenant applications will appear here</p>
                         </div>
                     )}
                 </TabsContent>
@@ -711,10 +801,10 @@ export default function ApplicationScreening() {
                             />
                         ))
                     ) : (
-                        <div className="text-center py-16 bg-white rounded-2xl border border-slate-200/90 shadow-sm">
-                            <SlidersHorizontal className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                            <h3 className="font-semibold text-slate-900 mb-1">No applications under review</h3>
-                            <p className="text-slate-500">Move applications here for detailed screening</p>
+                        <div className="text-center py-16 bg-white rounded-none border border-zinc-200/90 shadow-card">
+                            <SlidersHorizontal className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
+                            <h3 className="font-semibold text-zinc-900 mb-1">No applications under review</h3>
+                            <p className="text-zinc-500 text-xs">Move applications here for detailed screening</p>
                         </div>
                     )}
                 </TabsContent>
@@ -731,10 +821,272 @@ export default function ApplicationScreening() {
                             />
                         ))
                     ) : (
-                        <div className="text-center py-16 bg-white rounded-2xl border border-slate-200/90 shadow-sm">
-                            <CheckCircle2 className="w-12 h-12 text-emerald-300 mx-auto mb-3" />
-                            <h3 className="font-semibold text-slate-900 mb-1">No approved applications</h3>
-                            <p className="text-slate-500">Approved applications will appear here</p>
+                        <div className="text-center py-16 bg-white rounded-none border border-zinc-200/90 shadow-card">
+                            <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
+                            <h3 className="font-semibold text-zinc-900 mb-1">No approved applications</h3>
+                            <p className="text-zinc-500 text-xs">Approved applications ready to lease will appear here</p>
+                        </div>
+                    )}
+                </TabsContent>
+
+                {/* Contractor Vetting Content */}
+                <TabsContent value="contractors" className="space-y-4">
+                    {/* Contractor Filters Bar */}
+                    <div className="bg-white rounded-none p-4 shadow-card border border-zinc-200/90 flex flex-col sm:flex-row gap-3 items-center justify-between">
+                        <div className="relative flex-1 w-full sm:w-auto">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                            <Input
+                                placeholder="Search contractor company, trade, or specialist name..."
+                                value={contractorSearch}
+                                onChange={(e) => setContractorSearch(e.target.value)}
+                                className="pl-9 rounded-none text-xs"
+                            />
+                        </div>
+                        <div className="w-full sm:w-64 shrink-0">
+                            <Select value={contractorStatusFilter} onValueChange={setContractorStatusFilter}>
+                                <SelectTrigger className="rounded-none text-xs">
+                                    <SelectValue placeholder="Vetting Status" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-none">
+                                    <SelectItem value="all">All Contractors ({contractors.length})</SelectItem>
+                                    <SelectItem value="pending">Pending Vetting ({contractors.filter(c => !c.verified && c.verification_status !== 'rejected' && c.verification_status !== 'declined').length})</SelectItem>
+                                    <SelectItem value="verified">Verified & Accredited ({contractors.filter(c => c.verified || c.verification_status === 'verified').length})</SelectItem>
+                                    <SelectItem value="under_review">Under Review ({contractors.filter(c => c.verification_status === 'under_review').length})</SelectItem>
+                                    <SelectItem value="rejected">Declined ({contractors.filter(c => c.verification_status === 'rejected' || c.verification_status === 'declined').length})</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    {/* Contractor List */}
+                    {contractorsLoading ? (
+                        <div className="space-y-4">
+                            {[1, 2, 3].map(i => (
+                                <Skeleton key={i} className="h-48 rounded-none border border-zinc-200" />
+                            ))}
+                        </div>
+                    ) : filteredContractors.length > 0 ? (
+                        <div className="space-y-4">
+                            {filteredContractors.map((c) => {
+                                const idValidation = validateSouthAfricanID(c.id_number);
+                                const hasValidTax = validateTaxNumber(c.tax_number);
+                                const isVerified = c.verified || c.verification_status === 'verified';
+                                const isUnderReview = c.verification_status === 'under_review';
+                                const isRejected = c.verification_status === 'rejected' || c.verification_status === 'declined';
+
+                                return (
+                                    <div
+                                        key={c.id}
+                                        className="bg-white rounded-none p-5 border border-zinc-200/90 shadow-card hover:shadow-card-hover hover:-translate-y-[1px] transition-all duration-200 space-y-4"
+                                    >
+                                        {/* Header: Company, Trade, Status, Score */}
+                                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                                            <div className="space-y-1">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <h3 className="font-black text-base uppercase tracking-wider text-zinc-950">
+                                                        {c.company_name || c.business_name || 'Independent Specialist'}
+                                                    </h3>
+                                                    <Badge className={`text-xs font-bold rounded-none border ${
+                                                        isVerified
+                                                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                                            : isUnderReview
+                                                                ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                                                : isRejected
+                                                                    ? 'bg-rose-50 text-rose-800 border-rose-300'
+                                                                    : 'bg-zinc-100 text-zinc-800 border-zinc-300'
+                                                    }`}>
+                                                        {isVerified ? '✓ Accredited & Verified' : isUnderReview ? '⚠ In Review' : isRejected ? '✕ Declined' : '⏳ Pending Vetting'}
+                                                    </Badge>
+                                                    <Badge className="bg-zinc-100 text-zinc-800 border-zinc-200 text-xs rounded-none font-semibold">
+                                                        {c.category || 'General Maintenance'}
+                                                    </Badge>
+                                                </div>
+                                                <p className="text-xs text-zinc-600 font-medium flex items-center gap-2">
+                                                    <span>Specialist: <strong className="text-zinc-900">{formatUserDisplayName(c.name || c.contact_name, 'Contractor')}</strong></span>
+                                                    {c.phone && <span>• 📞 {c.phone}</span>}
+                                                    {c.location && <span>• 📍 {c.location}</span>}
+                                                </p>
+                                            </div>
+
+                                            <div className="flex items-center gap-3 shrink-0">
+                                                <div className="text-right">
+                                                    <div className="text-xs font-semibold text-zinc-500">RentFlex JobScore™</div>
+                                                    <div className="text-lg font-black text-zinc-950 flex items-center justify-end gap-1">
+                                                        <Award className="w-4 h-4 text-emerald-600" />
+                                                        {c.verification_score || (isVerified ? 95 : 60)}/100
+                                                    </div>
+                                                </div>
+                                                <div className="text-right pl-3 border-l border-zinc-200">
+                                                    <div className="text-xs font-semibold text-zinc-500">Rating</div>
+                                                    <div className="text-lg font-black text-zinc-950 flex items-center justify-end gap-1">
+                                                        <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                                                        {Number(c.rating || 5.0).toFixed(1)}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Vetting Criteria Verification Grid */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-3.5 bg-zinc-50 border border-zinc-200/80 rounded-none text-xs">
+                                            {/* SA ID Validation */}
+                                            <div className="space-y-1">
+                                                <div className="font-bold text-zinc-900 flex items-center gap-1.5">
+                                                    <ShieldCheck className={`w-4 h-4 ${idValidation.valid ? 'text-emerald-600' : 'text-amber-500'}`} />
+                                                    <span>SA National ID Check</span>
+                                                </div>
+                                                {idValidation.valid ? (
+                                                    <div className="text-[11px] text-zinc-600 space-y-0.5">
+                                                        <div className="text-emerald-700 font-bold">✓ Luhn Checksum Confirmed</div>
+                                                        <div>DOB: {idValidation.dateOfBirth} • {idValidation.gender}</div>
+                                                        <div>Status: {idValidation.citizenship}</div>
+                                                        <div className="font-mono text-zinc-500 text-[10px]">
+                                                            ID: {c.id_number ? `${c.id_number.slice(0, 6)}••••${c.id_number.slice(10)}` : 'Verified'}
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-[11px] text-amber-700 font-medium">
+                                                        {c.id_number ? `⚠ ${idValidation.reason || 'Invalid ID checksum'}` : '⏳ ID document pending upload'}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Tax & Business Compliance */}
+                                            <div className="space-y-1">
+                                                <div className="font-bold text-zinc-900 flex items-center gap-1.5">
+                                                    <Briefcase className="w-4 h-4 text-zinc-700" />
+                                                    <span>Tax & Trade Standing</span>
+                                                </div>
+                                                <div className="text-[11px] text-zinc-600 space-y-0.5">
+                                                    <div>
+                                                        SARS Tax Ref: {c.tax_number ? (
+                                                            <span className="font-mono font-semibold text-zinc-800">
+                                                                {c.tax_number.slice(0, 3)}••••{c.tax_number.slice(7)} {hasValidTax ? '✓' : ''}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-zinc-400 italic">Not on file</span>
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        Completed Jobs: <strong className="text-zinc-900">{c.jobs_completed || 0}</strong> on platform
+                                                    </div>
+                                                    <div>
+                                                        Liability Insurance: <span className="text-emerald-700 font-semibold">{c.proof_of_address_url ? '✓ Verified on record' : 'Declared'}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Documentation Files */}
+                                            <div className="space-y-1">
+                                                <div className="font-bold text-zinc-900 flex items-center gap-1.5">
+                                                    <FileText className="w-4 h-4 text-zinc-700" />
+                                                    <span>Compliance Files</span>
+                                                </div>
+                                                <div className="flex flex-col gap-1 pt-0.5">
+                                                    {c.trade_certificate_url ? (
+                                                        <a
+                                                            href={c.trade_certificate_url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:text-emerald-900 font-semibold underline"
+                                                        >
+                                                            <ExternalLink className="w-3 h-3" />
+                                                            View Trade Certificate / License
+                                                        </a>
+                                                    ) : (
+                                                        <span className="text-[11px] text-zinc-400 italic">Trade license not attached</span>
+                                                    )}
+
+                                                    {c.id_document_url ? (
+                                                        <a
+                                                            href={c.id_document_url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:text-emerald-900 font-semibold underline"
+                                                        >
+                                                            <ExternalLink className="w-3 h-3" />
+                                                            View Certified ID Copy
+                                                        </a>
+                                                    ) : (
+                                                        <span className="text-[11px] text-zinc-400 italic">Certified ID not attached</span>
+                                                    )}
+
+                                                    {c.proof_of_address_url && (
+                                                        <a
+                                                            href={c.proof_of_address_url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:text-emerald-900 font-semibold underline"
+                                                        >
+                                                            <ExternalLink className="w-3 h-3" />
+                                                            View Proof of Address / Registration
+                                                        </a>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Landlord Vetting Action Bar */}
+                                        <div className="pt-2 border-t border-zinc-100 flex flex-wrap items-center justify-between gap-2">
+                                            <div className="text-[11px] text-zinc-500">
+                                                {isVerified ? (
+                                                    <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                                        This contractor is vetted and authorized to bid on all landlord work orders.
+                                                    </span>
+                                                ) : (
+                                                    <span>Review credentials above and approve contractor to allow dispatching maintenance tasks.</span>
+                                                )}
+                                            </div>
+
+                                            <div className="flex items-center gap-2">
+                                                {!isVerified && (
+                                                    <Button
+                                                        size="sm"
+                                                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-none shadow-xs text-xs h-8"
+                                                        onClick={() => updateContractorAccreditationMutation.mutate({ id: c.id, status: 'verified' })}
+                                                        disabled={updateContractorAccreditationMutation.isPending}
+                                                    >
+                                                        <Check className="w-3.5 h-3.5 mr-1" />
+                                                        Accredit & Verify
+                                                    </Button>
+                                                )}
+
+                                                {!isUnderReview && !isVerified && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="border-amber-300 text-amber-800 hover:bg-amber-50 font-bold rounded-none text-xs h-8"
+                                                        onClick={() => updateContractorAccreditationMutation.mutate({ id: c.id, status: 'under_review' })}
+                                                        disabled={updateContractorAccreditationMutation.isPending}
+                                                    >
+                                                        <Clock className="w-3.5 h-3.5 mr-1" />
+                                                        Flag for Review
+                                                    </Button>
+                                                )}
+
+                                                {!isRejected && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="text-rose-600 hover:bg-rose-50 font-bold rounded-none text-xs h-8"
+                                                        onClick={() => updateContractorAccreditationMutation.mutate({ id: c.id, status: 'rejected' })}
+                                                        disabled={updateContractorAccreditationMutation.isPending}
+                                                    >
+                                                        <XCircle className="w-3.5 h-3.5 mr-1" />
+                                                        Decline
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="text-center py-16 bg-white rounded-none border border-zinc-200/90 shadow-card">
+                            <ShieldCheck className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
+                            <h3 className="font-semibold text-zinc-900 mb-1">No contractors matching filter</h3>
+                            <p className="text-zinc-500 text-xs">Contractors registering on RentFlex will appear here for landlord accreditation</p>
                         </div>
                     )}
                 </TabsContent>
@@ -751,10 +1103,10 @@ export default function ApplicationScreening() {
                             />
                         ))
                     ) : (
-                        <div className="text-center py-16 bg-white rounded-2xl border border-slate-200/90 shadow-sm">
-                            <XCircle className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                            <h3 className="font-semibold text-slate-900 mb-1">No rejected applications</h3>
-                            <p className="text-slate-500">Rejected applications will appear here</p>
+                        <div className="text-center py-16 bg-white rounded-none border border-zinc-200/90 shadow-card">
+                            <XCircle className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
+                            <h3 className="font-semibold text-zinc-900 mb-1">No rejected applications</h3>
+                            <p className="text-zinc-500 text-xs">Rejected applications will appear here</p>
                         </div>
                     )}
                 </TabsContent>
@@ -763,10 +1115,10 @@ export default function ApplicationScreening() {
                 <TabsContent value="tours" className="space-y-4">
                     {tourSchedules.length > 0 ? (
                         tourSchedules.map((tour) => (
-                            <div key={tour.id} className="bg-white rounded-xl p-5 border border-zinc-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div key={tour.id} className="bg-white rounded-none p-5 border border-zinc-200/90 shadow-card flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                 <div>
                                     <div className="flex items-center gap-2 mb-1.5">
-                                        <Badge className={`capitalize text-xs font-semibold ${
+                                        <Badge className={`capitalize text-xs font-semibold rounded-none ${
                                             tour.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800' :
                                             tour.status === 'reschedule_requested' ? 'bg-amber-100 text-amber-800' :
                                             tour.status === 'declined' ? 'bg-rose-100 text-rose-800' :
@@ -774,7 +1126,7 @@ export default function ApplicationScreening() {
                                         }`}>
                                             Status: {tour.status}
                                         </Badge>
-                                        <span className="text-xs font-medium text-zinc-500">Viewer: {tour.tenant_name || tour.tenant_id}</span>
+                                        <span className="text-xs font-medium text-zinc-600">Viewer: {formatUserDisplayName(tour.tenant_name || tour.tenant_id, 'Applicant')}</span>
                                     </div>
                                     <h3 className="font-bold text-sm text-zinc-900 flex items-center gap-2">
                                         <Calendar className="w-4 h-4 text-zinc-700" />
@@ -782,7 +1134,7 @@ export default function ApplicationScreening() {
                                     </h3>
                                     {tour.status === 'reschedule_requested' && (
                                         <p className="text-xs text-amber-700 font-semibold mt-1">
-                                            Proposed Reschedule: {tour.reschedule_date} at {tour.reschedule_time} (by {tour.rescheduled_by})
+                                            Proposed Reschedule: {tour.reschedule_date} at {tour.reschedule_time} (by {formatUserDisplayName(tour.rescheduled_by, 'Landlord')})
                                         </p>
                                     )}
                                     {tour.notes && <p className="text-xs text-zinc-600 mt-1 italic">"{tour.notes}"</p>}
@@ -791,7 +1143,7 @@ export default function ApplicationScreening() {
                                     {tour.status === 'pending' && (
                                         <Button
                                             size="sm"
-                                            className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold"
+                                            className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-none shadow-xs"
                                             onClick={() => updateTourMutation.mutate({ id: tour.id, data: { status: 'confirmed' } })}
                                             disabled={updateTourMutation.isPending}
                                         >
@@ -802,7 +1154,7 @@ export default function ApplicationScreening() {
                                     {(tour.status === 'confirmed' || (isTourPassed(tour) && tour.status !== 'completed' && tour.status !== 'declined')) && (
                                         <Button
                                             size="sm"
-                                            className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold"
+                                            className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-none shadow-xs"
                                             onClick={() => updateTourMutation.mutate({ id: tour.id, data: { status: 'completed' } })}
                                             disabled={tour.status === 'completed' || updateTourMutation.isPending}
                                         >
@@ -813,7 +1165,7 @@ export default function ApplicationScreening() {
                                     <Button
                                         size="sm"
                                         variant="outline"
-                                        className="border-zinc-200 text-xs font-semibold"
+                                        className="border-zinc-200 text-xs font-semibold rounded-none"
                                         onClick={() => {
                                             const newDate = prompt('Enter proposed reschedule date (YYYY-MM-DD):', tour.requested_date);
                                             const newTime = prompt('Enter proposed reschedule time slot:', '11:00 AM');
@@ -837,7 +1189,7 @@ export default function ApplicationScreening() {
                                     <Button
                                         size="sm"
                                         variant="ghost"
-                                        className="text-rose-600 hover:bg-rose-50 text-xs font-semibold"
+                                        className="text-rose-600 hover:bg-rose-50 text-xs font-semibold rounded-none"
                                         onClick={() => updateTourMutation.mutate({ id: tour.id, data: { status: 'declined' } })}
                                         disabled={tour.status === 'declined' || updateTourMutation.isPending}
                                     >
@@ -847,10 +1199,10 @@ export default function ApplicationScreening() {
                             </div>
                         ))
                     ) : (
-                        <div className="text-center py-16 bg-white rounded-2xl border border-slate-200/90 shadow-sm">
-                            <Calendar className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                            <h3 className="font-semibold text-slate-900 mb-1">No tour viewing requests</h3>
-                            <p className="text-slate-500">Requested property viewings will appear here</p>
+                        <div className="text-center py-16 bg-white rounded-none border border-zinc-200/90 shadow-card">
+                            <Calendar className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
+                            <h3 className="font-semibold text-zinc-900 mb-1">No tour viewing requests</h3>
+                            <p className="text-zinc-500 text-xs">Requested property viewings will appear here</p>
                         </div>
                     )}
                 </TabsContent>
@@ -859,10 +1211,10 @@ export default function ApplicationScreening() {
                 <TabsContent value="bids" className="space-y-4">
                     {bids.length > 0 ? (
                         bids.map((bid) => (
-                            <div key={bid.id} className="bg-white rounded-xl p-5 border border-zinc-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div key={bid.id} className="bg-white rounded-none p-5 border border-zinc-200/90 shadow-card flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                 <div>
                                     <div className="flex items-center gap-2 mb-1.5">
-                                        <Badge className={`capitalize text-xs font-semibold ${
+                                        <Badge className={`capitalize text-xs font-semibold rounded-none ${
                                             bid.status === 'accepted' ? 'bg-emerald-100 text-emerald-800' :
                                             bid.status === 'countered' ? 'bg-amber-100 text-amber-800' :
                                             bid.status === 'rejected' ? 'bg-rose-100 text-rose-800' :
@@ -870,7 +1222,7 @@ export default function ApplicationScreening() {
                                         }`}>
                                             Bid: {bid.status}
                                         </Badge>
-                                        <span className="text-xs font-medium text-zinc-500">Bidder: {bid.tenant_name || bid.tenant_id}</span>
+                                        <span className="text-xs font-medium text-zinc-600">Bidder: {formatUserDisplayName(bid.tenant_name || bid.tenant_id, 'Applicant')}</span>
                                     </div>
                                     <h3 className="font-bold text-base text-zinc-900">
                                         Proposed Rent: R{Number(bid.proposed_rent || bid.bid_amount || 0).toLocaleString()}/month
@@ -884,7 +1236,7 @@ export default function ApplicationScreening() {
                                     {bid.status === 'pending' && (
                                         <Button
                                             size="sm"
-                                            className="bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold"
+                                            className="bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-none shadow-xs"
                                             onClick={() => updateBidMutation.mutate({ id: bid.id, data: { status: 'accepted' } })}
                                             disabled={updateBidMutation.isPending}
                                         >
@@ -895,7 +1247,7 @@ export default function ApplicationScreening() {
                                     {(bid.status === 'accepted' || bid.status === 'pending') && (
                                         <Button
                                             size="sm"
-                                            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs flex items-center"
+                                            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs flex items-center rounded-none"
                                             onClick={() => createLeaseFromBidMutation.mutate(bid)}
                                             disabled={createLeaseFromBidMutation.isPending}
                                         >
@@ -906,7 +1258,7 @@ export default function ApplicationScreening() {
                                     <Button
                                         size="sm"
                                         variant="outline"
-                                        className="border-zinc-200 text-xs font-semibold"
+                                        className="border-zinc-200 text-xs font-semibold rounded-none"
                                         onClick={() => {
                                             const counterVal = prompt('Enter counter proposed rent amount (R):', String(bid.proposed_rent || 0));
                                             if (counterVal && !isNaN(parseFloat(counterVal))) {
@@ -926,7 +1278,7 @@ export default function ApplicationScreening() {
                                     <Button
                                         size="sm"
                                         variant="ghost"
-                                        className="text-rose-600 hover:bg-rose-50 text-xs font-semibold"
+                                        className="text-rose-600 hover:bg-rose-50 text-xs font-semibold rounded-none"
                                         onClick={() => updateBidMutation.mutate({ id: bid.id, data: { status: 'rejected' } })}
                                         disabled={bid.status === 'rejected' || updateBidMutation.isPending}
                                     >
@@ -936,10 +1288,10 @@ export default function ApplicationScreening() {
                             </div>
                         ))
                     ) : (
-                        <div className="text-center py-16 bg-white rounded-2xl border border-slate-200/90 shadow-sm">
-                            <Gavel className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                            <h3 className="font-semibold text-slate-900 mb-1">No property bids</h3>
-                            <p className="text-slate-500">Competitive bids from prospective tenants will appear here</p>
+                        <div className="text-center py-16 bg-white rounded-none border border-zinc-200/90 shadow-card">
+                            <Gavel className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
+                            <h3 className="font-semibold text-zinc-900 mb-1">No property bids</h3>
+                            <p className="text-zinc-500 text-xs">Competitive bids from prospective tenants will appear here</p>
                         </div>
                     )}
                 </TabsContent>

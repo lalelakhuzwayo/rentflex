@@ -138,7 +138,7 @@ export default function Dashboard() {
                             {role === 'sysAdmin' ? 'System Admin' : role === 'landlord' ? 'Landlord' : role === 'contractor' ? 'Contractor' : 'Verified Tenant'}
                         </span>
                         <span className="text-xs text-zinc-400">•</span>
-                        <span className="text-xs text-zinc-500 truncate max-w-[200px]">{user.email}</span>
+                        <span className="text-xs text-zinc-600 font-medium">{user.full_name || 'Active Member'}</span>
                     </div>
                     <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
                         Welcome back{user?.full_name ? `, ${user.full_name.split(' ')[0]}` : ''}
@@ -195,12 +195,12 @@ export default function Dashboard() {
             {/* Main Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* RentScore Card */}
-                <div className="bg-white rounded-xl p-5 border border-zinc-200/80 hover:border-zinc-300 transition-colors duration-150 lg:row-span-2">
+                <div className="bg-white rounded-none p-5 sm:p-6 border border-zinc-200/90 shadow-card hover:shadow-card-hover hover:-translate-y-[2px] transition-all duration-200 lg:row-span-2">
                     <div className="flex items-center justify-between mb-5">
-                        <h2 className="text-base font-bold text-zinc-900">RentScore</h2>
+                        <h2 className="text-base font-bold text-zinc-950 uppercase tracking-tight">RentScore</h2>
                         <Link
                             to={createPageUrl('RentScore')}
-                            className="text-xs font-semibold text-zinc-900 hover:text-zinc-600 flex items-center gap-1"
+                            className="text-xs font-semibold text-zinc-800 hover:text-zinc-600 flex items-center gap-1"
                         >
                             View Details <ArrowRight className="w-3.5 h-3.5" />
                         </Link>
@@ -211,17 +211,17 @@ export default function Dashboard() {
                     </div>
 
                     <div className="space-y-3 pt-3 border-t border-zinc-100">
-                        <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center justify-between text-xs font-medium">
                             <span className="text-zinc-500">On-time Payments</span>
-                            <span className="font-semibold text-zinc-900">{rentScore?.[0]?.on_time_payments || 0}</span>
+                            <span className="text-zinc-950 font-bold">{rentScore?.[0]?.on_time_payments || 0}</span>
                         </div>
-                        <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center justify-between text-xs font-medium">
                             <span className="text-zinc-500">Leases Completed</span>
-                            <span className="font-semibold text-zinc-900">{rentScore?.[0]?.leases_completed || 0}</span>
+                            <span className="text-zinc-950 font-bold">{rentScore?.[0]?.leases_completed || 0}</span>
                         </div>
-                        <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center justify-between text-xs font-medium">
                             <span className="text-zinc-500">Identity Verified</span>
-                            <span className={`font-semibold ${rentScore?.[0]?.verified_identity ? 'text-emerald-700' : 'text-zinc-400'}`}>
+                            <span className={`${rentScore?.[0]?.verified_identity ? 'text-emerald-700 font-bold' : 'text-zinc-400'}`}>
                                 {rentScore?.[0]?.verified_identity ? 'Yes' : 'Pending'}
                             </span>
                         </div>
@@ -229,12 +229,12 @@ export default function Dashboard() {
                 </div>
 
                 {/* Upcoming Payments */}
-                <div className="bg-white rounded-xl p-5 border border-zinc-200/80 hover:border-zinc-300 transition-colors duration-150 lg:col-span-2">
+                <div className="bg-white rounded-none p-5 sm:p-6 border border-zinc-200/90 shadow-card hover:shadow-card-hover hover:-translate-y-[2px] transition-all duration-200 lg:col-span-2">
                     <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-base font-bold text-zinc-900">Upcoming Payments</h2>
+                        <h2 className="text-base font-bold text-zinc-950 uppercase tracking-tight">Upcoming Payments</h2>
                         <Link
                             to={createPageUrl('Payments')}
-                            className="text-xs font-semibold text-zinc-900 hover:text-zinc-600 flex items-center gap-1"
+                            className="text-xs font-semibold text-zinc-800 hover:text-zinc-600 flex items-center gap-1"
                         >
                             View All <ArrowRight className="w-3.5 h-3.5" />
                         </Link>
@@ -243,7 +243,7 @@ export default function Dashboard() {
                     {paymentsLoading ? (
                         <div className="space-y-3">
                             {[1, 2, 3].map(i => (
-                                <Skeleton key={i} className="h-16 rounded-lg" />
+                                <Skeleton key={i} className="h-16 rounded-none border border-zinc-200" />
                             ))}
                         </div>
                     ) : upcomingPayments.length > 0 ? (
@@ -255,55 +255,55 @@ export default function Dashboard() {
                     ) : (
                         <div className="text-center py-6">
                             <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto mb-2" />
-                            <p className="text-sm font-medium text-zinc-800">All caught up!</p>
-                            <p className="text-xs text-zinc-400">No pending payments</p>
+                            <p className="text-sm font-bold text-zinc-950">All caught up!</p>
+                            <p className="text-xs text-zinc-500">No pending payments</p>
                         </div>
                     )}
                 </div>
 
                 {/* Quick Actions */}
-                <div className="bg-white rounded-xl p-5 border border-zinc-200/80 hover:border-zinc-300 transition-colors duration-150 lg:col-span-2">
-                    <h2 className="text-base font-bold text-zinc-900 mb-3">Quick Actions</h2>
+                <div className="bg-white rounded-none p-5 sm:p-6 border border-zinc-200/90 shadow-card hover:shadow-card-hover hover:-translate-y-[2px] transition-all duration-200 lg:col-span-2">
+                    <h2 className="text-base font-bold text-zinc-950 uppercase tracking-tight mb-3">Quick Actions</h2>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                         <Link
                             to={createPageUrl('Properties')}
-                            className="flex flex-col items-center gap-2 p-3 rounded-lg bg-zinc-50/70 hover:bg-zinc-100/90 border border-zinc-200/70 transition-colors group"
+                            className="flex flex-col items-center gap-2 p-3 rounded-none bg-white hover:bg-zinc-50 border border-zinc-200 shadow-xs hover:shadow-sm hover:-translate-y-[1px] transition-all group"
                         >
-                            <div className="w-8 h-8 rounded-md bg-white border border-zinc-200 flex items-center justify-center">
-                                <Building2 className="w-4 h-4 text-zinc-900" />
+                            <div className="w-9 h-9 rounded-none bg-zinc-900 text-white shadow-xs flex items-center justify-center">
+                                <Building2 className="w-4 h-4 text-white" />
                             </div>
-                            <span className="text-xs font-medium text-zinc-700 text-center">Find Rentals</span>
+                            <span className="text-xs font-semibold text-zinc-900 text-center">Find Rentals</span>
                         </Link>
 
                         <Link
                             to={createPageUrl('Payments')}
-                            className="flex flex-col items-center gap-2 p-3 rounded-lg bg-zinc-50/70 hover:bg-zinc-100/90 border border-zinc-200/70 transition-colors group"
+                            className="flex flex-col items-center gap-2 p-3 rounded-none bg-white hover:bg-zinc-50 border border-zinc-200 shadow-xs hover:shadow-sm hover:-translate-y-[1px] transition-all group"
                         >
-                            <div className="w-8 h-8 rounded-md bg-white border border-zinc-200 flex items-center justify-center">
-                                <CreditCard className="w-4 h-4 text-zinc-900" />
+                            <div className="w-9 h-9 rounded-none bg-zinc-900 text-white shadow-xs flex items-center justify-center">
+                                <CreditCard className="w-4 h-4 text-white" />
                             </div>
-                            <span className="text-xs font-medium text-zinc-700 text-center">Pay Rent</span>
+                            <span className="text-xs font-semibold text-zinc-900 text-center">Pay Rent</span>
                         </Link>
 
                         <Link
                             to={createPageUrl('Maintenance')}
-                            className="flex flex-col items-center gap-2 p-3 rounded-lg bg-zinc-50/70 hover:bg-zinc-100/90 border border-zinc-200/70 transition-colors group"
+                            className="flex flex-col items-center gap-2 p-3 rounded-none bg-white hover:bg-zinc-50 border border-zinc-200 shadow-xs hover:shadow-sm hover:-translate-y-[1px] transition-all group"
                         >
-                            <div className="w-8 h-8 rounded-md bg-white border border-zinc-200 flex items-center justify-center">
-                                <Wrench className="w-4 h-4 text-zinc-900" />
+                            <div className="w-9 h-9 rounded-none bg-zinc-900 text-white shadow-xs flex items-center justify-center">
+                                <Wrench className="w-4 h-4 text-white" />
                             </div>
-                            <span className="text-xs font-medium text-zinc-700 text-center">Maintenance</span>
+                            <span className="text-xs font-semibold text-zinc-900 text-center">Maintenance</span>
                         </Link>
 
                         <Link
                             to={createPageUrl('Leases')}
-                            className="flex flex-col items-center gap-2 p-3 rounded-lg bg-zinc-50/70 hover:bg-zinc-100/90 border border-zinc-200/70 transition-colors group"
+                            className="flex flex-col items-center gap-2 p-3 rounded-none bg-white hover:bg-zinc-50 border border-zinc-200 shadow-xs hover:shadow-sm hover:-translate-y-[1px] transition-all group"
                         >
-                            <div className="w-8 h-8 rounded-md bg-white border border-zinc-200 flex items-center justify-center">
-                                <FileText className="w-4 h-4 text-zinc-900" />
+                            <div className="w-9 h-9 rounded-none bg-zinc-900 text-white shadow-xs flex items-center justify-center">
+                                <FileText className="w-4 h-4 text-white" />
                             </div>
-                            <span className="text-xs font-medium text-zinc-700 text-center">My Leases</span>
+                            <span className="text-xs font-semibold text-zinc-900 text-center">My Leases</span>
                         </Link>
                     </div>
                 </div>
@@ -311,10 +311,10 @@ export default function Dashboard() {
 
             {/* Active Bids Section */}
             {activeBids > 0 && (
-                <div className="sharp-card bg-zinc-950 p-4 xs:p-6 text-white border border-transparent hover:border-zinc-800">
+                <div className="rounded-none bg-zinc-950 p-4 xs:p-6 text-white border border-zinc-800 shadow-3d-lg">
                     <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-3 xs:gap-4">
                         <div className="flex items-center gap-3 xs:gap-4">
-                            <div className="w-10 h-10 bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
+                            <div className="w-10 h-10 bg-zinc-900 border border-zinc-700 shadow-sm flex items-center justify-center shrink-0">
                                 <Gavel className="w-5 h-5 text-white" />
                             </div>
                             <div>

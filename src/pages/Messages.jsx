@@ -4,6 +4,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { formatDate } from '@/utils';
+import { formatUserDisplayName } from '@/utils/userFormatting';
 import {
     Send,
     Image as ImageIcon,
@@ -431,7 +432,8 @@ export default function Messages() {
             const pairKey = getContactPairKey(myEmail || myId, cleanOtherId);
 
             if (!contactMap.has(pairKey)) {
-                const displayName = otherName && otherName !== cleanOtherId ? otherName : (cleanOtherId || 'Contact User');
+                const rawName = otherName && otherName !== cleanOtherId ? otherName : cleanOtherId;
+                const displayName = formatUserDisplayName(rawName, roleHint || 'User');
                 contactMap.set(pairKey, {
                     id: pairKey,
                     otherId: cleanOtherId,
@@ -782,12 +784,12 @@ export default function Messages() {
     };
 
     return (
-        <div className="max-w-7xl mx-auto space-y-4 w-full min-w-0 overflow-x-hidden">
-            {/* Main WhatsApp Layout Container */}
-            <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm grid lg:grid-cols-12 h-[calc(100dvh-175px)] min-h-[500px] sm:h-[650px] lg:h-[720px] max-h-[850px] overflow-hidden">
+        <div className="w-full flex-1 min-h-0 flex flex-col h-full overflow-hidden">
+            {/* Main Messages Container */}
+            <div className="bg-white rounded-none border border-zinc-200/90 shadow-card grid lg:grid-cols-12 h-[calc(100dvh-135px)] md:h-[calc(100dvh-95px)] min-h-[420px] overflow-hidden flex-1">
                 
-                {/* 🟢 LEFT SIDEBAR: WhatsApp Contacts List */}
-                <div className={`lg:col-span-4 border-r border-zinc-200 flex flex-col h-full min-h-0 overflow-hidden bg-zinc-50/50 ${
+                {/* 🟢 LEFT SIDEBAR: Contacts List */}
+                <div className={`lg:col-span-4 border-r border-zinc-200/90 flex flex-col h-full min-h-0 overflow-hidden bg-zinc-50 ${
                     selectedConversationKey ? 'hidden lg:flex' : 'flex'
                 }`}>
                     
@@ -795,78 +797,86 @@ export default function Messages() {
                     <div className="p-3.5 sm:p-4 border-b border-zinc-200/90 bg-white flex items-center justify-between shrink-0">
                         <div className="flex items-center gap-3">
                             <div className="relative">
-                                <Avatar className="w-10 h-10 border border-zinc-200 shadow-xs">
-                                    <AvatarFallback className="bg-zinc-950 text-white font-bold text-sm">
+                                <Avatar className="w-10 h-10 border border-zinc-200/90 rounded-none shadow-xs">
+                                    <AvatarFallback className="bg-zinc-950 text-white font-black text-sm rounded-none">
                                         {user?.full_name?.charAt(0) || user?.email?.charAt(0) || 'U'}
                                     </AvatarFallback>
                                 </Avatar>
-                                <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white" title="Online" />
+                                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-none border border-zinc-950 shadow-xs" title="Online" />
                             </div>
                             <div>
-                                <h2 className="font-bold text-base text-zinc-900 leading-tight">Messages</h2>
-                                <p className="text-[11px] text-zinc-500 capitalize">{user?.user_type || 'User'} Account</p>
+                                <h2 className="font-black text-base text-zinc-950 uppercase tracking-tight leading-tight">Messages</h2>
+                                <p className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">{user?.user_type || 'User'} Portal</p>
                             </div>
                         </div>
                     </div>
 
-                    {/* WhatsApp Search Bar */}
-                    <div className="p-2.5 bg-white border-b border-zinc-200 shrink-0">
+                    {/* Search Bar */}
+                    <div className="p-2.5 bg-white border-b border-zinc-200/90 shrink-0">
                         <div className="relative">
-                            <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-2.5" />
+                            <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-2.5" />
                             <Input
                                 placeholder="Search contacts or chats..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-9 h-9 text-[16px] sm:text-xs bg-zinc-100/80 border-transparent focus-visible:bg-white focus-visible:ring-zinc-950 rounded-lg"
+                                className="pl-9 h-9 text-[16px] sm:text-xs bg-white border border-zinc-200/90 rounded-none shadow-xs focus-visible:shadow-sm font-medium"
                             />
                         </div>
                     </div>
 
-                    {/* Category Filter Pills */}
-                    <div className="p-2 border-b border-zinc-200 bg-zinc-50 flex items-center gap-1 overflow-x-auto custom-scrollbar shrink-0">
+                    {/* Category Filter Buttons */}
+                    <div className="p-2 border-b border-zinc-200/90 bg-zinc-100 flex items-center gap-1.5 overflow-x-auto custom-scrollbar shrink-0">
                         <button
                             onClick={() => setActiveTab('all')}
-                            className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors shrink-0 ${
-                                activeTab === 'all' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-200/70'
+                            className={`px-3 py-1 text-xs font-bold uppercase rounded-none border border-zinc-200/90 transition-all shrink-0 ${
+                                activeTab === 'all'
+                                    ? 'bg-zinc-950 text-white shadow-xs'
+                                    : 'bg-white text-zinc-950 hover:bg-zinc-100 shadow-xs'
                             }`}
                         >
                             All ({counts.all})
                         </button>
                         <button
                             onClick={() => setActiveTab('bids')}
-                            className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors flex items-center gap-1.5 shrink-0 ${
-                                activeTab === 'bids' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-200/70'
+                            className={`px-3 py-1 text-xs font-bold uppercase rounded-none border border-zinc-200/90 transition-all flex items-center gap-1.5 shrink-0 ${
+                                activeTab === 'bids'
+                                    ? 'bg-zinc-950 text-white shadow-xs'
+                                    : 'bg-white text-zinc-950 hover:bg-zinc-100 shadow-xs'
                             }`}
                         >
                             Bids
                             {counts.bids > 0 && (
-                                <span className="px-1.5 py-0.2 bg-rose-600 text-white text-[10px] font-bold rounded-full min-w-[18px] text-center">
+                                <span className="px-1.5 bg-rose-600 text-white text-[10px] font-black border border-zinc-950">
                                     {counts.bids}
                                 </span>
                             )}
                         </button>
                         <button
                             onClick={() => setActiveTab('tours')}
-                            className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors flex items-center gap-1.5 shrink-0 ${
-                                activeTab === 'tours' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-200/70'
+                            className={`px-3 py-1 text-xs font-bold uppercase rounded-none border border-zinc-200/90 transition-all flex items-center gap-1.5 shrink-0 ${
+                                activeTab === 'tours'
+                                    ? 'bg-zinc-950 text-white shadow-xs'
+                                    : 'bg-white text-zinc-950 hover:bg-zinc-100 shadow-xs'
                             }`}
                         >
                             Tours
                             {counts.tours > 0 && (
-                                <span className="px-1.5 py-0.2 bg-rose-600 text-white text-[10px] font-bold rounded-full min-w-[18px] text-center">
+                                <span className="px-1.5 bg-rose-600 text-white text-[10px] font-black border border-zinc-950">
                                     {counts.tours}
                                 </span>
                             )}
                         </button>
                         <button
                             onClick={() => setActiveTab('applications')}
-                            className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors flex items-center gap-1.5 shrink-0 ${
-                                activeTab === 'applications' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-200/70'
+                            className={`px-3 py-1 text-xs font-bold uppercase rounded-none border border-zinc-200/90 transition-all flex items-center gap-1.5 shrink-0 ${
+                                activeTab === 'applications'
+                                    ? 'bg-zinc-950 text-white shadow-xs'
+                                    : 'bg-white text-zinc-950 hover:bg-zinc-100 shadow-xs'
                             }`}
                         >
                             Apps
                             {counts.applications > 0 && (
-                                <span className="px-1.5 py-0.2 bg-rose-600 text-white text-[10px] font-bold rounded-full min-w-[18px] text-center">
+                                <span className="px-1.5 bg-rose-600 text-white text-[10px] font-black border border-zinc-950">
                                     {counts.applications}
                                 </span>
                             )}
@@ -886,41 +896,41 @@ export default function Messages() {
                                     onClick={() => setSelectedConversationKey(contact.id)}
                                     className={`w-full text-left p-3 sm:p-3.5 transition-all flex items-start gap-3 relative ${
                                         isSelected
-                                            ? 'bg-zinc-200/80 border-l-4 border-zinc-900'
-                                            : 'bg-white hover:bg-zinc-100/70'
+                                            ? 'bg-zinc-100/90 border-l-2 border-l-zinc-950 shadow-xs'
+                                            : 'bg-white hover:bg-zinc-50/90'
                                     }`}
                                 >
                                     {/* Contact Avatar */}
                                     <div className="relative shrink-0">
-                                        <Avatar className="w-11 h-11 border border-zinc-200 overflow-hidden">
-                                            <AvatarFallback className="bg-zinc-900 text-white font-bold text-xs">
+                                        <Avatar className="w-11 h-11 border border-zinc-200/90 rounded-none shadow-xs overflow-hidden">
+                                            <AvatarFallback className="bg-zinc-950 text-white font-black text-xs rounded-none">
                                                 {contact.initials}
                                             </AvatarFallback>
                                         </Avatar>
-                                        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border border-white" />
+                                        <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-none border border-zinc-950 shadow-xs" />
                                     </div>
 
                                     {/* Contact & Thread Subtitle */}
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center justify-between gap-1 mb-0.5">
-                                            <h4 className="font-bold text-xs sm:text-sm text-zinc-900 truncate">
+                                            <h4 className="font-bold text-xs sm:text-sm text-zinc-950 truncate">
                                                 {contact.contactName}
                                             </h4>
-                                            <span className="text-[10px] text-zinc-400 shrink-0">
+                                            <span className="text-[10px] font-bold text-zinc-500 shrink-0">
                                                 {formatDate(contact.latestTimestamp, 'h:mm a')}
                                             </span>
                                         </div>
 
                                         <div className="flex items-center justify-between gap-2">
-                                            <p className={`text-xs truncate ${unread > 0 || hasNotice ? 'text-zinc-900 font-bold' : 'text-zinc-500'}`}>
+                                            <p className={`text-xs truncate ${unread > 0 || hasNotice ? 'text-zinc-950 font-black' : 'text-zinc-600 font-medium'}`}>
                                                 {contact.lastMessageText || 'No recent messages'}
                                             </p>
                                             {unread > 0 ? (
-                                                <span className="h-5 min-w-[20px] px-1.5 bg-emerald-600 text-white text-[10px] font-extrabold rounded-full flex items-center justify-center shrink-0 shadow-xs">
+                                                <span className="h-5 min-w-[20px] px-1.5 bg-zinc-950 text-white text-[10px] font-black rounded-none border border-zinc-950 shadow-xs flex items-center justify-center shrink-0">
                                                     {unread > 99 ? '99+' : unread}
                                                 </span>
                                             ) : hasNotice ? (
-                                                <span className="w-2.5 h-2.5 bg-rose-500 rounded-full shrink-0" title="New Activity" />
+                                                <span className="w-2.5 h-2.5 bg-rose-600 rounded-none border border-zinc-950 shrink-0 shadow-xs" title="New Activity" />
                                             ) : null}
                                         </div>
                                     </div>
@@ -930,29 +940,29 @@ export default function Messages() {
 
                         {filteredContacts.length === 0 && (
                             <div className="text-center py-16 px-4 text-zinc-400">
-                                <MessageSquare className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                                <p className="text-xs font-semibold text-zinc-600">No conversations found</p>
-                                <p className="text-[11px] text-zinc-400 mt-0.5">Filter criteria or search query returned no active contacts.</p>
+                                <MessageSquare className="w-10 h-10 mx-auto mb-2 opacity-40 text-zinc-600" />
+                                <p className="text-xs font-black uppercase text-zinc-800">No conversations found</p>
+                                <p className="text-[11px] text-zinc-500 mt-0.5 font-medium">Filter criteria or search query returned no active contacts.</p>
                             </div>
                         )}
                     </div>
                 </div>
 
-                {/* 🔵 RIGHT SIDEBAR: WhatsApp Chat Exchange Window */}
-                <div className={`lg:col-span-8 flex flex-col h-full min-h-0 overflow-hidden bg-[#efeae2]/30 relative ${
+                {/* 🔵 RIGHT PANE: Chat Exchange Window */}
+                <div className={`lg:col-span-8 flex flex-col h-full min-h-0 overflow-hidden bg-zinc-100/60 relative ${
                     !selectedConversationKey ? 'hidden lg:flex' : 'flex'
                 }`}>
                     {activeContact ? (
                         <div className="flex flex-col h-full min-h-0 overflow-hidden flex-1 min-w-0">
                             
-                            {/* WhatsApp Header Bar */}
-                            <div className="p-3 sm:p-3.5 border-b border-zinc-200 bg-white flex items-center justify-between gap-3 shrink-0 shadow-xs z-10">
+                            {/* Chat Header Bar */}
+                            <div className="p-3 sm:p-3.5 border-b border-zinc-200/90 bg-white flex items-center justify-between gap-3 shrink-0 shadow-[0px_2px_0px_0px_rgba(0,0,0,0.04)] z-10">
                                 <div className="flex items-center gap-3 min-w-0">
-                                    {/* Mobile Back Arrow Button */}
+                                    {/* Mobile Back Button */}
                                     <Button
-                                        variant="ghost"
+                                        variant="outline"
                                         size="sm"
-                                        className="lg:hidden p-1.5 h-8 w-8 text-zinc-700 hover:bg-zinc-100 rounded-full shrink-0"
+                                        className="lg:hidden p-1.5 h-8 w-8 text-zinc-950 rounded-none border border-zinc-200/90 shadow-xs shrink-0"
                                         onClick={() => setSelectedConversationKey(null)}
                                         aria-label="Back to contacts list"
                                     >
@@ -960,35 +970,32 @@ export default function Messages() {
                                     </Button>
 
                                     <div className="relative shrink-0">
-                                        <Avatar className="w-10 h-10 border border-zinc-200 overflow-hidden">
-                                            <AvatarFallback className="bg-zinc-950 text-white font-bold text-xs">
+                                        <Avatar className="w-10 h-10 border border-zinc-200/90 rounded-none shadow-xs overflow-hidden">
+                                            <AvatarFallback className="bg-zinc-950 text-white font-black text-xs rounded-none">
                                                 {activeContact.initials}
                                             </AvatarFallback>
                                         </Avatar>
-                                        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border border-white" />
+                                        <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-none border border-zinc-950 shadow-xs" />
                                     </div>
 
                                     <div className="min-w-0">
-                                        <h3 className="font-bold text-sm sm:text-base text-zinc-900 truncate">
+                                        <h3 className="font-black text-sm sm:text-base text-zinc-950 truncate uppercase tracking-tight">
                                             {activeContact.contactName}
                                         </h3>
-                                        <p className="text-xs text-zinc-500 truncate">
-                                            Direct Contact • {activeContact.otherId}
+                                        <p className="text-xs text-zinc-600 truncate font-medium flex items-center gap-1.5">
+                                            <span>Direct Conversation</span>
+                                            <span className="w-1 h-1 rounded-none bg-zinc-300 inline-block" />
+                                            <span className="text-emerald-700 font-bold capitalize">{activeContact.roleHint || 'Verified Member'}</span>
                                         </p>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* WhatsApp Speech Bubbles Container (Internal Scroll Container) */}
+                            {/* Chat Messages Stream */}
                             <div 
                                 ref={chatContainerRef}
-                                className="flex-1 p-3 sm:p-5 overflow-y-auto custom-scrollbar overscroll-contain space-y-3.5 min-h-0 bg-[#f4f6f8] relative"
+                                className="flex-1 p-3 sm:p-5 overflow-y-auto custom-scrollbar overscroll-contain space-y-3.5 min-h-0 bg-[#fafafa] relative"
                             >
-                                {/* Ambient Background Pattern */}
-                                <div className="absolute inset-0 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:20px_20px] opacity-35 pointer-events-none" />
-
-                                {/* Active Request Banners & Interactive Action Cards attached to this Contact */}
-
                                 {/* 1. Active Bids Cards */}
                                 {activeContact.bids.map(b => {
                                     const isTenantParty = (normalizeStr(b.tenant_id) === myEmail || b.tenant_id === myId || normalizeStr(b.bidder_id) === myEmail || b.bidder_id === myId);
@@ -997,46 +1004,35 @@ export default function Messages() {
                                     return (
                                         <div key={`bid_card_${b.id}`} className={`flex ${isTenantParty ? 'justify-end' : 'justify-start'} relative z-10 my-2`}>
                                             <div className="w-[280px] sm:w-[370px] md:w-[420px] max-w-[88vw] shrink-0 min-w-0">
-                                                <div className={`p-3.5 sm:p-4 text-xs sm:text-[13.5px] relative shadow-md rounded-2xl ${
-                                                    isTenantParty
-                                                        ? 'bg-gradient-to-br from-slate-900 via-zinc-900 to-slate-950 text-white rounded-tr-none border border-zinc-800/90'
-                                                        : 'bg-white text-zinc-900 border border-zinc-200/90 rounded-tl-none'
-                                                }`}>
+                                                <div className="p-4 text-xs sm:text-[13.5px] rounded-none border border-zinc-200/90 shadow-card hover:shadow-card-hover hover:-translate-y-[2px] transition-all bg-white text-zinc-950">
                                                     <div className="flex items-center justify-between gap-2 mb-2">
-                                                        <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${
-                                                            isTenantParty ? 'bg-emerald-900/60 text-emerald-200 border-emerald-800' : 'text-emerald-700 bg-emerald-50 border-emerald-100'
-                                                        }`}>
+                                                        <span className="text-[10px] uppercase font-black tracking-wider px-2 py-0.5 border border-zinc-200/90 bg-emerald-200 text-emerald-950 shadow-xs">
                                                             PROPERTY RENT BID
                                                         </span>
-                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
-                                                            b.status === 'accepted' ? 'bg-emerald-100 text-emerald-800' :
-                                                            b.status === 'countered' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
-                                                            b.status === 'rejected' ? 'bg-rose-100 text-rose-800' :
-                                                            'bg-zinc-100 text-zinc-800'
-                                                        }`}>
+                                                        <span className="text-[10px] font-bold px-2 py-0.5 uppercase border border-zinc-200/90 bg-zinc-100 text-zinc-950 shadow-xs">
                                                             {b.status || 'pending'}
                                                         </span>
                                                     </div>
 
-                                                    <p className={`text-xs sm:text-sm font-bold ${isTenantParty ? 'text-white' : 'text-zinc-900'}`}>
-                                                        Proposed Rent: <span className="text-emerald-400 font-extrabold">R{Number(b.proposed_rent || b.bid_amount || 0).toLocaleString()}/month</span>
+                                                    <p className="text-xs sm:text-sm font-black text-zinc-950">
+                                                        Proposed Rent: <span className="text-emerald-700 font-black">R{Number(b.proposed_rent || b.bid_amount || 0).toLocaleString()}/month</span>
                                                     </p>
-                                                    <p className={`text-xs mt-1 ${isTenantParty ? 'text-zinc-300' : 'text-zinc-500'}`}>
+                                                    <p className="text-xs mt-1 text-zinc-600 font-medium">
                                                         Move-in Date: {b.move_in_date || 'Flexible'} • Duration: {b.lease_duration_months || 12} months
                                                     </p>
                                                     {b.message && (
-                                                        <p className={`text-xs mt-1.5 italic ${isTenantParty ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                                                        <p className="text-xs mt-1.5 italic text-zinc-700 bg-zinc-50 p-2 border border-zinc-200">
                                                             "{b.message}"
                                                         </p>
                                                     )}
 
                                                     {/* Landlord Action Controls */}
                                                     {isLandlordParty && (
-                                                        <div className="flex flex-wrap items-center gap-2 mt-3 pt-2.5 border-t border-zinc-200/40">
+                                                        <div className="flex flex-wrap items-center gap-2 mt-3 pt-2.5 border-t-2 border-zinc-200">
                                                             {b.status === 'pending' && (
                                                                 <Button
                                                                     size="sm"
-                                                                    className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs"
+                                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8 px-3 rounded-none border border-zinc-200/90 shadow-xs active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
                                                                     onClick={() => updateBidMutation.mutate({ id: b.id, status: 'accepted' })}
                                                                     disabled={updateBidMutation.isPending}
                                                                 >
@@ -1046,7 +1042,7 @@ export default function Messages() {
                                                             {(b.status === 'accepted' || b.status === 'pending') && (
                                                                 <Button
                                                                     size="sm"
-                                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs flex items-center"
+                                                                    className="bg-zinc-950 hover:bg-zinc-900 text-white font-bold text-xs h-8 px-3 rounded-none border border-zinc-200/90 shadow-xs active:translate-x-[1px] active:translate-y-[1px] active:shadow-none flex items-center"
                                                                     onClick={() => createLeaseFromBidMutation.mutate(b)}
                                                                     disabled={createLeaseFromBidMutation.isPending}
                                                                 >
@@ -1057,7 +1053,7 @@ export default function Messages() {
                                                                 <Button
                                                                     size="sm"
                                                                     variant="outline"
-                                                                    className="border-zinc-300 text-zinc-800 hover:bg-zinc-100 font-bold text-xs h-7.5 px-3 rounded-lg"
+                                                                    className="border border-zinc-200/90 text-zinc-950 bg-white hover:bg-zinc-100 font-bold text-xs h-8 px-3 rounded-none shadow-xs active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
                                                                     onClick={() => {
                                                                         const counterVal = prompt('Enter counter proposed rent amount (R):', String(b.proposed_rent || 0));
                                                                         if (counterVal && !isNaN(parseFloat(counterVal))) {
@@ -1073,7 +1069,7 @@ export default function Messages() {
                                                                 <Button
                                                                     size="sm"
                                                                     variant="outline"
-                                                                    className="border-rose-200 text-rose-700 hover:bg-rose-50 font-bold text-xs h-7.5 px-3 rounded-lg"
+                                                                    className="border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100 font-bold text-xs h-8 px-3 rounded-none shadow-xs active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
                                                                     onClick={() => updateBidMutation.mutate({ id: b.id, status: 'rejected' })}
                                                                     disabled={updateBidMutation.isPending}
                                                                 >
@@ -1085,10 +1081,10 @@ export default function Messages() {
 
                                                     {/* Tenant Actions (when countered) */}
                                                     {isTenantParty && b.status === 'countered' && (
-                                                        <div className="flex flex-wrap items-center gap-2 mt-3 pt-2.5 border-t border-zinc-700">
+                                                        <div className="flex flex-wrap items-center gap-2 mt-3 pt-2.5 border-t-2 border-zinc-200">
                                                             <Button
                                                                 size="sm"
-                                                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs"
+                                                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8 px-3 rounded-none border border-zinc-200/90 shadow-xs active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
                                                                 onClick={() => updateBidMutation.mutate({ id: b.id, status: 'accepted' })}
                                                                 disabled={updateBidMutation.isPending}
                                                             >
@@ -1097,7 +1093,7 @@ export default function Messages() {
                                                             <Button
                                                                 size="sm"
                                                                 variant="outline"
-                                                                className="border-rose-400 text-rose-200 hover:bg-rose-900/40 font-bold text-xs h-7.5 px-3 rounded-lg"
+                                                                className="border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100 font-bold text-xs h-8 px-3 rounded-none shadow-xs active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
                                                                 onClick={() => updateBidMutation.mutate({ id: b.id, status: 'rejected' })}
                                                                 disabled={updateBidMutation.isPending}
                                                             >
@@ -1119,37 +1115,25 @@ export default function Messages() {
                                     return (
                                         <div key={`tour_card_${t.id}`} className={`flex ${isTenantParty ? 'justify-end' : 'justify-start'} relative z-10 my-2`}>
                                             <div className="w-[280px] sm:w-[370px] md:w-[420px] max-w-[88vw] shrink-0 min-w-0">
-                                                <div className={`p-3.5 sm:p-4 text-xs sm:text-[13.5px] relative shadow-md rounded-2xl ${
-                                                    isTenantParty
-                                                        ? 'bg-gradient-to-br from-slate-900 via-zinc-900 to-slate-950 text-white rounded-tr-none border border-zinc-800/90'
-                                                        : 'bg-white text-zinc-900 border border-zinc-200/90 rounded-tl-none'
-                                                }`}>
+                                                <div className="p-4 text-xs sm:text-[13.5px] rounded-none border border-zinc-200/90 shadow-card hover:shadow-card-hover hover:-translate-y-[2px] transition-all bg-white text-zinc-950">
                                                     <div className="flex items-center justify-between gap-2 mb-2">
-                                                        <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${
-                                                            isTenantParty ? 'bg-blue-900/60 text-blue-200 border-blue-800' : 'text-blue-700 bg-blue-50 border-blue-100'
-                                                        }`}>
+                                                        <span className="text-[10px] uppercase font-black tracking-wider px-2 py-0.5 border border-zinc-200/90 bg-blue-200 text-blue-950 shadow-xs">
                                                             PROPERTY VIEWING TOUR
                                                         </span>
-                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
-                                                            t.status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
-                                                            t.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
-                                                            t.status === 'reschedule_requested' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
-                                                            t.status === 'declined' ? 'bg-rose-100 text-rose-800' :
-                                                            'bg-zinc-100 text-zinc-800'
-                                                        }`}>
+                                                        <span className="text-[10px] font-bold px-2 py-0.5 uppercase border border-zinc-200/90 bg-zinc-100 text-zinc-950 shadow-xs">
                                                             {t.status || 'pending'}
                                                         </span>
                                                     </div>
 
-                                                    <p className={`text-xs sm:text-sm font-bold ${isTenantParty ? 'text-white' : 'text-zinc-900'}`}>
-                                                        Viewing: <span className="text-blue-400 font-extrabold">{t.requested_date} @ {t.requested_time}</span>
+                                                    <p className="text-xs sm:text-sm font-black text-zinc-950">
+                                                        Viewing: <span className="text-blue-700 font-black">{t.requested_date} @ {t.requested_time}</span>
                                                     </p>
 
                                                     {isLandlordParty && t.status === 'pending' && (
-                                                        <div className="flex flex-wrap items-center gap-2 mt-3 pt-2.5 border-t border-zinc-200/40">
+                                                        <div className="flex flex-wrap items-center gap-2 mt-3 pt-2.5 border-t-2 border-zinc-200">
                                                             <Button
                                                                 size="sm"
-                                                                className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs h-7.5 px-3 rounded-lg shadow-xs"
+                                                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-8 px-3 rounded-none border border-zinc-200/90 shadow-xs active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
                                                                 onClick={() => updateTourMutation.mutate({ id: t.id, status: 'confirmed' })}
                                                                 disabled={updateTourMutation.isPending}
                                                             >
@@ -1158,7 +1142,7 @@ export default function Messages() {
                                                             <Button
                                                                 size="sm"
                                                                 variant="outline"
-                                                                className="border-rose-200 text-rose-700 hover:bg-rose-50 font-bold text-xs h-7.5 px-3 rounded-lg"
+                                                                className="border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100 font-bold text-xs h-8 px-3 rounded-none shadow-xs active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
                                                                 onClick={() => updateTourMutation.mutate({ id: t.id, status: 'declined' })}
                                                                 disabled={updateTourMutation.isPending}
                                                             >
@@ -1172,14 +1156,14 @@ export default function Messages() {
                                     );
                                 })}
 
-                                {/* 3. WhatsApp Messages Feed (Chronological Oldest at Top to Newest at Bottom) */}
+                                {/* 3. Direct Messages Feed */}
                                 {sortedMessages.length === 0 ? (
                                     <div className="text-center py-16 text-zinc-400 relative z-10">
-                                        <div className="w-14 h-14 bg-white shadow-sm border border-zinc-200/80 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                                            <MessageSquare className="w-7 h-7 text-zinc-700" />
+                                        <div className="w-14 h-14 bg-white border border-zinc-200/90 shadow-card rounded-none flex items-center justify-center mx-auto mb-3">
+                                            <MessageSquare className="w-7 h-7 text-zinc-950" />
                                         </div>
-                                        <p className="text-sm font-bold text-zinc-800">Unified Conversation Thread</p>
-                                        <p className="text-xs text-zinc-500 max-w-xs mx-auto mt-1 leading-relaxed">
+                                        <p className="text-sm font-black uppercase text-zinc-950">Unified Conversation Thread</p>
+                                        <p className="text-xs text-zinc-600 max-w-xs mx-auto mt-1 leading-relaxed font-medium">
                                             Messages between you and {activeContact.contactName} will appear here in chronological order.
                                         </p>
                                     </div>
@@ -1191,47 +1175,35 @@ export default function Messages() {
                                         return (
                                             <motion.div
                                                 key={msg.id}
-                                                initial={{ opacity: 0, y: 6, scale: 0.99 }}
-                                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                                transition={{ duration: 0.15 }}
+                                                initial={{ opacity: 0, y: 4 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                transition={{ duration: 0.12 }}
                                                 className={`flex ${isOwn ? 'justify-end' : 'justify-start'} relative z-10`}
                                             >
-                                                {/* Chat Bubble Container */}
-                                                <div className="w-[270px] sm:w-[350px] md:w-[400px] max-w-[88vw] shrink-0 min-w-0">
-                                                    <div className={`p-3.5 sm:p-4 text-xs sm:text-[13.5px] break-words break-all [overflow-wrap:anywhere] whitespace-pre-wrap relative shadow-sm transition-shadow hover:shadow-md min-w-0 max-w-full overflow-hidden ${
+                                                <div className="w-[270px] sm:w-[350px] md:w-[420px] max-w-[88vw] shrink-0 min-w-0">
+                                                    <div className={`p-3.5 sm:p-4 text-xs sm:text-[13.5px] break-words break-all [overflow-wrap:anywhere] whitespace-pre-wrap relative min-w-0 max-w-full overflow-hidden rounded-none border border-zinc-200/90 transition-all ${
                                                         isOwn
-                                                            ? 'bg-emerald-950 text-white rounded-2xl rounded-tr-none border border-emerald-900/80'
-                                                            : 'bg-white text-zinc-900 border border-zinc-200/90 rounded-2xl rounded-tl-none'
+                                                            ? 'bg-zinc-950 text-white shadow-[3px_3px_0px_0px_rgba(0,0,0,0.6)]'
+                                                            : 'bg-white text-zinc-950 shadow-sm'
                                                     }`}>
-                                                        {/* Speech Bubble Tail */}
-                                                        {isOwn ? (
-                                                            <svg className="absolute -right-2 top-0 w-2.5 h-3.5 text-emerald-950 fill-current pointer-events-none" viewBox="0 0 10 14">
-                                                                <path d="M0,0 L10,0 L0,14 Z" />
-                                                            </svg>
-                                                        ) : (
-                                                            <svg className="absolute -left-2 top-0 w-2.5 h-3.5 text-white fill-current pointer-events-none" viewBox="0 0 10 14">
-                                                                <path d="M10,0 L0,0 L10,14 Z" />
-                                                            </svg>
-                                                        )}
-
                                                         {/* Sender Name for Received Message */}
                                                         {!isOwn && (
-                                                            <p className="text-[11px] font-bold text-emerald-700 mb-1 tracking-tight">
+                                                            <p className="text-[11px] font-black uppercase tracking-wider text-zinc-600 mb-1">
                                                                 {activeContact.contactName}
                                                             </p>
                                                         )}
 
-                                                        <p className={`leading-relaxed font-normal ${isOwn ? 'text-emerald-50' : 'text-zinc-800'}`}>
+                                                        <p className={`leading-relaxed font-medium ${isOwn ? 'text-zinc-100' : 'text-zinc-900'}`}>
                                                             {msg.content}
                                                         </p>
 
                                                         {/* Attached File Preview */}
                                                         {msg.file_url && (
-                                                            <div className={`mt-2.5 rounded-xl overflow-hidden border ${isOwn ? 'border-emerald-800 bg-emerald-900/40' : 'border-zinc-200 bg-zinc-50'} p-1`}>
+                                                            <div className={`mt-2.5 rounded-none overflow-hidden border border-zinc-200/90 ${isOwn ? 'bg-zinc-900' : 'bg-zinc-100'} p-1`}>
                                                                 {msg.file_url.match(/\.(jpeg|jpg|gif|png|webp)/i) || msg.content?.toLowerCase().includes('image') ? (
-                                                                    <img src={msg.file_url} alt="Attachment" className="max-h-60 w-full object-cover rounded-lg" />
+                                                                    <img src={msg.file_url} alt="Attachment" className="max-h-60 w-full object-cover rounded-none" />
                                                                 ) : (
-                                                                    <a href={msg.file_url} target="_blank" rel="noreferrer" className={`text-xs font-semibold underline p-2.5 flex items-center gap-2 ${isOwn ? 'text-emerald-200 hover:text-white' : 'text-indigo-600 hover:text-indigo-700'}`}>
+                                                                    <a href={msg.file_url} target="_blank" rel="noreferrer" className={`text-xs font-bold underline p-2.5 flex items-center gap-2 ${isOwn ? 'text-zinc-200 hover:text-white' : 'text-zinc-950 hover:text-zinc-700'}`}>
                                                                         <Paperclip className="w-3.5 h-3.5" /> View Attached Document
                                                                     </a>
                                                                 )}
@@ -1239,21 +1211,21 @@ export default function Messages() {
                                                         )}
 
                                                         {/* Timestamp & Read Status Bar */}
-                                                        <div className={`flex items-center justify-end gap-1.5 text-[10.5px] mt-2 pt-1 border-t ${
-                                                            isOwn ? 'border-emerald-800/60 text-emerald-200' : 'border-zinc-100 text-zinc-400'
+                                                        <div className={`flex items-center justify-end gap-1.5 text-[10px] mt-2 pt-1 border-t ${
+                                                            isOwn ? 'border-zinc-800 text-zinc-400 font-medium' : 'border-zinc-200 text-zinc-500 font-medium'
                                                         }`}>
-                                                            <span className="font-medium tracking-tight">
+                                                            <span>
                                                                 {formatDate(msg.created_date || msg.created_at, 'MMM d, h:mm a')}
                                                             </span>
                                                             {isOwn && (
                                                                 msg.id && String(msg.id).startsWith('temp_') ? (
-                                                                    <Check className="w-3.5 h-3.5 text-emerald-300 shrink-0" title="Sending..." />
+                                                                    <Check className="w-3.5 h-3.5 text-zinc-400 shrink-0" title="Sending..." />
                                                                 ) : (
                                                                     <CheckCheck 
                                                                         className={`w-3.5 h-3.5 shrink-0 ${
                                                                             msg.read || msg.is_read || getReadMessageIds(msg.receiver_id).has(String(msg.id))
-                                                                                ? 'text-sky-300 drop-shadow-[0_0_3px_rgba(56,189,248,0.6)]'
-                                                                                : 'text-emerald-300'
+                                                                                ? 'text-sky-400'
+                                                                                : 'text-zinc-400'
                                                                         }`} 
                                                                         title={msg.read || msg.is_read || getReadMessageIds(msg.receiver_id).has(String(msg.id)) ? 'Read' : 'Delivered'} 
                                                                     />
@@ -1268,27 +1240,27 @@ export default function Messages() {
                                 )}
                             </div>
 
-                            {/* WhatsApp Sticky Bottom Input Bar */}
-                            <div className="p-2.5 sm:p-3.5 bg-white/95 backdrop-blur-md border-t border-zinc-200/90 shrink-0 sticky bottom-0 z-10">
+                            {/* Sticky Bottom Input Bar */}
+                            <div className="p-2.5 sm:p-3 bg-white border-t border-zinc-200/90 shadow-[0_-2px_8px_rgba(0,0,0,0.03)] shrink-0 sticky bottom-0 z-10">
                                 <div className="flex items-center gap-2 max-w-full">
                                     <Button
                                         type="button"
-                                        variant="ghost"
+                                        variant="outline"
                                         size="sm"
                                         onClick={() => handleUploadAttachment('image')}
                                         disabled={uploading}
-                                        className="h-10 w-10 p-0 rounded-full text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 shrink-0"
+                                        className="h-10 w-10 p-0 rounded-none border border-zinc-200/90 shadow-xs hover:bg-zinc-100 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none shrink-0"
                                         title="Attach Image"
                                     >
                                         <ImageIcon className="w-4.5 h-4.5" />
                                     </Button>
                                     <Button
                                         type="button"
-                                        variant="ghost"
+                                        variant="outline"
                                         size="sm"
                                         onClick={() => handleUploadAttachment('video')}
                                         disabled={uploading}
-                                        className="h-10 w-10 p-0 rounded-full text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 shrink-0"
+                                        className="h-10 w-10 p-0 rounded-none border border-zinc-200/90 shadow-xs hover:bg-zinc-100 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none shrink-0"
                                         title="Attach Video"
                                     >
                                         <Video className="w-4.5 h-4.5" />
@@ -1299,13 +1271,13 @@ export default function Messages() {
                                         value={messageInput}
                                         onChange={(e) => setMessageInput(e.target.value)}
                                         onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                                        className="flex-1 h-10 text-[16px] sm:text-sm bg-zinc-100/80 hover:bg-zinc-100 focus-visible:bg-white text-zinc-900 font-medium border border-zinc-200/80 focus-visible:border-zinc-900 rounded-full px-4 min-w-0 transition-colors"
+                                        className="flex-1 h-10 text-[16px] sm:text-sm bg-white text-zinc-950 font-medium border border-zinc-200/90 rounded-none shadow-xs focus-visible:shadow-sm px-3.5 min-w-0 transition-all"
                                     />
 
                                     <Button
                                         onClick={handleSendMessage}
                                         disabled={!messageInput.trim() || sendMessageMutation.isPending}
-                                        className="bg-emerald-700 hover:bg-emerald-800 text-white h-10 w-10 p-0 rounded-full shrink-0 shadow-md hover:shadow-lg transition-all transform active:scale-95 flex items-center justify-center"
+                                        className="bg-zinc-950 hover:bg-zinc-900 text-white h-10 w-10 p-0 rounded-none border border-zinc-200/90 shadow-sm active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center shrink-0"
                                     >
                                         <Send className="w-4 h-4" />
                                     </Button>
@@ -1314,13 +1286,13 @@ export default function Messages() {
 
                         </div>
                     ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-zinc-50/50">
-                            <div className="w-16 h-16 bg-zinc-200/70 rounded-full flex items-center justify-center mb-3">
-                                <MessageSquare className="w-8 h-8 text-zinc-500" />
+                        <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-zinc-50">
+                            <div className="w-16 h-16 bg-white border border-zinc-200/90 shadow-card rounded-none flex items-center justify-center mb-3">
+                                <MessageSquare className="w-8 h-8 text-zinc-950" />
                             </div>
-                            <h3 className="font-bold text-zinc-900 text-base mb-1">WhatsApp Style Messaging</h3>
-                            <p className="text-xs text-zinc-500 max-w-xs leading-relaxed">
-                                Select a contact from the left sidebar to start communicating in real time.
+                            <h3 className="font-black uppercase tracking-tight text-zinc-950 text-base mb-1">RentFlex Secure Messaging</h3>
+                            <p className="text-xs text-zinc-600 max-w-xs leading-relaxed font-medium">
+                                Select a contact from the left sidebar to start communicating in real time and managing your leases, bids, and viewings.
                             </p>
                         </div>
                     )}

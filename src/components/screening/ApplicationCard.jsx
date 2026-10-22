@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { formatDate, formatDateTime } from '@/utils';
+import { formatUserDisplayName } from '@/utils/userFormatting';
 import {
     User,
     TrendingUp,
@@ -13,7 +14,7 @@ import {
     AlertCircle,
     Shield,
     Phone,
-    Mail,
+    ShieldCheck,
     Home
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -45,28 +46,29 @@ export default function ApplicationCard({ application, index = 0, onView, onQuic
     const isIncomeAdequate = incomeToRentRatio >= 3;
 
     const screeningScore = application.screening_score || 0;
+    const applicantDisplayName = formatUserDisplayName(application.tenant_name || application.tenant_id, 'Applicant');
 
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05, duration: 0.3 }}
-            className="sharp-card bg-white p-6 border border-transparent hover:border-zinc-900 transition-all duration-200"
+            className="sharp-card bg-white p-6 border border-zinc-200/90 shadow-card hover:shadow-card-hover rounded-none transition-all duration-200"
         >
             <div className="flex items-start justify-between gap-4 mb-4">
                 <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-zinc-100 flex items-center justify-center">
+                    <div className="w-12 h-12 bg-zinc-100 flex items-center justify-center border border-zinc-200 shadow-xs">
                         <User className="w-6 h-6 text-zinc-900" />
                     </div>
                     <div>
-                        <h3 className="font-bold text-zinc-900 text-base">{application.tenant_name}</h3>
-                        <div className="flex items-center gap-2 text-sm text-slate-500 mt-1">
-                            <Mail className="w-3.5 h-3.5" />
-                            {application.tenant_email}
+                        <h3 className="font-bold text-zinc-900 text-base">{applicantDisplayName}</h3>
+                        <div className="flex items-center gap-1.5 text-xs text-emerald-700 font-semibold mt-1">
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Verified Identity & Screening File</span>
                         </div>
                         {application.tenant_phone && (
-                            <div className="flex items-center gap-2 text-sm text-slate-500 mt-0.5">
-                                <Phone className="w-3.5 h-3.5" />
+                            <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5 font-medium">
+                                <Phone className="w-3 h-3 text-zinc-400" />
                                 {application.tenant_phone}
                             </div>
                         )}

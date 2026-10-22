@@ -7,7 +7,7 @@ export default defineConfig({
     plugins: [
         react()
     ],
-    envPrefix: ['VITE_', 'SUPABASE_', 'NEXT_PUBLIC_'],
+    envPrefix: ['VITE_', 'SUPABASE_', 'NEXT_PUBLIC_', 'PAYSTACK_'],
     resolve: {
         alias: {
             '@': path.resolve(__dirname, './src')
